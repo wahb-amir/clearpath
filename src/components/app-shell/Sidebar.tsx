@@ -45,7 +45,7 @@ export default function Sidebar({ collapsed, setCollapsed }: SidebarProps) {
     <motion.aside
       initial={false}
       animate={{ width: collapsed ? "80px" : "260px" }}
-      className="hidden md:flex flex-col border-r border-slate-800 bg-slate-950 h-screen sticky top-0"
+      className="hidden md:flex shrink-0 flex-col border-r border-slate-800 bg-slate-950 h-screen sticky top-0"
       style={{
         transition: "width 0.3s ease",
       }}
@@ -74,12 +74,10 @@ export default function Sidebar({ collapsed, setCollapsed }: SidebarProps) {
           </div>
         )}
         {primaryNav.map((item, idx) => {
-          const isActive = pathname === item.href;
+          // Special case for Analyze Document matching /app
+          // We only highlight Dashboard when on /app to avoid duplicate active states
+          const isActive = pathname === item.href && item.label !== "Analyze Document";
           const Icon = item.icon;
-
-          // Special case for Analyze Document matching /app, but we don't want two active states if both are /app. 
-          // Let's just make isActive true if exact match, but actually Analyze Document could just be a button or exact match.
-          // For now, if both point to /app, they both get active. We'll leave it as is for mockup purposes.
 
           return (
             <Link key={idx} href={item.href}>
