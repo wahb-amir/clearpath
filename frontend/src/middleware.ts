@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { jwtVerify, createRemoteJWKSet } from 'jose';
 
-// Routes that are accessible without a valid session
+// Public routes (safe to access without auth)
 const PUBLIC_ROUTES = [
   '/',
   '/login',
@@ -11,19 +11,32 @@ const PUBLIC_ROUTES = [
   '/api/auth/refresh',
 ];
 
-// The backend URL to fetch the JWKS (public keys for RS256 verification)
-const BACKEND_URL = process.env.NEXT_PUBLIC_BACKEND_URL || 'http://localhost:3001';
-const JWKS = createRemoteJWKSet(new URL(`${BACKEND_URL}/auth/.well-known/jwks.json`));
+const BACKEND_URL =
+  process.env.NEXT_PUBLIC_BACKEND_URL || 'http://localhost:3001';
+
+const JWKS = createRemoteJWKSet(
+  new URL(`${BACKEND_URL}/auth/.well-known/jwks.json`)
+);
+
+// Proper route matcher (fixes "/" breaking everything)
+function isPublicRoute(pathname: string) {
+  return (
+    pathname === '/' ||
+    PUBLIC_ROUTES.filter((r) => r !== '/').some((route) =>
+      pathname.startsWith(route)
+    )
+  );
+}
 
 export async function middleware(req: NextRequest) {
   const { pathname } = req.nextUrl;
 
-  // Allow public routes without auth checks
-  if (PUBLIC_ROUTES.some((route) => pathname.startsWith(route))) {
+  // Allow public routes
+  if (isPublicRoute(pathname)) {
     return NextResponse.next();
   }
 
-  // Allow Next.js internal requests and static assets
+  // Allow Next.js internals + static assets
   if (
     pathname.startsWith('/_next') ||
     pathname.startsWith('/favicon') ||
@@ -35,23 +48,22 @@ export async function middleware(req: NextRequest) {
   const accessToken = req.cookies.get('access_token')?.value;
   const refreshToken = req.cookies.get('refresh_token')?.value;
 
-  // No tokens at all — redirect to login
+  // No auth at all → login
   if (!accessToken && !refreshToken) {
     return NextResponse.redirect(new URL('/login', req.url));
   }
 
-  // Verify the access token
+  // Validate access token
   if (accessToken) {
     try {
       await jwtVerify(accessToken, JWKS, { algorithms: ['RS256'] });
-      // Token is valid — allow the request through
       return NextResponse.next();
     } catch {
-      // Access token expired or invalid — try to refresh silently
+      // token invalid → try refresh below
     }
   }
 
-  // Access token is missing or expired — attempt a silent token refresh
+  // Refresh flow
   if (refreshToken) {
     try {
       const sid = req.cookies.get('sid')?.value;
@@ -60,23 +72,26 @@ export async function middleware(req: NextRequest) {
         return NextResponse.redirect(new URL('/login', req.url));
       }
 
-      const refreshResponse = await fetch(`${BACKEND_URL}/auth/refresh`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ sid, refreshToken }),
-      });
+      const refreshResponse = await fetch(
+        `${BACKEND_URL}/auth/refresh`,
+        {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ sid, refreshToken }),
+        }
+      );
 
       if (!refreshResponse.ok) {
-        // Refresh failed (reuse detected / session revoked) — force logout
-        const response = NextResponse.redirect(new URL('/login', req.url));
-        response.cookies.delete('access_token');
-        response.cookies.delete('refresh_token');
-        response.cookies.delete('sid');
-        return response;
+        const res = NextResponse.redirect(new URL('/login', req.url));
+        res.cookies.delete('access_token');
+        res.cookies.delete('refresh_token');
+        res.cookies.delete('sid');
+        return res;
       }
 
       const data = await refreshResponse.json();
       const isProd = process.env.NODE_ENV === 'production';
+
       const cookieOptions = {
         httpOnly: true,
         secure: isProd,
@@ -84,11 +99,23 @@ export async function middleware(req: NextRequest) {
         path: '/',
       };
 
-      // Allow the request through and set the new rotated cookies
       const response = NextResponse.next();
-      response.cookies.set('access_token', data.accessToken, { ...cookieOptions, maxAge: 15 * 60 });
-      response.cookies.set('refresh_token', data.refreshToken, { ...cookieOptions, maxAge: 7 * 24 * 60 * 60 });
-      response.cookies.set('sid', data.sid, { ...cookieOptions, maxAge: 7 * 24 * 60 * 60 });
+
+      response.cookies.set('access_token', data.accessToken, {
+        ...cookieOptions,
+        maxAge: 15 * 60,
+      });
+
+      response.cookies.set('refresh_token', data.refreshToken, {
+        ...cookieOptions,
+        maxAge: 7 * 24 * 60 * 60,
+      });
+
+      response.cookies.set('sid', data.sid, {
+        ...cookieOptions,
+        maxAge: 7 * 24 * 60 * 60,
+      });
+
       return response;
     } catch {
       return NextResponse.redirect(new URL('/login', req.url));
@@ -99,6 +126,5 @@ export async function middleware(req: NextRequest) {
 }
 
 export const config = {
-  // Apply middleware to all routes, excluding the ones we handle internally
   matcher: ['/((?!_next/static|_next/image|favicon.ico).*)'],
 };
