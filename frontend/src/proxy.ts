@@ -22,11 +22,8 @@ function isPublicApiRoute(pathname: string) {
 }
 
 function shouldSkipMiddleware(pathname: string) {
-  return (
-    pathname.startsWith('/_next') ||
-    pathname.startsWith('/favicon') ||
-    pathname.match(/\.(svg|png|jpg|jpeg|ico|css|js|map)$/)
-  );
+  return (pathname.startsWith('/_next') ||
+  pathname.startsWith('/favicon') || pathname.match(/\.(svg|png|jpg|jpeg|ico|css|js|map)$/));
 }
 
 const cookieBaseOptions = {
@@ -36,7 +33,7 @@ const cookieBaseOptions = {
   path: '/',
 };
 
-export function middleware(req: NextRequest) {
+export function proxy(req: NextRequest) {
   const { pathname } = req.nextUrl;
 
   const isPublic =
