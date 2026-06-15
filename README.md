@@ -1,4 +1,4 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://github.com/vercel/next.js/tree/canary/packages/create-next-app).
+This project, **ClearPath**, is a modern web application built with Next.js, featuring an editorial minimalism design aesthetic and advanced UI components.
 
 ## Getting Started
 
