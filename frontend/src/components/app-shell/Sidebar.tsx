@@ -2,9 +2,8 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { motion } from "framer-motion";
+import { motion, AnimatePresence } from "framer-motion";
 import {
-  LayoutDashboard,
   FileSearch,
   History,
   Bookmark,
@@ -19,7 +18,6 @@ import {
 } from "lucide-react";
 
 const primaryNav = [
-  { href: "/app", label: "Dashboard", icon: LayoutDashboard },
   { href: "/app", label: "Analyze Document", icon: FileSearch },
   { href: "/history", label: "History", icon: History },
   { href: "/saved", label: "Saved Items", icon: Bookmark },
@@ -74,21 +72,28 @@ export default function Sidebar({ collapsed, setCollapsed }: SidebarProps) {
           </div>
         )}
         {primaryNav.map((item, idx) => {
-          // Special case for Analyze Document matching /app
-          // We only highlight Dashboard when on /app to avoid duplicate active states
-          const isActive = pathname === item.href && item.label !== "Analyze Document";
+          const isActive = pathname === item.href;
           const Icon = item.icon;
 
           return (
             <Link key={idx} href={item.href}>
               <motion.div
-                whileHover={{ backgroundColor: "rgba(30, 41, 59, 0.8)" }} // slate-800
-                className={`flex items-center gap-3 px-3 py-2.5 rounded-lg cursor-pointer transition-colors ${
-                  isActive ? "bg-blue-600/10 text-blue-500" : "text-slate-400 hover:text-slate-200"
+                whileHover={{ backgroundColor: "rgba(30, 41, 59, 0.4)" }}
+                className={`relative flex items-center gap-3 px-3 py-2.5 rounded-lg cursor-pointer transition-colors group ${
+                  isActive ? "bg-slate-900 text-slate-100" : "text-slate-400 hover:text-slate-200"
                 }`}
                 title={collapsed ? item.label : undefined}
               >
-                <Icon size={20} className="flex-shrink-0" />
+                {/* Professional gliding active indicator */}
+                {isActive && (
+                  <motion.div
+                    layoutId="activeIndicator"
+                    className="absolute left-0 w-1 h-5 bg-blue-500 rounded-r-md"
+                    transition={{ type: "spring", stiffness: 380, damping: 30 }}
+                  />
+                )}
+                
+                <Icon size={20} className={`flex-shrink-0 transition-colors ${isActive ? "text-blue-500" : "group-hover:text-slate-200"}`} />
                 {!collapsed && <span className="font-medium text-sm whitespace-nowrap">{item.label}</span>}
               </motion.div>
             </Link>
@@ -108,7 +113,7 @@ export default function Sidebar({ collapsed, setCollapsed }: SidebarProps) {
           return (
             <Link key={idx} href={item.href}>
               <motion.div
-                whileHover={{ backgroundColor: "rgba(30, 41, 59, 0.8)" }}
+                whileHover={{ backgroundColor: "rgba(30, 41, 59, 0.4)" }}
                 className="flex items-center gap-3 px-3 py-2.5 rounded-lg cursor-pointer text-slate-400 hover:text-slate-200 transition-colors"
                 title={collapsed ? item.label : undefined}
               >
