@@ -1,7 +1,8 @@
+// src/routes/auth.ts
 import { Router, Request, Response } from 'express';
 import argon2 from 'argon2';
 import { z } from 'zod';
-import { User } from '../models/User';
+import { supabase } from '../lib/supabase'; 
 import { signAccessToken, generateRefreshToken, getJwks } from '../utils/jwt';
 import { createSession, refreshSession, revokeSession } from '../services/sessionService';
 import { requireAuth, AuthRequest } from '../middlewares/auth';
@@ -51,8 +52,15 @@ const clearAuthCookies = (res: Response) => {
 router.post('/register', rateLimiter, async (req: Request, res: Response) => {
   try {
     const { fullName, email, password } = registerSchema.parse(req.body);
+    const normalizedEmail = email.toLowerCase().trim();
 
-    const existingUser = await User.findOne({ email }).select('+passwordHash');
+    // Deduplicate against existing users
+    const { data: existingUser } = await supabase
+      .from('users')
+      .select('id')
+      .eq('email', normalizedEmail)
+      .maybeSingle();
+
     if (existingUser) {
       res.status(409).json({ error: 'Email already in use' });
       return;
@@ -60,41 +68,37 @@ router.post('/register', rateLimiter, async (req: Request, res: Response) => {
 
     const passwordHash = await argon2.hash(password);
 
-    const user = await User.create({
-      fullName,
-      email,
-      passwordHash,
-    });
+    // Save user inside public schema
+    const { data: newUser, error: insertError } = await supabase
+      .from('users')
+      .insert({
+        email: normalizedEmail,
+        full_name: fullName,
+        password_hash: passwordHash,
+      })
+      .select('id, full_name, email')
+      .single();
+
+    if (insertError || !newUser) {
+      res.status(500).json({ error: 'Failed to complete registration' });
+      return;
+    }
 
     const refreshToken = generateRefreshToken();
-    const deviceMeta =
-      typeof req.headers['user-agent'] === 'string'
-        ? req.headers['user-agent']
-        : 'Unknown Device';
-
+    const deviceMeta = typeof req.headers['user-agent'] === 'string' ? req.headers['user-agent'] : 'Unknown Device';
     const ip = req.ip || req.socket.remoteAddress || 'Unknown IP';
 
-    const { sid } = await createSession(
-      user._id.toString(),
-      refreshToken,
-      deviceMeta,
-      ip
-    );
+    const { sid } = await createSession(newUser.id, refreshToken, deviceMeta, ip);
+    const accessToken = signAccessToken(newUser.id, sid);
 
-    const accessToken = signAccessToken(user._id.toString(), sid);
-
-    setAuthCookies(res, {
-      accessToken,
-      refreshToken,
-      sid,
-    });
+    setAuthCookies(res, { accessToken, refreshToken, sid });
 
     res.status(201).json({
       success: true,
       user: {
-        id: user._id,
-        fullName: user.fullName,
-        email: user.email,
+        id: newUser.id,
+        fullName: newUser.full_name,
+        email: newUser.email,
       },
     });
   } catch (error) {
@@ -107,46 +111,37 @@ router.post('/login', rateLimiter, async (req: Request, res: Response) => {
   try {
     const { email, password } = loginSchema.parse(req.body);
 
-    const user = await User.findOne({ email }).select('+passwordHash');
-    if (!user) {
+    const { data: user, error } = await supabase
+      .from('users')
+      .select('id, full_name, email, password_hash')
+      .eq('email', email.toLowerCase().trim())
+      .maybeSingle();
+
+    if (error || !user) {
       res.status(401).json({ error: 'Invalid credentials' });
       return;
     }
 
-    const valid = await argon2.verify(user.passwordHash, password);
+    const valid = await argon2.verify(user.password_hash, password);
     if (!valid) {
       res.status(401).json({ error: 'Invalid credentials' });
       return;
     }
 
     const refreshToken = generateRefreshToken();
-    const deviceMeta =
-      typeof req.headers['user-agent'] === 'string'
-        ? req.headers['user-agent']
-        : 'Unknown Device';
-
+    const deviceMeta = typeof req.headers['user-agent'] === 'string' ? req.headers['user-agent'] : 'Unknown Device';
     const ip = req.ip || req.socket.remoteAddress || 'Unknown IP';
 
-    const { sid } = await createSession(
-      user._id.toString(),
-      refreshToken,
-      deviceMeta,
-      ip
-    );
+    const { sid } = await createSession(user.id, refreshToken, deviceMeta, ip);
+    const accessToken = signAccessToken(user.id, sid);
 
-    const accessToken = signAccessToken(user._id.toString(), sid);
-
-    setAuthCookies(res, {
-      accessToken,
-      refreshToken,
-      sid,
-    });
+    setAuthCookies(res, { accessToken, refreshToken, sid });
 
     res.json({
       success: true,
       user: {
-        id: user._id,
-        fullName: user.fullName,
+        id: user.id,
+        fullName: user.full_name,
         email: user.email,
       },
     });
@@ -167,12 +162,7 @@ router.post('/refresh', rateLimiter, async (req: Request, res: Response) => {
     }
 
     const newRefreshToken = generateRefreshToken();
-    const { newSid, userId } = await refreshSession(
-      sid,
-      refreshToken,
-      newRefreshToken
-    );
-
+    const { newSid, userId } = await refreshSession(sid, refreshToken, newRefreshToken);
     const accessToken = signAccessToken(userId, newSid);
 
     setAuthCookies(res, {
@@ -181,9 +171,7 @@ router.post('/refresh', rateLimiter, async (req: Request, res: Response) => {
       sid: newSid,
     });
 
-    res.json({
-      success: true,
-    });
+    res.json({ success: true });
   } catch (error: any) {
     console.error('Refresh error:', error?.message || error);
     clearAuthCookies(res);

@@ -18,6 +18,11 @@ const envSchema = z.object({
   // JWT Configuration
   ACCESS_TOKEN_EXPIRY: z.string().default('15m'),
   REFRESH_TOKEN_EXPIRY_DAYS: z.coerce.number().default(7),
+
+  // supabase config
+  SUPABASE_URL: z.string(),
+  SUPABASE_SERVICE_ROLE_KEY: z.string(),
+  SUPABASE_ANON_KEY: z.string(),
 });
 
 const _env = envSchema.safeParse(process.env);
