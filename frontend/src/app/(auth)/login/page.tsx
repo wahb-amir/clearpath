@@ -14,9 +14,19 @@ type LoginFormValues = {
   remember: boolean;
 };
 
+type LoginResponse = {
+  accessToken: string;
+  refreshToken: string;
+  sid: string;
+  expiresIn?: string;
+};
+
+const API_BASE_URL = (process.env.NEXT_PUBLIC_BACKEND_URL || "").replace(/\/$/, "");
+
 export default function LoginPage() {
   const router = useRouter();
   const [showPassword, setShowPassword] = useState(false);
+  const [submitError, setSubmitError] = useState<string | null>(null);
 
   const {
     register,
@@ -30,8 +40,43 @@ export default function LoginPage() {
     },
   });
 
-  const onSubmit = async (_data: LoginFormValues) => {
-    router.push("/app");
+  const onSubmit = async (data: LoginFormValues) => {
+    setSubmitError(null);
+
+    try {
+      if (!API_BASE_URL) {
+        throw new Error("Missing NEXT_PUBLIC_API_BASE_URL");
+      }
+
+      const response = await fetch(`${API_BASE_URL}/auth/login`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          email: data.email,
+          password: data.password,
+        }),
+        credentials: 'include'
+      });
+
+      const payload: LoginResponse & { error?: string } = await response.json().catch(() => ({}));
+
+      if (!response.ok) {
+        throw new Error(payload.error || "Invalid credentials");
+      }
+
+      const storage = data.remember ? window.localStorage : window.sessionStorage;
+
+      storage.setItem("accessToken", payload.accessToken);
+      storage.setItem("refreshToken", payload.refreshToken);
+      storage.setItem("sid", payload.sid);
+
+      router.push("/app");
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "Something went wrong";
+      setSubmitError(message);
+    }
   };
 
   return (
@@ -85,7 +130,11 @@ export default function LoginPage() {
                 className="rounded-full p-1 text-[#9399A6] transition hover:text-[#F0F3F8]"
                 aria-label={showPassword ? "Hide password" : "Show password"}
               >
-                {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                {showPassword ? (
+                  <EyeOff className="h-4 w-4" />
+                ) : (
+                  <Eye className="h-4 w-4" />
+                )}
               </button>
             }
             {...register("password", {
@@ -113,6 +162,12 @@ export default function LoginPage() {
             </Link>
           </div>
 
+          {submitError && (
+            <div className="rounded-2xl border border-red-500/20 bg-red-500/10 px-4 py-3 text-sm text-red-200">
+              {submitError}
+            </div>
+          )}
+
           <motion.button
             type="submit"
             whileHover={{ y: -1 }}
@@ -121,13 +176,18 @@ export default function LoginPage() {
             className="group mt-2 inline-flex h-14 w-full items-center justify-center gap-2 rounded-2xl bg-gradient-to-r from-[#2563EB] via-[#1d4ed8] to-[#00D4FF] px-4 text-sm font-medium text-white shadow-[0_16px_45px_rgba(37,99,235,0.28)] transition disabled:cursor-not-allowed disabled:opacity-70"
           >
             {isSubmitting ? "Signing in..." : "Sign in"}
-            {!isSubmitting && <ArrowRight className="h-4 w-4 transition group-hover:translate-x-0.5" />}
+            {!isSubmitting && (
+              <ArrowRight className="h-4 w-4 transition group-hover:translate-x-0.5" />
+            )}
           </motion.button>
         </form>
 
         <p className="mt-8 text-center text-sm text-[#9399A6]">
           Don&apos;t have an account?{" "}
-          <Link href="/register" className="font-medium text-[#00D4FF] transition hover:text-[#7deaff]">
+          <Link
+            href="/register"
+            className="font-medium text-[#00D4FF] transition hover:text-[#7deaff]"
+          >
             Create one
           </Link>
         </p>

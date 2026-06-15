@@ -78,6 +78,7 @@ export async function middleware(req: NextRequest) {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ sid, refreshToken }),
+          credentials: 'include',
         }
       );
 
