@@ -8,5 +8,8 @@
     "build:frontend": "pnpm --filter frontend build",
     "build:backend": "pnpm --filter backend build",
     "build": "pnpm run build:frontend && pnpm run build:backend"
+  },
+  "pnpm": {
+    "approvedBuilds": ["argon2"]
   }
 }

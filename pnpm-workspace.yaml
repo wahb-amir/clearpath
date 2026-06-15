@@ -3,6 +3,7 @@ packages:
   - 'backend'
 
 allowBuilds:
+  argon2: set this to true or false
   sharp: true
 ignoredBuiltDependencies:
   - sharp
