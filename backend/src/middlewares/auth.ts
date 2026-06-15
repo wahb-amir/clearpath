@@ -8,25 +8,28 @@ export interface AuthRequest extends Request {
   };
 }
 
-export const requireAuth = (req: AuthRequest, res: Response, next: NextFunction): void => {
-  const authHeader = req.headers.authorization;
+export const requireAuth = (
+  req: AuthRequest,
+  res: Response,
+  next: NextFunction
+): void => {
+  const token = req.cookies?.accessToken;
 
-  if (!authHeader || !authHeader.startsWith('Bearer ')) {
+  if (!token) {
     res.status(401).json({ error: 'Unauthorized: No token provided' });
     return;
   }
 
-  const token = authHeader.split(' ')[1];
-
   try {
     const payload = verifyAccessToken(token);
+
     req.user = {
       userId: payload.sub as string,
       sid: payload.sid as string,
     };
+
     next();
-  } catch (err) {
+  } catch {
     res.status(401).json({ error: 'Unauthorized: Invalid or expired token' });
-    return;
   }
 };

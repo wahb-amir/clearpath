@@ -6,7 +6,6 @@ import { signAccessToken, generateRefreshToken, getJwks } from '../utils/jwt';
 import { createSession, refreshSession, revokeSession } from '../services/sessionService';
 import { requireAuth, AuthRequest } from '../middlewares/auth';
 import { rateLimiter } from '../middlewares/rateLimiter';
-import { env } from '../config/env';
 
 const router = Router();
 
@@ -20,6 +19,34 @@ const registerSchema = z.object({
   email: z.string().email(),
   password: z.string().min(8),
 });
+
+const isProd = process.env.NODE_ENV === 'production';
+
+const authCookieOptions = {
+  httpOnly: true,
+  secure: isProd,
+  sameSite: isProd ? ('none' as const) : ('lax' as const),
+  path: '/',
+};
+
+const setAuthCookies = (
+  res: Response,
+  params: {
+    accessToken: string;
+    refreshToken: string;
+    sid: string;
+  }
+) => {
+  res.cookie('accessToken', params.accessToken, authCookieOptions);
+  res.cookie('refreshToken', params.refreshToken, authCookieOptions);
+  res.cookie('sid', params.sid, authCookieOptions);
+};
+
+const clearAuthCookies = (res: Response) => {
+  res.clearCookie('accessToken', { ...authCookieOptions });
+  res.clearCookie('refreshToken', { ...authCookieOptions });
+  res.clearCookie('sid', { ...authCookieOptions });
+};
 
 router.post('/register', rateLimiter, async (req: Request, res: Response) => {
   try {
@@ -56,11 +83,19 @@ router.post('/register', rateLimiter, async (req: Request, res: Response) => {
 
     const accessToken = signAccessToken(user._id.toString(), sid);
 
-    res.status(201).json({
+    setAuthCookies(res, {
       accessToken,
       refreshToken,
       sid,
-      expiresIn: env.ACCESS_TOKEN_EXPIRY,
+    });
+
+    res.status(201).json({
+      success: true,
+      user: {
+        id: user._id,
+        fullName: user.fullName,
+        email: user.email,
+      },
     });
   } catch (error) {
     console.error('Register error:', error);
@@ -101,11 +136,19 @@ router.post('/login', rateLimiter, async (req: Request, res: Response) => {
 
     const accessToken = signAccessToken(user._id.toString(), sid);
 
-    res.json({
+    setAuthCookies(res, {
       accessToken,
       refreshToken,
       sid,
-      expiresIn: env.ACCESS_TOKEN_EXPIRY,
+    });
+
+    res.json({
+      success: true,
+      user: {
+        id: user._id,
+        fullName: user.fullName,
+        email: user.email,
+      },
     });
   } catch (error) {
     console.error('Login error:', error);
@@ -113,14 +156,15 @@ router.post('/login', rateLimiter, async (req: Request, res: Response) => {
   }
 });
 
-const refreshSchema = z.object({
-  sid: z.string().min(1),
-  refreshToken: z.string().min(1),
-});
-
 router.post('/refresh', rateLimiter, async (req: Request, res: Response) => {
   try {
-    const { sid, refreshToken } = refreshSchema.parse(req.body);
+    const sid = req.cookies?.sid;
+    const refreshToken = req.cookies?.refreshToken;
+
+    if (!sid || !refreshToken) {
+      res.status(401).json({ error: 'Unauthorized' });
+      return;
+    }
 
     const newRefreshToken = generateRefreshToken();
     const { newSid, userId } = await refreshSession(
@@ -131,13 +175,18 @@ router.post('/refresh', rateLimiter, async (req: Request, res: Response) => {
 
     const accessToken = signAccessToken(userId, newSid);
 
-    res.json({
+    setAuthCookies(res, {
       accessToken,
       refreshToken: newRefreshToken,
       sid: newSid,
     });
+
+    res.json({
+      success: true,
+    });
   } catch (error: any) {
     console.error('Refresh error:', error?.message || error);
+    clearAuthCookies(res);
     res.status(401).json({ error: 'Unauthorized or token reused' });
   }
 });
@@ -145,9 +194,12 @@ router.post('/refresh', rateLimiter, async (req: Request, res: Response) => {
 router.post('/logout', requireAuth, async (req: AuthRequest, res: Response) => {
   try {
     const sid = req.user?.sid;
+
     if (sid) {
       await revokeSession(sid);
     }
+
+    clearAuthCookies(res);
     res.json({ success: true });
   } catch (error) {
     console.error('Logout error:', error);
