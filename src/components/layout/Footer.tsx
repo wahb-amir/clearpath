@@ -146,9 +146,7 @@ export default function Footer() {
                 border: "1px solid hsla(221, 83%, 53%, 0.12)",
               }}
             >
-              <div style={{ color: "hsl(191, 100%, 50%)", fontWeight: 600, fontSize: "0.8rem", marginBottom: "0.375rem" }}>
-                🏆 USAII Hackathon 2024
-              </div>
+             
               <p style={{ color: "hsl(220, 8%, 50%)", fontSize: "0.8rem", lineHeight: 1.6 }}>
                 Built for the AI for Social Good track. Prototype with mock data only.
               </p>

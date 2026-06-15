@@ -90,7 +90,7 @@ export default function HeroSection() {
               style={{ width: "6px", height: "6px", borderRadius: "50%", background: "hsl(221, 83%, 53%)" }}
             />
             <span style={{ color: "hsl(191, 100%, 80%)", fontSize: "0.78rem", fontWeight: 600 }}>
-              AI-Powered Document Clarity · USAII Hackathon 2024
+              AI-Powered Document Clarity 
             </span>
           </motion.div>
 

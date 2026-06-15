@@ -3,7 +3,6 @@ import { useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import UploadPanel from "@/components/app/UploadPanel";
 import ResultsPanel from "@/components/app/ResultsPanel";
-import DemoBanner from "@/components/ui/DemoBanner";
 import { SampleDocument } from "@/lib/types";
 import { Zap } from "lucide-react";
 
@@ -23,7 +22,6 @@ export default function AppPage() {
 
   return (
     <>
-      <DemoBanner />
       <div
         style={{
           minHeight: "100vh",
