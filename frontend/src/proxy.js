@@ -121,7 +121,7 @@ export async function refreshAccessToken() {
 
 export async function proxy(req) {
   const { pathname } = req.nextUrl;
-
+  const cookiesStore = await cookies()
   if (
     shouldSkipMiddleware(pathname) ||
     isPublicRoute(pathname) ||
@@ -130,9 +130,10 @@ export async function proxy(req) {
     return NextResponse.next();
   }
 
-  const accessToken = req.cookies.get('accessToken')?.value;
-  const refreshToken = req.cookies.get('refreshToken')?.value;
-  const sid = req.cookies.get('sid')?.value;
+  const accessToken = cookiesStore.get('accessToken')?.value;
+  const refreshToken = cookiesStore.get('refreshToken')?.value;
+  const sid = cookiesStore.get('sid')?.value;
+
 
   if (!accessToken && !refreshToken) {
     return redirectToLogin(req);
@@ -143,17 +144,11 @@ export async function proxy(req) {
   }
 
   if (!refreshToken) {
-    return redirectToLogin(req);
-  }
-
-  const newAccessToken = await refreshAccessToken(refreshToken, sid);
-
-  if (!newAccessToken || !(await isValidJwt(newAccessToken))) {
+    
     return redirectToLogin(req);
   }
 
   const response = NextResponse.next();
-  response.cookies.set('accessToken', newAccessToken, cookieBaseOptions);
   return response;
 }
 
