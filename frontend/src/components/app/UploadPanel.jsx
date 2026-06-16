@@ -40,27 +40,92 @@ const ScanAnimation = dynamic(() => import("@/components/3d/ScanAnimation"), {
 });
 
 async function uploadDocumentFile(file) {
-  const formData = new FormData();
-  formData.append("file", file);
+  const baseUrl =
+    process.env.NEXT_PUBLIC_BACKEND_URL?.replace(/\/$/, "") || "";
 
-  const response = await fetch("/api/documents/upload", {
+  // 1) Ask backend to create DB row + signed upload URL
+  const signResponse = await fetch(`${baseUrl}/uploads/sign`, {
     method: "POST",
-    body: formData,
+    headers: {
+      "Content-Type": "application/json"
+    },
+    body: JSON.stringify({
+      fileName: file.name,
+      fileSize: file.size,
+      mimeType: file.type,
+    }),
+    credentials: "include", 
   });
 
-  if (!response.ok) {
-    let message = "Upload failed";
+  if (!signResponse.ok) {
+    let message = "Upload signing failed";
     try {
-      const data = await response.json();
-      message = data?.error || data?.message || message;
+      const data = await signResponse.json();
+      message = data?.message || data?.error || message;
     } catch {
-      const text = await response.text();
+      const text = await signResponse.text();
       if (text) message = text;
     }
     throw new Error(message);
   }
 
-  return response.json();
+  const { documentId, uploadSessionId, path, uploadToken } =
+    await signResponse.json();
+
+
+  const { error: uploadError } = await supabase.storage
+    .from("documents")
+    .uploadToSignedUrl(path, uploadToken, file, {
+      contentType: file.type,
+    });
+
+  if (uploadError) {
+    // Tell backend this upload attempt failed
+    await fetch(`${baseUrl}/uploads/fail`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json"
+      },
+      body: JSON.stringify({
+        documentId,
+        uploadSessionId,
+        reason: uploadError.message,
+      }),
+      credentials: "include",
+    });
+
+    throw uploadError;
+  }
+
+   const { supabaseBrowser:supabase } = await import("@/lib/supabase/browser-client");
+
+
+  // 3) Tell backend to verify and mark uploaded
+  const completeResponse = await fetch(`${baseUrl}/uploads/complete`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json"
+    },
+    body: JSON.stringify({
+      documentId,
+      uploadSessionId,
+    }),
+    credentials: "include",
+  });
+
+  if (!completeResponse.ok) {
+    let message = "Upload completion failed";
+    try {
+      const data = await completeResponse.json();
+      message = data?.message || data?.error || message;
+    } catch {
+      const text = await completeResponse.text();
+      if (text) message = text;
+    }
+    throw new Error(message);
+  }
+
+  return await completeResponse.json();
 }
 
 export default function DocumentIntelligencePanel({ onAnalyze, analyzing = false }) {

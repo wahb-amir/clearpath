@@ -6,7 +6,7 @@ import { supabase } from '../lib/supabase';
 import { signAccessToken, generateRefreshToken, getJwks } from '../utils/jwt';
 import { createSession, refreshSession, revokeSession } from '../services/sessionService';
 import { requireAuth, AuthRequest } from '../middlewares/auth';
-import { rateLimiter } from '../middlewares/rateLimiter';
+import { rateLimiter,refreshRateLimiter } from '../middlewares/rateLimiter';
 
 const router = Router();
 
@@ -151,11 +151,10 @@ router.post('/login', rateLimiter, async (req: Request, res: Response) => {
   }
 });
 
-router.post('/refresh', rateLimiter, async (req: Request, res: Response) => {
+router.post('/refresh', refreshRateLimiter, async (req: Request, res: Response) => {
   try {
     const sid = req.cookies?.sid;
     const refreshToken = req.cookies?.refreshToken;
-
     if (!sid || !refreshToken) {
       res.status(401).json({ error: 'Unauthorized' });
       return;
