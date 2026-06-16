@@ -95,7 +95,7 @@ export class OutboxDispatcher {
       // Lock and fetch a batch of pending rows
       const rows = await withTransaction<OutboxRow[]>(async (client) => {
         const result = await client.query<OutboxRow>(
-          `SELECT * FROM document_pipeline_outbox
+          `SELECT * FROM public.document_pipeline_outbox
              WHERE status = 'pending' AND retry_count < $1
              ORDER BY created_at ASC
              LIMIT 50
@@ -139,7 +139,7 @@ export class OutboxDispatcher {
         await enqueueAnalysisJob(jobId, jobData);
 
         await pgPool.query(
-          `UPDATE document_pipeline_outbox
+          `UPDATE public.document_pipeline_outbox
              SET status = 'sent', processed_at = now()
            WHERE id = $1`,
           [row.id],
@@ -149,7 +149,7 @@ export class OutboxDispatcher {
       default:
         // Unknown event type - mark failed immediately, don't retry forever
         await pgPool.query(
-          `UPDATE document_pipeline_outbox
+          `UPDATE public.document_pipeline_outbox
              SET status = 'failed', processed_at = now()
            WHERE id = $1`,
           [row.id],
@@ -168,7 +168,7 @@ export class OutboxDispatcher {
     );
 
     await pgPool.query(
-      `UPDATE document_pipeline_outbox
+      `UPDATE public.document_pipeline_outbox
          SET retry_count = $1, status = $2, processed_at = CASE WHEN $2 = 'failed' THEN now() ELSE processed_at END
        WHERE id = $3`,
       [nextRetryCount, newStatus, row.id],

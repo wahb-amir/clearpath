@@ -7,7 +7,7 @@ import authRoutes from './routes/auth';
 import { supabase } from './lib/supabase';
 import documentAnalysisRoutes from './routes/documentAnalysis';
 import { errorHandler } from './middlewares/errorHandler';
-import { outboxDispatcher } from './outbox/dispatcher';
+import { outboxDispatcher } from './workers/dispatcher';
 
 const app = express();
 const port = env.PORT || 5000;

@@ -1,5 +1,5 @@
 import type { Request, Response, NextFunction } from 'express';
-import { outboxDispatcher } from '../outbox/dispatcher';
+import { outboxDispatcher } from '../workers/dispatcher';
 
 /**
  * POST /internal/outbox/dispatch
