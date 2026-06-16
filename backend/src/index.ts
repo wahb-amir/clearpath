@@ -5,9 +5,11 @@ import morgan from 'morgan';
 import { env } from './config/env';
 import authRoutes from './routes/auth';
 import { supabase } from './lib/supabase';
-
+import documentAnalysisRoutes from './routes/documentAnalysis';
+import { errorHandler } from './middlewares/errorHandler';
+import { outboxDispatcher } from './workers/dispatcher';
+import uploadRoutes from './routes/upload';
 const app = express();
-const port = env.PORT || 5000;
 
 // Trust proxy is essential when behind Next.js or a load balancer
 // so that req.ip gets the correct client IP instead of the proxy's IP
@@ -53,11 +55,29 @@ verifyDatabaseConnection();
 // Routes
 app.use('/auth', authRoutes);
 
+//document analysis + SSE + internal outbox endpoints
+app.use('/', documentAnalysisRoutes);
+app.use('/upload', uploadRoutes);
+// global error handler - must be last middleware
+app.use(errorHandler);
+
 app.get('/api/health', (req, res) => {
   console.log('GET /api/health');
   res.json({ status: 'OK', message: 'ClearPath Backend is running' });
 });
 
-app.listen(port, () => {
-  console.log(`[server]: Server is running at http://localhost:${port}`);
+const PORT = env.PORT ?? 3000;
+
+app.listen(PORT, async () => {
+  console.log(`[server] listening on port ${PORT}`);
+
+
+  await outboxDispatcher.start();
+  console.log('[server] outbox dispatcher started');
+});
+
+//  Graceful shutdown
+process.on('SIGTERM', async () => {
+  await outboxDispatcher.stop();
+  process.exit(0);
 });
