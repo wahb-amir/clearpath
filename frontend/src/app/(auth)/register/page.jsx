@@ -60,7 +60,7 @@ export default function RegisterPage() {
 
   return (
     <div
-      className="min-h-screen flex items-center justify-center px-4 py-10 font-sans"
+      className="min-h-screen flex items-center justify-center px-4 rounded-[100px] py-10 font-sans"
       style={{
         backgroundColor: "#0a0d14",
         backgroundImage:
