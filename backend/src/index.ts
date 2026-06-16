@@ -57,7 +57,7 @@ app.use('/auth', authRoutes);
 
 //document analysis + SSE + internal outbox endpoints
 app.use('/', documentAnalysisRoutes);
-app.use('/upload', uploadRoutes);
+app.use('/uploads', uploadRoutes);
 // global error handler - must be last middleware
 app.use(errorHandler);
 
