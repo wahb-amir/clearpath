@@ -31,8 +31,8 @@ const envSchema = z.object({
 
   // ─── Supabase ──────────────────────────────────────────
   SUPABASE_URL: z.string().url(),
-  SUPABASE_SERVICE_ROLE_KEY: z.string().min(1),
-  SUPABASE_ANON_KEY: z.string().min(1),
+  SUPABASE_SECRET_KEY: z.string().min(1),
+  SUPABASE_PUBLISHABLE_KEY: z.string().min(1),
 
   // ─── Analysis Pipeline ─────────────────────────────────
   ANALYSIS_QUEUE_NAME: z.string().default('document-analysis'),
