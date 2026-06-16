@@ -8,9 +8,8 @@ import { supabase } from './lib/supabase';
 import documentAnalysisRoutes from './routes/documentAnalysis';
 import { errorHandler } from './middlewares/errorHandler';
 import { outboxDispatcher } from './workers/dispatcher';
-
+import uploadRoutes from './routes/upload';
 const app = express();
-const port = env.PORT || 5000;
 
 // Trust proxy is essential when behind Next.js or a load balancer
 // so that req.ip gets the correct client IP instead of the proxy's IP
@@ -58,7 +57,7 @@ app.use('/auth', authRoutes);
 
 //document analysis + SSE + internal outbox endpoints
 app.use('/', documentAnalysisRoutes);
-
+app.use('/upload', uploadRoutes);
 // global error handler - must be last middleware
 app.use(errorHandler);
 
