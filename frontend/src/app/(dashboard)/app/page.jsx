@@ -153,7 +153,7 @@ export default function AppPage() {
         </div>
 
         <style jsx>{`
-          @media (max-width: 768px) {
+          @media (max-width: 1024px) {
             .app-grid {
               grid-template-columns: 1fr !important;
             }
