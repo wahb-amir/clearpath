@@ -31,7 +31,16 @@ export const signAccessToken = (userId: string, sessionId: string) => {
 };
 
 export const verifyAccessToken = (token: string) => {
-  return jwt.verify(token, publicKey, { algorithms: ['RS256'] }) as jwt.JwtPayload;
+  try{
+    const result = jwt.verify(token, publicKey, { algorithms: ['RS256'] }) as jwt.JwtPayload;
+  
+    return result;
+
+  }
+  catch(err){
+    console.error('Token verification failed:', err);
+    throw new Error('Invalid or expired token');
+  }
 };
 
 export const generateRefreshToken = () => {

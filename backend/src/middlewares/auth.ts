@@ -14,7 +14,6 @@ export const requireAuth = (
   next: NextFunction
 ): void => {
   const token = req.cookies?.accessToken;
-
   if (!token) {
     res.status(401).json({ error: 'Unauthorized: No token provided' });
     return;
@@ -22,7 +21,6 @@ export const requireAuth = (
 
   try {
     const payload = verifyAccessToken(token);
-
     req.user = {
       userId: payload.sub as string,
       sid: payload.sid as string,
