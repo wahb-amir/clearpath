@@ -21,12 +21,12 @@ const KID = 'key-1'; // Key ID for rotation
 export const signAccessToken = (userId: string, sessionId: string) => {
   return jwt.sign(
     { sub: userId, sid: sessionId },
-    privateKey,
+    privateKey as jwt.Secret,
     {
       algorithm: 'RS256',
       expiresIn: env.ACCESS_TOKEN_EXPIRY,
       keyid: KID,
-    }
+    } as jwt.SignOptions
   );
 };
 

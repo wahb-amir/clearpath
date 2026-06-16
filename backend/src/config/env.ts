@@ -6,23 +6,58 @@ import path from 'path';
 dotenv.config({ path: path.resolve(__dirname, '../../.env') });
 
 const envSchema = z.object({
+  // ─── Server ─────────────────────────────────────────────
   PORT: z.string().default('3001'),
   NODE_ENV: z.enum(['development', 'production', 'test']).default('development'),
-  
-  // Redis for sessions
-  REDIS_URL: z.string().default('redis://localhost:6379'),
-  
-  // MongoDB for users
+
+  // ─── MongoDB ────────────────────────────────────────────
   MONGODB_URI: z.string().default('mongodb://localhost:27017/clearpath'),
 
-  // JWT Configuration
+  // ─── Redis URL (legacy/app usage) ──────────────────────
+  REDIS_URL: z.string().default('redis://localhost:6379'),
+
+  // ─── Redis Detailed Config ─────────────────────────────
+  REDIS_HOST: z.string().default('127.0.0.1'),
+  REDIS_PORT: z.coerce.number().default(6379),
+  REDIS_PASSWORD: z.string().optional(),
+  REDIS_DB: z.coerce.number().default(0),
+
+  // ─── PostgreSQL ────────────────────────────────────────
+  DATABASE_URL: z.string().url(),
+
+  // ─── JWT Configuration ─────────────────────────────────
   ACCESS_TOKEN_EXPIRY: z.string().default('15m'),
   REFRESH_TOKEN_EXPIRY_DAYS: z.coerce.number().default(7),
 
-  // supabase config
-  SUPABASE_URL: z.string(),
-  SUPABASE_SERVICE_ROLE_KEY: z.string(),
-  SUPABASE_ANON_KEY: z.string(),
+  // ─── Supabase ──────────────────────────────────────────
+  SUPABASE_URL: z.string().url(),
+  SUPABASE_SECRET_KEY: z.string().min(1),
+  SUPABASE_PUBLISHABLE_KEY: z.string().min(1),
+
+  // ─── Analysis Pipeline ─────────────────────────────────
+  ANALYSIS_QUEUE_NAME: z.string().default('document-analysis'),
+  ANALYSIS_JOB_ATTEMPTS: z.coerce.number().default(5),
+  ANALYSIS_VERSION: z.string().default('v1'),
+
+  // ─── Worker ────────────────────────────────────────────
+  WORKER_ID: z.string().default('worker-1'),
+
+  // ─── OCR / Tesseract ───────────────────────────────────
+  TESSERACT_LANGS: z.string().default('eng+urd'),
+  OCR_MIN_TEXT_CONFIDENCE: z.coerce.number().min(0).max(1).default(0.6),
+
+  // ─── Transformers Cache ────────────────────────────────
+  TRANSFORMERS_CACHE: z.string().default('/var/cache/transformers'),
+
+  // ─── Outbox Dispatcher ─────────────────────────────────
+  OUTBOX_POLL_INTERVAL_MS: z.coerce.number().default(2000),
+  OUTBOX_MAX_RETRIES: z.coerce.number().default(10),
+
+  // ─── SSE ───────────────────────────────────────────────
+  SSE_HEARTBEAT_INTERVAL_MS: z.coerce.number().default(15000),
+
+  // ─── Internal APIs ─────────────────────────────────────
+  INTERNAL_API_KEY: z.string().min(16),
 });
 
 const _env = envSchema.safeParse(process.env);
