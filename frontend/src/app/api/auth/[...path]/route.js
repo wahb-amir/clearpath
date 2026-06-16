@@ -4,7 +4,7 @@ import { setTokens, clearTokens, getAccessToken, getRefreshToken, getSid } from 
 // In production, this would be an environment variable.
 const BACKEND_URL = process.env.NEXT_PUBLIC_BACKEND_URL || 'http://localhost:3001';
 
-export async function POST(req: NextRequest, { params }: { params: Promise<{ path: string[] }> }) {
+export async function POST(req, { params }) {
   const resolvedParams = await params;
   const path = resolvedParams.path.join('/');
   
@@ -19,7 +19,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ pat
   return NextResponse.json({ error: 'Not Found' }, { status: 404 });
 }
 
-async function handleLogin(req: NextRequest) {
+async function handleLogin(req) {
   try {
     const body = await req.json();
 
@@ -45,7 +45,7 @@ async function handleLogin(req: NextRequest) {
   }
 }
 
-async function handleRefresh(req: NextRequest) {
+async function handleRefresh(req) {
   try {
     // Note: To be extremely secure, the BFF should know the `sid`.
     // In our backend design, `/auth/refresh` requires `sid` and `refreshToken`.
@@ -99,7 +99,7 @@ async function handleRefresh(req: NextRequest) {
   }
 }
 
-async function handleLogout(req: NextRequest) {
+async function handleLogout(req) {
   try {
     const accessToken = await getAccessToken();
 

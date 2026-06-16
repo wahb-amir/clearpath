@@ -11,17 +11,17 @@ const JWKS = createRemoteJWKSet(
   new URL(`${BACKEND_URL}/auth/.well-known/jwks.json`)
 );
 
-function isPublicRoute(pathname: string) {
+function isPublicRoute(pathname) {
   if (pathname === '/') return true;
 
   return PUBLIC_ROUTES.slice(1).some((route) => pathname === route);
 }
 
-function isPublicApiRoute(pathname: string) {
+function isPublicApiRoute(pathname) {
   return PUBLIC_API_PREFIXES.some((prefix) => pathname.startsWith(prefix));
 }
 
-function shouldSkipMiddleware(pathname: string) {
+function shouldSkipMiddleware(pathname) {
   return (pathname.startsWith('/_next') ||
   pathname.startsWith('/favicon') || pathname.match(/\.(svg|png|jpg|jpeg|ico|css|js|map)$/));
 }
@@ -29,11 +29,11 @@ function shouldSkipMiddleware(pathname: string) {
 const cookieBaseOptions = {
   httpOnly: true,
   secure: process.env.NODE_ENV === 'production',
-  sameSite: 'strict' as const,
+  sameSite: 'strict',
   path: '/',
 };
 
-export function proxy(req: NextRequest) {
+export function proxy(req) {
   const { pathname } = req.nextUrl;
 
   const isPublic =

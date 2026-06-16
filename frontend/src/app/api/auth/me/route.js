@@ -8,7 +8,7 @@ const BACKEND_URL = process.env.NEXT_PUBLIC_BACKEND_URL || 'http://localhost:300
  * Forwards request to Express /auth/me, injecting the access token from cookies.
  * The browser never sees the raw token.
  */
-export async function GET(req: NextRequest) {
+export async function GET(req) {
   const accessToken = await getAccessToken();
   if (!accessToken) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });

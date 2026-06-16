@@ -16,8 +16,8 @@ export async function getSession() {
     });
 
     return {
-      userId: payload.sub as string,
-      sid: payload.sid as string,
+      userId: payload.sub ,
+      sid: payload.sid,
     };
   } catch (error) {
     // Token is invalid or expired

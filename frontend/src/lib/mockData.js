@@ -1,6 +1,4 @@
-import { SampleDocument } from "./types";
-
-export const sampleDocuments: SampleDocument[] = [
+export const sampleDocuments = [
   {
     id: "attendance-warning",
     label: "School Attendance Warning",

@@ -3,10 +3,6 @@
 import { useState, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 
-interface AuthState {
-  loading: boolean;
-  error: string | null;
-}
 
 /**
  * Client-side hook for auth actions.
@@ -15,12 +11,12 @@ interface AuthState {
  */
 export function useAuth() {
   const router = useRouter();
-  const [state, setState] = useState<AuthState>({ loading: false, error: null });
+  const [state, setState] = useState({ loading: false, error: null });
 
-  const setLoading = (loading: boolean) => setState((s) => ({ ...s, loading }));
-  const setError = (error: string | null) => setState((s) => ({ ...s, error }));
+  const setLoading = (loading) => setState((s) => ({ ...s, loading }));
+  const setError = (error) => setState((s) => ({ ...s, error }));
 
-  const login = useCallback(async (email: string, password: string) => {
+  const login = useCallback(async (email, password) => {
     setLoading(true);
     setError(null);
     try {

@@ -7,7 +7,7 @@ const SID_NAME = 'sid';
 // In production, require HTTPS for cookies
 const isProd = process.env.NODE_ENV === 'production';
 
-export async function setTokens(accessToken: string, refreshToken: string, sid?: string, maxAge?: number) {
+export async function setTokens(accessToken, refreshToken, sid, maxAge) {
   const cookieStore = await cookies();
   
   cookieStore.set(ACCESS_TOKEN_NAME, accessToken, {
