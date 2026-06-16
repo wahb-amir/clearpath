@@ -23,7 +23,7 @@ export async function streamDocumentEventsController(
       ? Number.parseInt(headerLastEventId, 10)
       : queryLastEventId ?? null;
 
-    const userId = req.user!.id;
+    const userId = req.user!.userId;
 
     await streamDocumentEvents({
       res,

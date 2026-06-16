@@ -15,7 +15,8 @@
     "worker": "tsx src/workers/run.ts",
     "dispatcher": "tsx src/outbox/run.ts",
     "dev:all": "concurrently -n API,WORKER,DISPATCHER -c blue,green,yellow \"npm:dev\" \"npm:worker\" \"npm:dispatcher\"",
-    "start:all": "concurrently -n API,WORKER,DISPATCHER -c blue,green,yellow \"npm:start\" \"npm:worker\" \"npm:dispatcher\""
+    "start:all": "concurrently -n API,WORKER,DISPATCHER -c blue,green,yellow \"npm:start\" \"npm:worker\" \"npm:dispatcher\"",
+    "test:pipeline": "tsx scripts/test-pipeline.ts"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.108.1",
