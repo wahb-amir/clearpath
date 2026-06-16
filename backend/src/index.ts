@@ -7,7 +7,6 @@ import authRoutes from './routes/auth';
 import { supabase } from './lib/supabase';
 import documentAnalysisRoutes from './routes/documentAnalysis';
 import { errorHandler } from './middlewares/errorHandler';
-import { outboxDispatcher } from './workers/dispatcher';
 import uploadRoutes from './routes/upload';
 const app = express();
 
@@ -58,26 +57,16 @@ app.use('/auth', authRoutes);
 //document analysis + SSE + internal outbox endpoints
 app.use('/', documentAnalysisRoutes);
 app.use('/uploads', uploadRoutes);
-// global error handler - must be last middleware
-app.use(errorHandler);
-
 app.get('/api/health', (req, res) => {
   console.log('GET /api/health');
   res.json({ status: 'OK', message: 'ClearPath Backend is running' });
 });
+// global error handler - must be last middleware
+app.use(errorHandler);
+
 
 const PORT = env.PORT ?? 3000;
 
-app.listen(PORT, async () => {
+app.listen(PORT, () => {
   console.log(`[server] listening on port ${PORT}`);
-
-
-  await outboxDispatcher.start();
-  console.log('[server] outbox dispatcher started');
-});
-
-//  Graceful shutdown
-process.on('SIGTERM', async () => {
-  await outboxDispatcher.stop();
-  process.exit(0);
 });

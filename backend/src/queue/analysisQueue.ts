@@ -28,15 +28,17 @@ export const analysisQueue = new Queue<AnalysisJobData, 'analyze-document'>(env.
 
 /**
  * Enqueue a job with a deterministic jobId derived from the analysis
- * request id. BullMQ refuses to create a second job with the same
- * jobId while one exists (active/waiting/delayed), giving us a second
- * layer of duplicate-job protection beyond the outbox/DB.
+ * request id. Sanitizes the jobId to ensure no colons (':') are present,
+ * as BullMQ uses colons as Redis key separators.
  */
 export async function enqueueAnalysisJob(
   jobId: string,
   data: AnalysisJobData,
 ): Promise<void> {
+  // Sanitize the jobId: replace all colons with hyphens
+  const safeJobId = jobId.replace(/:/g, '-');
+
   await analysisQueue.add('analyze-document', data, {
-    jobId,
+    jobId: safeJobId,
   });
 }

@@ -1,12 +1,12 @@
-import { Client as PgClient } from 'pg';
-import { pgPool, withTransaction } from '../db/pool';
-import { env } from '../config/env';
-import { enqueueAnalysisJob } from '../queue/analysisQueue';
-import { jobIdForAnalysisRequest } from '../utils/idempotency';
+import { Client as PgClient } from "pg";
+import { pgPool, withTransaction } from "../db/pool";
+import { env } from "../config/env";
+import { enqueueAnalysisJob } from "../queue/analysisQueue";
+import { jobIdForAnalysisRequest } from "../utils/idempotency";
 import type {
   AnalysisJobData,
   AnalysisRequestedOutboxPayload,
-} from '../types/dtos';
+} from "../types/dtos";
 
 interface OutboxRow {
   id: number;
@@ -14,7 +14,7 @@ interface OutboxRow {
   aggregate_type: string;
   aggregate_id: string;
   payload: AnalysisRequestedOutboxPayload;
-  status: 'pending' | 'sent' | 'failed';
+  status: "pending" | "sent" | "failed";
   retry_count: number;
 }
 
@@ -53,20 +53,23 @@ export class OutboxDispatcher {
     // LISTEN/NOTIFY for low-latency dispatch
     this.listenClient = new PgClient({ connectionString: env.DATABASE_URL });
     await this.listenClient.connect();
-    await this.listenClient.query('LISTEN outbox_new_event');
-    this.listenClient.on('notification', () => {
+    await this.listenClient.query("LISTEN outbox_new_event");
+    this.listenClient.on("notification", () => {
       void this.dispatchPending();
     });
-    this.listenClient.on('error', (err) => {
+    this.listenClient.on("error", (err) => {
       // eslint-disable-next-line no-console
-      console.error('[outbox] LISTEN connection error, relying on polling', err);
+      console.error(
+        "[outbox] LISTEN connection error, relying on polling",
+        err,
+      );
     });
 
     // Initial sweep on startup (catches anything queued while we were down)
     void this.dispatchPending();
 
     // eslint-disable-next-line no-console
-    console.log('[outbox] dispatcher started');
+    console.log("[outbox] dispatcher started");
   }
 
   async stop(): Promise<void> {
@@ -123,7 +126,7 @@ export class OutboxDispatcher {
 
   private async dispatchRow(row: OutboxRow): Promise<void> {
     switch (row.event_type) {
-      case 'analysis.requested': {
+      case "analysis.requested": {
         const payload = row.payload;
         const jobData: AnalysisJobData = {
           documentId: payload.documentId,
@@ -133,10 +136,10 @@ export class OutboxDispatcher {
           mimeType: payload.mimeType,
           analysisVersion: payload.analysisVersion,
         };
-        const jobId = jobIdForAnalysisRequest(payload.analysisRequestId);
+        const rawJobId = jobIdForAnalysisRequest(payload.analysisRequestId);
+        const sanitizedJobId = rawJobId.replace(/:/g, "-"); 
 
-        // Enqueue FIRST - only mark 'sent' if this succeeds
-        await enqueueAnalysisJob(jobId, jobData);
+        await enqueueAnalysisJob(sanitizedJobId, jobData);
 
         await pgPool.query(
           `UPDATE public.document_pipeline_outbox
@@ -159,17 +162,20 @@ export class OutboxDispatcher {
 
   private async markRetry(row: OutboxRow, err: unknown): Promise<void> {
     const nextRetryCount = row.retry_count + 1;
-    const newStatus = nextRetryCount >= env.OUTBOX_MAX_RETRIES ? 'failed' : 'pending';
+    const newStatus =
+      nextRetryCount >= env.OUTBOX_MAX_RETRIES ? "failed" : "pending";
 
-    // eslint-disable-next-line no-console
     console.error(
       `[outbox] dispatch failed for outbox row ${row.id} (attempt ${nextRetryCount}):`,
       err,
     );
 
+    // FIX: Explicitly cast $2 to your enum type
     await pgPool.query(
       `UPDATE public.document_pipeline_outbox
-         SET retry_count = $1, status = $2, processed_at = CASE WHEN $2 = 'failed' THEN now() ELSE processed_at END
+         SET retry_count = $1, 
+             status = $2::outbox_status, 
+             processed_at = CASE WHEN $2::outbox_status = 'failed'::outbox_status THEN now() ELSE processed_at END
        WHERE id = $3`,
       [nextRetryCount, newStatus, row.id],
     );

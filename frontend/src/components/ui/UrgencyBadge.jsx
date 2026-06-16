@@ -34,9 +34,12 @@ export default function UrgencyBadge({ level, size = "md", showIcon = true }) {
     lg: { padding: "0.45rem 1rem", fontSize: "0.875rem", gap: "0.5rem", iconSize: 14 },
   };
 
-  const c = config[level];
-  const s = sizeConfig[size];
-  const Icon = c.icon;
+  const c = config[level] || config.low; 
+  
+  const s = sizeConfig[size] || sizeConfig.md;
+  
+
+  const Icon = c?.icon || CheckCircle;
 
   return (
     <motion.div

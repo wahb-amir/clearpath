@@ -40,9 +40,10 @@ const ScanAnimation = dynamic(() => import("@/components/3d/ScanAnimation"), {
 });
 
 async function uploadDocumentFile(file) {
-  const baseUrl =
-    process.env.NEXT_PUBLIC_BACKEND_URL?.replace(/\/$/, "") || "";
+  const baseUrl = process.env.NEXT_PUBLIC_BACKEND_URL?.replace(/\/$/, "") || "";
 
+  console.log("[UPLOAD FLOW] Step 1: Requesting signed URL from backend...");
+  
   // 1) Ask backend to create DB row + signed upload URL
   const signResponse = await fetch(`${baseUrl}/uploads/sign`, {
     method: "POST",
@@ -69,17 +70,23 @@ async function uploadDocumentFile(file) {
     throw new Error(message);
   }
 
-  const { documentId, uploadSessionId, path, uploadToken } =
-    await signResponse.json();
+  const { documentId, uploadSessionId, path, uploadToken } = await signResponse.json();
 
+  console.log("[UPLOAD FLOW] Step 2: Uploading file directly to Supabase Storage...");
 
+  // ✅ FIX: Import Supabase BEFORE attempting to use it
+  const { supabaseBrowser: supabase } = await import("@/lib/supabase/browser-client");
+
+  // 2) Upload file bytes directly to Storage bucket using the token
   const { error: uploadError } = await supabase.storage
     .from("documents")
     .uploadToSignedUrl(path, uploadToken, file, {
       contentType: file.type,
+      upsert: false,
     });
 
   if (uploadError) {
+    console.error("[UPLOAD FLOW] Supabase storage error:", uploadError);
     // Tell backend this upload attempt failed
     await fetch(`${baseUrl}/uploads/fail`, {
       method: "POST",
@@ -97,8 +104,7 @@ async function uploadDocumentFile(file) {
     throw uploadError;
   }
 
-   const { supabaseBrowser:supabase } = await import("@/lib/supabase/browser-client");
-
+  console.log("[UPLOAD FLOW] Step 3: Verifying upload with backend...");
 
   // 3) Tell backend to verify and mark uploaded
   const completeResponse = await fetch(`${baseUrl}/uploads/complete`, {
@@ -125,6 +131,7 @@ async function uploadDocumentFile(file) {
     throw new Error(message);
   }
 
+  console.log("[UPLOAD FLOW] Complete! File is ready for analysis.");
   return await completeResponse.json();
 }
 
@@ -293,6 +300,7 @@ export default function DocumentIntelligencePanel({ onAnalyze, analyzing = false
           throw new Error("Choose a document first.");
         }
 
+        // This triggers your new 3-step upload process!
         const uploadResult = await uploadDocumentFile(selectedFile);
         documentId =
           uploadResult?.documentId ||
@@ -303,6 +311,8 @@ export default function DocumentIntelligencePanel({ onAnalyze, analyzing = false
           throw new Error("Upload succeeded, but no documentId was returned.");
         }
       }
+
+      setMessage("Upload complete. Starting analysis...");
 
       const response = await startAnalysisRequest({
         documentId,

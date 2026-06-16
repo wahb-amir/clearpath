@@ -1,7 +1,7 @@
 import { Router, Response } from "express";
 import crypto from "crypto";
 import path from "path";
-import { supabaseAdmin } from "../lib/supabase";
+import { supabase } from "../lib/supabase";
 import { AuthRequest, requireAuth } from "../middlewares/auth";
 
 const router = Router();
@@ -18,14 +18,23 @@ const ALLOWED_TYPES = new Map<string, string>([
 ]);
 
 const DOC_STATUS = {
-  PENDING_UPLOAD: "pending_upload",
-  UPLOADED: "uploaded",
-  VERIFIED: "verified",
-  FAILED: "failed",
-  STORAGE_MISSING: "storage_missing",
-  EXPIRED: "expired",
+  PENDING_UPLOAD: "PENDING_UPLOAD",
+  UPLOADED: "UPLOADED",            
+  VERIFIED: "VERIFIED",
+  FAILED: "FAILED",                 
+  STORAGE_MISSING: "STORAGE_MISSING",
+  EXPIRED: "EXPIRED",
 } as const;
 
+const ANALYSIS_STATUS = {
+  NOT_STARTED: "NOT_STARTED",
+  QUEUED: "QUEUED",
+  PROCESSING: "PROCESSING",
+  COMPLETED: "COMPLETED",
+  FAILED: "FAILED",
+} as const;
+
+// ✅ ADDED BACK: Your database expects lowercase strings for session status!
 const SESSION_STATUS = {
   PENDING: "pending",
   SIGNED: "signed",
@@ -70,59 +79,50 @@ function isValidPositiveInteger(value: unknown): value is number {
  * - signed upload URL
  */
 router.post("/sign", requireAuth, async (req: AuthRequest, res: Response) => {
+  console.log("[DEBUG - SIGN ROUTE] Incoming request body:", req.body);
+  console.log("[DEBUG - SIGN ROUTE] User ID from auth:", req.user?.userId);
+
   try {
     const userId = req.user?.userId;
     if (!userId) {
+      console.warn("[DEBUG - SIGN ROUTE] Unauthorized attempt (no userId)");
       return res.status(401).json({ success: false, message: "Unauthorized" });
     }
 
     const { fileName, fileSize, mimeType } = req.body ?? {};
 
     if (typeof fileName !== "string" || !fileName.trim()) {
-      return res.status(400).json({
-        success: false,
-        message: "fileName required",
-      });
+      return res.status(400).json({ success: false, message: "fileName required" });
     }
 
     if (!isValidPositiveInteger(fileSize)) {
-      return res.status(400).json({
-        success: false,
-        message: "Valid fileSize required",
-      });
+      return res.status(400).json({ success: false, message: "Valid fileSize required" });
     }
 
     if (fileSize > MAX_FILE_SIZE) {
-      return res.status(400).json({
-        success: false,
-        message: "File too large",
-      });
+      return res.status(400).json({ success: false, message: "File too large" });
     }
 
     if (typeof mimeType !== "string" || !ALLOWED_TYPES.has(mimeType)) {
-      return res.status(400).json({
-        success: false,
-        message: "Unsupported file type",
-      });
+      return res.status(400).json({ success: false, message: "Unsupported file type" });
     }
 
     const expectedExt = getExpectedExt(fileName, mimeType);
     if (!expectedExt) {
-      return res.status(400).json({
-        success: false,
-        message: "File extension does not match allowed type",
-      });
+      return res.status(400).json({ success: false, message: "File extension does not match allowed type" });
     }
 
     const documentId = crypto.randomUUID();
     const uploadSessionId = crypto.randomUUID();
     const originalFileName = sanitizeFileName(fileName);
-
-    // Keep the storage key predictable and safe.
     const storagePath = `users/${userId}/${documentId}${expectedExt}`;
 
+    const signedExpiresAt = new Date(Date.now() + SIGNED_URL_TTL_HOURS * 60 * 60 * 1000);
+
+    console.log(`[DEBUG - SIGN ROUTE] Attempting to insert document record. ID: ${documentId}`);
+
     // 1) Create the canonical document record in Postgres first.
-    const { error: docInsertError } = await supabaseAdmin
+    const { error: docInsertError } = await supabase
       .from("documents")
       .insert({
         id: documentId,
@@ -131,28 +131,23 @@ router.post("/sign", requireAuth, async (req: AuthRequest, res: Response) => {
         original_file_name: originalFileName,
         mime_type: mimeType,
         file_size: fileSize,
-
-        // adjust these labels only if your enum values differ
-        upload_status: DOC_STATUS.PENDING_UPLOAD,
-        analysis_status: "pending",
-        current_stage: "pending_upload",
-        language: null,
-        ocr_confidence: null,
-        quality: null,
-        worker_id: null,
+        upload_status: DOC_STATUS.PENDING_UPLOAD, 
+        current_stage: DOC_STATUS.PENDING_UPLOAD, 
+        analysis_status: ANALYSIS_STATUS.NOT_STARTED,
       });
 
     if (docInsertError) {
+      console.error("[DEBUG - SIGN ROUTE] Failed to insert document record into Postgres:", docInsertError);
       return res.status(500).json({
         success: false,
         message: "Failed to create document record",
       });
     }
 
-    // 2) Create an upload session row.
-    const signedExpiresAt = new Date(Date.now() + SIGNED_URL_TTL_HOURS * 60 * 60 * 1000);
+    console.log(`[DEBUG - SIGN ROUTE] Attempting to insert upload session. ID: ${uploadSessionId}`);
 
-    const { error: sessionInsertError } = await supabaseAdmin
+    // 2) Create an upload session row.
+    const { error: sessionInsertError } = await supabase
       .from("document_upload_sessions")
       .insert({
         id: uploadSessionId,
@@ -161,10 +156,11 @@ router.post("/sign", requireAuth, async (req: AuthRequest, res: Response) => {
         storage_path: storagePath,
         status: SESSION_STATUS.PENDING,
         signed_at: new Date().toISOString(),
-        signed_expires_at: signedExpiresAt.toISOString(),
+        expires_at: signedExpiresAt.toISOString(),
       });
 
     if (sessionInsertError) {
+      console.error("[DEBUG - SIGN ROUTE] Failed to insert upload session into Postgres:", sessionInsertError);
       return res.status(500).json({
         success: false,
         message: "Failed to create upload session",
@@ -172,14 +168,18 @@ router.post("/sign", requireAuth, async (req: AuthRequest, res: Response) => {
     }
 
     // 3) Create signed upload URL.
-    const { data, error } = await supabaseAdmin.storage
+    console.log(`[DEBUG - SIGN ROUTE] Requesting signed upload URL from Supabase Storage for path: ${storagePath}`);
+
+    const { data, error } = await supabase.storage
       .from("documents")
       .createSignedUploadUrl(storagePath, {
         upsert: false,
       });
 
     if (error || !data?.token) {
-      await supabaseAdmin
+      console.error("[DEBUG - SIGN ROUTE] Supabase Storage Error:", error, "Data Token:", data?.token);
+
+      await supabase
         .from("documents")
         .update({
           upload_status: DOC_STATUS.FAILED,
@@ -188,7 +188,7 @@ router.post("/sign", requireAuth, async (req: AuthRequest, res: Response) => {
         .eq("id", documentId)
         .eq("user_id", userId);
 
-      await supabaseAdmin
+      await supabase
         .from("document_upload_sessions")
         .update({
           status: SESSION_STATUS.FAILED,
@@ -203,13 +203,15 @@ router.post("/sign", requireAuth, async (req: AuthRequest, res: Response) => {
       });
     }
 
-    await supabaseAdmin
+    await supabase
       .from("document_upload_sessions")
       .update({
         status: SESSION_STATUS.SIGNED,
       })
       .eq("id", uploadSessionId)
       .eq("user_id", userId);
+
+    console.log("[DEBUG - SIGN ROUTE] Successfully generated signed URL!");
 
     return res.json({
       success: true,
@@ -220,7 +222,7 @@ router.post("/sign", requireAuth, async (req: AuthRequest, res: Response) => {
       expiresInSeconds: SIGNED_URL_TTL_HOURS * 60 * 60,
     });
   } catch (error) {
-    console.error("uploads/sign error:", error);
+    console.error("[CRITICAL - SIGN ROUTE CATCH]:", error);
     return res.status(500).json({
       success: false,
       message: "Internal server error",
@@ -248,7 +250,7 @@ router.post("/complete", requireAuth, async (req: AuthRequest, res: Response) =>
       });
     }
 
-    const { data: doc, error: docError } = await supabaseAdmin
+    const { data: doc, error: docError } = await supabase
       .from("documents")
       .select(
         "id,user_id,storage_path,mime_type,file_size,upload_status,analysis_status,current_stage"
@@ -265,7 +267,7 @@ router.post("/complete", requireAuth, async (req: AuthRequest, res: Response) =>
     }
 
     if (uploadSessionId) {
-      const { data: session } = await supabaseAdmin
+      const { data: session } = await supabase
         .from("document_upload_sessions")
         .select("id,status")
         .eq("id", uploadSessionId)
@@ -281,13 +283,12 @@ router.post("/complete", requireAuth, async (req: AuthRequest, res: Response) =>
       }
     }
 
-    // Supabase Storage metadata check. info() returns size, content type, and timestamps.
-    const { data: objectInfo, error: infoError } = await supabaseAdmin.storage
+    const { data: objectInfo, error: infoError } = await supabase.storage
       .from("documents")
       .info(doc.storage_path);
 
     if (infoError || !objectInfo) {
-      await supabaseAdmin
+      await supabase
         .from("documents")
         .update({
           upload_status: DOC_STATUS.STORAGE_MISSING,
@@ -297,7 +298,7 @@ router.post("/complete", requireAuth, async (req: AuthRequest, res: Response) =>
         .eq("user_id", userId);
 
       if (uploadSessionId) {
-        await supabaseAdmin
+        await supabase
           .from("document_upload_sessions")
           .update({
             status: SESSION_STATUS.FAILED,
@@ -328,7 +329,7 @@ router.post("/complete", requireAuth, async (req: AuthRequest, res: Response) =>
       null;
 
     if (actualSize !== null && actualSize !== doc.file_size) {
-      await supabaseAdmin
+      await supabase
         .from("documents")
         .update({
           upload_status: DOC_STATUS.FAILED,
@@ -338,7 +339,7 @@ router.post("/complete", requireAuth, async (req: AuthRequest, res: Response) =>
         .eq("user_id", userId);
 
       if (uploadSessionId) {
-        await supabaseAdmin
+        await supabase
           .from("document_upload_sessions")
           .update({
             status: SESSION_STATUS.FAILED,
@@ -355,7 +356,7 @@ router.post("/complete", requireAuth, async (req: AuthRequest, res: Response) =>
     }
 
     if (actualContentType && actualContentType !== doc.mime_type) {
-      await supabaseAdmin
+      await supabase
         .from("documents")
         .update({
           upload_status: DOC_STATUS.FAILED,
@@ -365,7 +366,7 @@ router.post("/complete", requireAuth, async (req: AuthRequest, res: Response) =>
         .eq("user_id", userId);
 
       if (uploadSessionId) {
-        await supabaseAdmin
+        await supabase
           .from("document_upload_sessions")
           .update({
             status: SESSION_STATUS.FAILED,
@@ -383,11 +384,11 @@ router.post("/complete", requireAuth, async (req: AuthRequest, res: Response) =>
 
     const now = new Date().toISOString();
 
-    await supabaseAdmin
+    await supabase
       .from("documents")
       .update({
         upload_status: DOC_STATUS.UPLOADED,
-        current_stage: "uploaded",
+        current_stage: DOC_STATUS.UPLOADED, 
         uploaded_at: now,
         verified_at: now,
         last_error: null,
@@ -396,7 +397,7 @@ router.post("/complete", requireAuth, async (req: AuthRequest, res: Response) =>
       .eq("user_id", userId);
 
     if (uploadSessionId) {
-      await supabaseAdmin
+      await supabase
         .from("document_upload_sessions")
         .update({
           status: SESSION_STATUS.COMPLETED,
@@ -444,7 +445,7 @@ router.post("/fail", requireAuth, async (req: AuthRequest, res: Response) => {
       });
     }
 
-    await supabaseAdmin
+    await supabase
       .from("documents")
       .update({
         upload_status: DOC_STATUS.FAILED,
@@ -454,7 +455,7 @@ router.post("/fail", requireAuth, async (req: AuthRequest, res: Response) => {
       .eq("user_id", userId);
 
     if (typeof uploadSessionId === "string" && uploadSessionId) {
-      await supabaseAdmin
+      await supabase
         .from("document_upload_sessions")
         .update({
           status: SESSION_STATUS.FAILED,

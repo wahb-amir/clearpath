@@ -23,37 +23,7 @@ import {
   clearDerivedRecords,
 } from '../services/ingestion/persistence';
 
-/**
- * Main analysis worker.
- *
- * RESUMABILITY / IDEMPOTENCY MODEL:
- *  - At the start of each stage, re-read documents.analysis_status.
- *  - If the document's current status is AHEAD of the stage we're
- *    about to run (isStageCompleteOrPast), SKIP that stage entirely -
- *    it already completed in a previous attempt.
- *  - If the document is already in/past a terminal state (COMPLETED,
- *    FAILED, CANCELLED) when the job starts, the job is a no-op
- *    duplicate (e.g. BullMQ retried an already-finished job after a
- *    late ack) - acknowledge and exit.
- *  - Derived records (chunks/sections/facts) use ON CONFLICT DO NOTHING
- *    / DO UPDATE with unique constraints, so even if a stage partially
- *    re-runs, no duplicates are created.
- *
- * Intermediate text (rawText, cleanText, structure, facts, summary) is
- * NOT persisted between stages in v1 - if the worker crashes mid-job,
- * the retried job re-runs from the last *fully completed* stage's
- * persisted DB state. Stages up to and including STRUCTURING are cheap
- * enough (regex/heuristics + OCR) to redo; EMBEDDING is the expensive
- * step and is itself idempotent via content_hash dedup, so a retry
- * after a crash during EMBEDDING re-extracts/re-cleans/re-structures
- * (fast) and then skips already-embedded chunks (DB unique constraint
- * + ON CONFLICT).
- *
- * For very large documents where re-running extraction/OCR on retry is
- * too costly, consider persisting intermediate artifacts to a
- * `document_pipeline_artifacts` table keyed by (document_id, stage) -
- * noted as a future improvement.
- */
+
 export function createAnalysisWorker(): Worker<AnalysisJobData> {
   const worker = new Worker<AnalysisJobData>(
     env.ANALYSIS_QUEUE_NAME,

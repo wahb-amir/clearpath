@@ -82,7 +82,7 @@ const ALLOWED_TRANSITIONS: Record<AnalysisStatus, AnalysisStatus[]> = {
   EMBEDDING: ['SUMMARIZING', 'FAILED', 'CANCELLED'],
   SUMMARIZING: ['COMPLETED', 'FAILED', 'CANCELLED'],
   COMPLETED: ['QUEUED'], // allow re-analysis with a new analysisVersion
-  FAILED: ['QUEUED'],     // allow retry via new analyze request
+  FAILED: ['QUEUED', 'PROCESSING'], 
   CANCELLED: ['QUEUED'],
 };
 
