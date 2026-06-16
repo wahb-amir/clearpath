@@ -10,6 +10,11 @@
     "build": "pnpm run build:frontend && pnpm run build:backend"
   },
   "pnpm": {
-    "approvedBuilds": ["argon2"]
+    "approvedBuilds": [
+      "argon2"
+    ]
+  },
+  "dependencies": {
+    "ws": "^8.21.0"
   }
 }
