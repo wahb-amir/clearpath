@@ -55,11 +55,7 @@ export default function RegisterPage() {
       const payload = await response.json().catch(() => ({}));
       if (!response.ok) throw new Error(payload.error || "Registration failed");
 
-      window.localStorage.setItem("accessToken", payload.accessToken);
-      window.localStorage.setItem("refreshToken", payload.refreshToken);
-      window.localStorage.setItem("sid", payload.sid);
-
-      router.push("/app");
+      window.location.href = "/app";
     } catch (error) {
       setSubmitError(
         error instanceof Error ? error.message : "Something went wrong",

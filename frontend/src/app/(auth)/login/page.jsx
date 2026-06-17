@@ -40,12 +40,7 @@ export default function LoginPage() {
       const payload = await response.json().catch(() => ({}));
       if (!response.ok) throw new Error(payload.error || "Invalid credentials");
 
-      const storage = data.remember ? window.localStorage : window.sessionStorage;
-      storage.setItem("accessToken", payload.accessToken);
-      storage.setItem("refreshToken", payload.refreshToken);
-      storage.setItem("sid", payload.sid);
-
-      router.push("/app");
+      window.location.href = "/app";
     } catch (error) {
       setSubmitError(error instanceof Error ? error.message : "Something went wrong");
     }
