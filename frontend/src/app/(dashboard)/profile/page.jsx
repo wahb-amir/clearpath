@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { motion } from "framer-motion";
 import {
   User,
@@ -13,15 +13,104 @@ import {
   HelpCircle,
   Edit,
 } from "lucide-react";
-import { userProfile } from "@/lib/mockUserData";
+import { apiFetch } from "@/lib/auth/apiFetch";
+
+const API_BASE_URL = (process.env.NEXT_PUBLIC_BACKEND_URL || "").replace(/\/$/, "");
 
 export default function ProfilePage() {
   const [isEditing, setIsEditing] = useState(false);
+  const [user, setUser] = useState(null);
+  const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState(null);
+
+  useEffect(() => {
+    const loadUserProfile = async () => {
+      try {
+        setIsLoading(true);
+        setError(null);
+
+        const targetUrl = API_BASE_URL ? `${API_BASE_URL}/auth/me` : "http://localhost:3001/auth/me";
+        const response = await apiFetch(targetUrl, {});
+        
+        if (!response.ok) {
+          throw new Error(`Server returned status code: ${response.status}`);
+        }
+
+        const payload = await response.json();
+        
+        // Defensive Check: Handle both nested response layouts safely
+        const userData = payload?.user || payload; 
+        setUser(userData);
+      } catch (err) {
+        console.error("🚨 Catch Block Caught Local Exception:", err);
+        setError(err instanceof Error ? err.message : "Failed to parse system response.");
+      } finally {
+        setIsLoading(false);
+      }
+    };
+
+    loadUserProfile();
+  }, []);
+
+  // Loading/Skeleton state
+  if (isLoading) {
+    return (
+      <div className="mx-auto max-w-5xl p-4 md:p-8 animate-pulse">
+        <div className="mb-8">
+          <div className="h-9 w-48 rounded bg-slate-800 mb-2" />
+          <div className="h-4 w-80 rounded bg-slate-800" />
+        </div>
+        <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
+          <div className="lg:col-span-2 rounded-2xl border border-slate-800 bg-slate-900 p-8 h-80" />
+          <div className="rounded-2xl border border-slate-800 bg-slate-900 p-6 h-48" />
+        </div>
+      </div>
+    );
+  }
+
+  // Error fallback interface
+  if (error || !user) {
+    return (
+      <div className="mx-auto max-w-5xl p-4 md:p-8 text-center mt-12">
+        <p className="text-rose-400 font-medium">Could not load profile data.</p>
+        <p className="text-sm text-slate-500 mt-2">{error || "Reason: Empty data layout."}</p>
+        <button 
+          type="button"
+          onClick={() => window.location.reload()}
+          className="mt-4 rounded-xl bg-slate-800 px-4 py-2 text-xs font-semibold text-slate-300 hover:bg-slate-700 transition-colors"
+        >
+          Retry Request
+        </button>
+      </div>
+    );
+  }
+
+  // Safe variables mapping with strict fallbacks
+  const displayName = user?.full_name || user?.name || "ClearPath User";
+  const userEmail = user?.email || "No email available";
+  const userRole = user?.role || "Member";
+  const preferredLang = user?.preferredLanguage || "English";
+  const notificationPref = user?.notificationPreference || "Email Alerts";
+  const docsCount = user?.documentsAnalyzedCount || 0;
+  const deadlinesCount = user?.deadlinesTrackedCount || 0;
+
+  // Format ISO timestamps into readable strings safely
+  const joinedDate = user?.created_at 
+    ? new Date(user.created_at).toLocaleDateString(undefined, { year: 'numeric', month: 'long', day: 'numeric' })
+    : user?.joinedDate || "Recent";
+
+  // Generate dynamic initials safely from space-split names
+  const userInitials = displayName
+    .trim()
+    .split(/\s+/)
+    .map((n) => n[0])
+    .join("")
+    .toUpperCase() || "U";
 
   return (
     <div className="mx-auto max-w-5xl p-4 md:p-8">
       <div className="mb-8">
-        <h1 className="mb-2 text-3xl font-display font-bold text-slate-100">
+        <h1 className="mb-2 text-3xl font-bold text-slate-100">
           Your Profile
         </h1>
         <p className="text-slate-400">
@@ -40,29 +129,18 @@ export default function ProfilePage() {
             <div className="mb-6 flex flex-col items-start justify-between gap-4 sm:flex-row sm:items-center">
               <div className="flex items-center gap-5">
                 <div className="flex h-20 w-20 items-center justify-center rounded-full border-2 border-blue-800 bg-blue-900 text-2xl font-bold text-blue-200 shadow-xl shadow-blue-900/20">
-                  {userProfile.name
-                    .split(" ")
-                    .map((n) => n[0])
-                    .join("")}
+                  {userInitials}
                 </div>
 
                 <div>
                   <h2 className="text-2xl font-semibold text-slate-100">
-                    {userProfile.name}
+                    {displayName}
                   </h2>
                   <p className="font-medium text-blue-400">
-                    {userProfile.role}
+                    {userRole}
                   </p>
                 </div>
               </div>
-
-              <button
-                onClick={() => setIsEditing(!isEditing)}
-                className="flex items-center gap-2 rounded-xl bg-slate-800 px-4 py-2 text-sm font-medium text-slate-200 transition-colors hover:bg-slate-700"
-              >
-                <Edit size={16} />
-                {isEditing ? "Cancel" : "Edit Profile"}
-              </button>
             </div>
 
             <div className="grid grid-cols-1 gap-6 border-t border-slate-800/60 pt-6 sm:grid-cols-2">
@@ -75,11 +153,11 @@ export default function ProfilePage() {
                   {isEditing ? (
                     <input
                       type="email"
-                      defaultValue={userProfile.email}
-                      className="w-full rounded border border-slate-700 bg-slate-800 p-1 text-sm"
+                      defaultValue={userEmail}
+                      className="w-full rounded border border-slate-700 bg-slate-800 p-1 text-sm outline-none text-slate-200 focus:border-blue-500"
                     />
                   ) : (
-                    userProfile.email
+                    userEmail
                   )}
                 </div>
               </div>
@@ -90,7 +168,7 @@ export default function ProfilePage() {
                 </label>
                 <div className="flex items-center gap-2 text-slate-300">
                   <User size={16} className="text-slate-400" />
-                  {userProfile.joinedDate}
+                  {joinedDate}
                 </div>
               </div>
 
@@ -102,15 +180,15 @@ export default function ProfilePage() {
                   <Globe size={16} className="text-slate-400" />
                   {isEditing ? (
                     <select
-                      defaultValue={userProfile.preferredLanguage}
-                      className="w-full rounded border border-slate-700 bg-slate-800 p-1 text-sm"
+                      defaultValue={preferredLang}
+                      className="w-full rounded border border-slate-700 bg-slate-800 p-1 text-sm outline-none text-slate-200 focus:border-blue-500"
                     >
                       <option value="English">English</option>
                       <option value="Spanish">Spanish</option>
                       <option value="Vietnamese">Vietnamese</option>
                     </select>
                   ) : (
-                    userProfile.preferredLanguage
+                    preferredLang
                   )}
                 </div>
               </div>
@@ -121,7 +199,7 @@ export default function ProfilePage() {
                 </label>
                 <div className="flex items-center gap-2 text-slate-300">
                   <Bell size={16} className="text-slate-400" />
-                  Email &amp; Push
+                  {notificationPref}
                 </div>
               </div>
             </div>
@@ -129,6 +207,7 @@ export default function ProfilePage() {
             {isEditing && (
               <div className="mt-6 flex justify-end">
                 <button
+                  type="button"
                   className="rounded-xl bg-blue-600 px-6 py-2 text-sm font-semibold text-white transition-colors hover:bg-blue-700"
                   onClick={() => setIsEditing(false)}
                 >
@@ -161,7 +240,7 @@ export default function ProfilePage() {
                     days.
                   </p>
                 </div>
-                <button className="text-sm font-medium text-blue-400 hover:text-blue-300">
+                <button type="button" className="text-sm font-medium text-blue-400 hover:text-blue-300">
                   Manage
                 </button>
               </div>
@@ -175,7 +254,7 @@ export default function ProfilePage() {
                     Add an extra layer of security to your account.
                   </p>
                 </div>
-                <button className="rounded-lg bg-slate-800 px-4 py-2 text-sm font-medium text-slate-200 transition-colors hover:bg-slate-700">
+                <button type="button" className="rounded-lg bg-slate-800 px-4 py-2 text-sm font-medium text-slate-200 transition-colors hover:bg-slate-700">
                   Enable
                 </button>
               </div>
@@ -184,7 +263,7 @@ export default function ProfilePage() {
         </div>
 
         <div className="space-y-6">
-          {/* Stats / How ClearPath Helps */}
+          {/* Stats */}
           <motion.div
             initial={{ opacity: 0, x: 10 }}
             animate={{ opacity: 1, x: 0 }}
@@ -204,7 +283,9 @@ export default function ProfilePage() {
                   </div>
                   <span>Documents Analyzed</span>
                 </div>
-                <span className="text-xl font-bold text-slate-100">12</span>
+                <span className="text-xl font-bold text-slate-100">
+                  {docsCount}
+                </span>
               </div>
 
               <div className="flex items-center justify-between">
@@ -214,7 +295,9 @@ export default function ProfilePage() {
                   </div>
                   <span>Deadlines Tracked</span>
                 </div>
-                <span className="text-xl font-bold text-slate-100">5</span>
+                <span className="text-xl font-bold text-slate-100">
+                  {deadlinesCount}
+                </span>
               </div>
             </div>
           </motion.div>
@@ -232,7 +315,7 @@ export default function ProfilePage() {
             <p className="mb-4 text-sm text-slate-400">
               Having trouble with an analysis or need help navigating ClearPath?
             </p>
-            <button className="w-full rounded-xl bg-slate-800 py-2.5 text-sm font-semibold text-slate-200 transition-colors hover:bg-slate-700">
+            <button type="button" className="w-full rounded-xl bg-slate-800 py-2.5 text-sm font-semibold text-slate-200 transition-colors hover:bg-slate-700">
               Contact Support
             </button>
           </motion.div>

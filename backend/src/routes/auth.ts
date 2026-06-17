@@ -199,10 +199,46 @@ router.get('/.well-known/jwks.json', (_req: Request, res: Response) => {
 });
 
 router.get('/me', requireAuth, async (req: AuthRequest, res: Response) => {
-  res.json({
-    message: 'You are authenticated!',
-    user: req.user,
-  });
+  try {
+    const userId = req.user?.sid;
+
+    if (!userId) {
+      return res.status(401).json({
+        error: 'Unauthorized',
+      });
+    }
+
+    const { data: user, error } = await supabase
+      .from('users')
+      .select('full_name, email, created_at')
+      .eq('id', req.user?.userId)
+      .single();
+
+    if (error) {
+      console.error('Supabase error:', error);
+
+      return res.status(500).json({
+        error: 'Failed to fetch user',
+      });
+    }
+
+    if (!user) {
+      return res.status(404).json({
+        error: 'User not found',
+      });
+    }
+
+    return res.json({
+      message: 'You are authenticated!',
+      user,
+    });
+  } catch (err) {
+    console.error('Unexpected error:', err);
+
+    return res.status(500).json({
+      error: 'Internal server error',
+    });
+  }
 });
 
 export default router;
