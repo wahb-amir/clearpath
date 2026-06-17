@@ -50,9 +50,21 @@ const PATTERNS: Array<{
   },
   {
     type: 'phone',
-    // Loosely matches international and local formats: +92 300 1234567, (021) 1234567, etc.
-    regex: /(\+?\d{1,3}[\s-]?)?(\(\d{2,4}\)[\s-]?)?\d{3,4}[\s-]?\d{3,4}(?:[\s-]?\d{2,4})?/g,
-    confidence: 0.6,
+    // Requires a `+` country code OR a parenthesized area code to qualify
+    // as a phone match on its own — this avoids false positives on roll
+    // numbers, reference codes, and other hyphenated digit groups (e.g.
+    // "CS-2021-045") that happen to fall in a similar digit-length range.
+    regex: /\+\d{1,3}[\s-]?\d{2,4}[\s-]?\d{3,4}[\s-]?\d{2,4}|\(\d{2,4}\)[\s-]?\d{3,4}[\s-]?\d{2,4}/g,
+    confidence: 0.85,
+  },
+  {
+    type: 'phone',
+    // Lower-confidence fallback: bare digit-group phone numbers, but
+    // ONLY when immediately preceded by a phone-indicating label
+    // (Phone/Tel/Mobile/Cell/Contact) within the same line, so we don't
+    // match arbitrary hyphenated numeric codes elsewhere in the text.
+    regex: /\b(?:Phone|Tel|Mobile|Cell|Contact)\s*:?\s*(\d{3,4}[\s-]?\d{3,4}(?:[\s-]?\d{2,4})?)/gi,
+    confidence: 0.75,
   },
   {
     type: 'date',

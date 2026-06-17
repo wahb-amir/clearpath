@@ -32,10 +32,10 @@ import { createClient } from '@supabase/supabase-js';
 // ─────────────────────────────────────────────────────────────────────────
 
 const BASE_URL = process.env.TEST_BASE_URL ?? 'http://localhost:3001';
-const ACCESS_TOKEN = process.env.ACCESS_TOKEN ?? '';
+const ACCESS_TOKEN = process.env.ACCESS_TOKEN ?? 'eyJhbGciOiJSUzI1NiIsInR5cCI6IkpXVCIsImtpZCI6ImtleS0xIn0.eyJzdWIiOiJlZWZhZGI5Ny02NjUwLTQ2ZGUtODRlOC01ODczYzdjZmQ3MTkiLCJzaWQiOiIzNDRiNTAwZi1jZjNiLTQwYTktOGI4OS04YTM3OTRhY2M4MWYiLCJpYXQiOjE3ODE2NDg5MDYsImV4cCI6MTc4MTY0OTgwNn0.usEh1eFs5CZpHwxThZ10115FjC7Gchrl-JTL6oIpZ6i8R7Q3vVZvyNKiD76V-3yzuZ-R174NZOIJOD2XMjM1GJhN5f9BEd0MHirM22avF2qPOA3zTR72jfzRu6BlUS8XzuTf_kkmqAAk62OS3vhq3NqxLgUPw2MDjXPuwSPZIkxltGCt6W7jTGQiLCr2uuaZ40LlbCii9a0WjoxqIZC39DvaF7mqEnIF6eqBu482ShwCXY6W_FZ--2JKwB-uviyFkzA65ulbh9B0eBN_cyiTgLzQSN8F86QjYtu7xLU0Kd2P4MXQuIzoXTfQSoyWnRnjmTUHI3Q0kdgm4dTNW83MUA';
 
-const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL ?? '';
-const SUPABASE_KEY = process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY ?? '';
+const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL ?? 'https://hjwhxqrgnfgvxjonlkpp.supabase.co';
+const SUPABASE_KEY = process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY ?? 'sb_publishable_6FRq83gzHBSbIvAeStecDQ_DkUDCwtq';
 
 const SSE_TIMEOUT_MS = 5 * 60 * 1000; // give up waiting for completion after 5 min
 
