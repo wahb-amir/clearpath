@@ -28,7 +28,28 @@ export const refreshSession = async (
   newRefreshToken: string
 ) => {
   try {
-    // 1. Bypass validation and just update the session with the new token
+    // 1. Fetch the existing session row first to inspect the current state
+    const { data: currentSession, error: fetchError } = await supabase
+      .from('sessions')
+      .select('id, user_id, refresh_token')
+      .eq('id', sid)
+      .maybeSingle();
+
+
+    if (fetchError || !currentSession) {
+      console.error(` Security Alert: Session ${sid} not found. Denying refresh.`);
+      throw new Error('Session has expired or been terminated.');
+    }
+
+    if (currentSession.refresh_token !== oldRefreshToken) {
+      console.error(` Security Violation: Reuse of old refresh token detected for session ${sid}!`);
+    
+      await supabase.from('sessions').delete().eq('id', sid);
+      
+      throw new Error('Invalid refresh token token chain. Session revoked.');
+    }
+
+    // 2. Perform the update securely since validation checks passed
     const { data: updatedSession, error: updateError } = await supabase
       .from('sessions')
       .update({
@@ -37,28 +58,19 @@ export const refreshSession = async (
       })
       .eq('id', sid)
       .select('id, user_id')
-      .maybeSingle(); // Use maybeSingle to prevent crash if session row missing
+      .single(); 
 
-    // 2. Fallback: If the session row doesn't exist yet, don't crash the app
-    if (updateError || !updatedSession) {
-      console.warn('⚡ Hackathon Warning: Session row not found or update failed, bypassing...');
-      
-      // Try to fetch any session for this ID, or just return mock/empty data 
-      // so the frontend doesn't break.
-      return { newSid: sid, userId: 'hackathon-bypass-user' };
+    if (updateError) {
+      throw new Error('Failed to synchronize updated session tokens.');
     }
   
     return { newSid: updatedSession.id, userId: updatedSession.user_id };
 
   } catch (error) {
-    // Log the error but don't let it completely halt the execution if you can help it
-    console.error('Bypassed Error in refreshSession:', error);
-    
-    // Returning a fallback object so the backend route doesn't throw a 500 error
-    return { newSid: sid, userId: 'hackathon-fallback-user' };
+    console.error('Session refresh validation failed:', error);
+    throw error; 
   }
 };
-
 export const revokeSession = async (sid: string) => {
   await supabase
     .from('sessions')
