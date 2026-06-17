@@ -23,7 +23,7 @@ import {
   openAnalysisStream,
   startAnalysisRequest,
 } from "@/lib/api/documentAnalysis";
-
+import { apiFetch } from "@/lib/auth/apiFetch";
 import {
   EVENT_LABELS,
   MAX_UPLOAD_BYTES,
@@ -45,7 +45,7 @@ async function uploadDocumentFile(file) {
   console.log("[UPLOAD FLOW] Step 1: Requesting signed URL from backend...");
   
   // 1) Ask backend to create DB row + signed upload URL
-  const signResponse = await fetch(`${baseUrl}/uploads/sign`, {
+  const signResponse = await apiFetch(`${baseUrl}/uploads/sign`, {
     method: "POST",
     headers: {
       "Content-Type": "application/json"
@@ -54,8 +54,7 @@ async function uploadDocumentFile(file) {
       fileName: file.name,
       fileSize: file.size,
       mimeType: file.type,
-    }),
-    credentials: "include", 
+    })
   });
 
   if (!signResponse.ok) {
@@ -88,7 +87,7 @@ async function uploadDocumentFile(file) {
   if (uploadError) {
     console.error("[UPLOAD FLOW] Supabase storage error:", uploadError);
     // Tell backend this upload attempt failed
-    await fetch(`${baseUrl}/uploads/fail`, {
+    await apiFetch(`${baseUrl}/uploads/fail`, {
       method: "POST",
       headers: {
         "Content-Type": "application/json"
@@ -97,8 +96,7 @@ async function uploadDocumentFile(file) {
         documentId,
         uploadSessionId,
         reason: uploadError.message,
-      }),
-      credentials: "include",
+      })
     });
 
     throw uploadError;
@@ -107,7 +105,7 @@ async function uploadDocumentFile(file) {
   console.log("[UPLOAD FLOW] Step 3: Verifying upload with backend...");
 
   // 3) Tell backend to verify and mark uploaded
-  const completeResponse = await fetch(`${baseUrl}/uploads/complete`, {
+  const completeResponse = await apiFetch(`${baseUrl}/uploads/complete`, {
     method: "POST",
     headers: {
       "Content-Type": "application/json"
@@ -115,8 +113,7 @@ async function uploadDocumentFile(file) {
     body: JSON.stringify({
       documentId,
       uploadSessionId,
-    }),
-    credentials: "include",
+    })
   });
 
   if (!completeResponse.ok) {

@@ -6,8 +6,11 @@ import { motion } from "framer-motion";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { ArrowRight, Eye, EyeOff, ShieldCheck } from "lucide-react";
-
-const API_BASE_URL = (process.env.NEXT_PUBLIC_BACKEND_URL || "").replace(/\/$/, "");
+import { apiFetch } from "@/lib/auth/apiFetch";
+const API_BASE_URL = (process.env.NEXT_PUBLIC_BACKEND_URL || "").replace(
+  /\/$/,
+  "",
+);
 
 export default function RegisterPage() {
   const router = useRouter();
@@ -36,13 +39,17 @@ export default function RegisterPage() {
     setSubmitError(null);
     try {
       if (!API_BASE_URL) throw new Error("Missing NEXT_PUBLIC_BACKEND_URL");
-      if (data.password !== data.confirmPassword) throw new Error("Passwords do not match");
+      if (data.password !== data.confirmPassword)
+        throw new Error("Passwords do not match");
 
-      const response = await fetch(`${API_BASE_URL}/auth/register`, {
+      const response = await apiFetch(`${API_BASE_URL}/auth/register`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ fullName: data.fullName, email: data.email, password: data.password }),
-        credentials: "include",
+        body: JSON.stringify({
+          fullName: data.fullName,
+          email: data.email,
+          password: data.password,
+        }),
       });
 
       const payload = await response.json().catch(() => ({}));
@@ -54,7 +61,9 @@ export default function RegisterPage() {
 
       router.push("/app");
     } catch (error) {
-      setSubmitError(error instanceof Error ? error.message : "Something went wrong");
+      setSubmitError(
+        error instanceof Error ? error.message : "Something went wrong",
+      );
     }
   };
 
@@ -74,7 +83,8 @@ export default function RegisterPage() {
         className="w-full max-w-md rounded-3xl overflow-hidden"
         style={{
           border: "1px solid rgba(255,255,255,0.07)",
-          boxShadow: "0 32px 120px rgba(0,0,0,0.6), 0 0 0 1px rgba(0,212,255,0.04)",
+          boxShadow:
+            "0 32px 120px rgba(0,0,0,0.6), 0 0 0 1px rgba(0,212,255,0.04)",
           backgroundColor: "#0d1117",
         }}
       >
@@ -98,20 +108,32 @@ export default function RegisterPage() {
             >
               Create your account
             </h1>
-            <p className="text-[13px] leading-relaxed" style={{ color: "#6b7280" }}>
+            <p
+              className="text-[13px] leading-relaxed"
+              style={{ color: "#6b7280" }}
+            >
               Join thousands making sense of their documents.
             </p>
           </div>
 
-          <form className="flex flex-col gap-4" onSubmit={handleSubmit(onSubmit)} noValidate>
+          <form
+            className="flex flex-col gap-4"
+            onSubmit={handleSubmit(onSubmit)}
+            noValidate
+          >
             <div className="flex flex-col gap-1.5">
-              <label className="text-[12px] font-medium" style={{ color: "#9399A6", letterSpacing: "0.01em" }}>
+              <label
+                className="text-[12px] font-medium"
+                style={{ color: "#9399A6", letterSpacing: "0.01em" }}
+              >
                 Full name
               </label>
               <input
                 className="w-full rounded-[10px] px-3.5 py-[11px] text-[14px] outline-none transition-all duration-150"
                 style={{
-                  border: errors.fullName ? "1px solid rgba(248,113,113,0.5)" : "1px solid rgba(255,255,255,0.08)",
+                  border: errors.fullName
+                    ? "1px solid rgba(248,113,113,0.5)"
+                    : "1px solid rgba(255,255,255,0.08)",
                   background: "rgba(255,255,255,0.03)",
                   color: "#F0F3F8",
                   fontFamily: "inherit",
@@ -123,7 +145,9 @@ export default function RegisterPage() {
                   e.target.style.boxShadow = "0 0 0 3px rgba(0,212,255,0.08)";
                 }}
                 onBlur={(e) => {
-                  e.target.style.borderColor = errors.fullName ? "rgba(248,113,113,0.5)" : "rgba(255,255,255,0.08)";
+                  e.target.style.borderColor = errors.fullName
+                    ? "rgba(248,113,113,0.5)"
+                    : "rgba(255,255,255,0.08)";
                   e.target.style.background = "rgba(255,255,255,0.03)";
                   e.target.style.boxShadow = "none";
                 }}
@@ -133,21 +157,29 @@ export default function RegisterPage() {
                 })}
               />
               {errors.fullName && (
-                <span className="text-[11px]" style={{ color: "#f87171", letterSpacing: "0.01em" }}>
+                <span
+                  className="text-[11px]"
+                  style={{ color: "#f87171", letterSpacing: "0.01em" }}
+                >
                   {errors.fullName.message}
                 </span>
               )}
             </div>
 
             <div className="flex flex-col gap-1.5">
-              <label className="text-[12px] font-medium" style={{ color: "#9399A6", letterSpacing: "0.01em" }}>
+              <label
+                className="text-[12px] font-medium"
+                style={{ color: "#9399A6", letterSpacing: "0.01em" }}
+              >
                 Email address
               </label>
               <input
                 type="email"
                 className="w-full rounded-[10px] px-3.5 py-[11px] text-[14px] outline-none transition-all duration-150"
                 style={{
-                  border: errors.email ? "1px solid rgba(248,113,113,0.5)" : "1px solid rgba(255,255,255,0.08)",
+                  border: errors.email
+                    ? "1px solid rgba(248,113,113,0.5)"
+                    : "1px solid rgba(255,255,255,0.08)",
                   background: "rgba(255,255,255,0.03)",
                   color: "#F0F3F8",
                   fontFamily: "inherit",
@@ -159,24 +191,35 @@ export default function RegisterPage() {
                   e.target.style.boxShadow = "0 0 0 3px rgba(0,212,255,0.08)";
                 }}
                 onBlur={(e) => {
-                  e.target.style.borderColor = errors.email ? "rgba(248,113,113,0.5)" : "rgba(255,255,255,0.08)";
+                  e.target.style.borderColor = errors.email
+                    ? "rgba(248,113,113,0.5)"
+                    : "rgba(255,255,255,0.08)";
                   e.target.style.background = "rgba(255,255,255,0.03)";
                   e.target.style.boxShadow = "none";
                 }}
                 {...register("email", {
                   required: "Email is required",
-                  pattern: { value: /^\S+@\S+\.\S+$/, message: "Invalid email address" },
+                  pattern: {
+                    value: /^\S+@\S+\.\S+$/,
+                    message: "Invalid email address",
+                  },
                 })}
               />
               {errors.email && (
-                <span className="text-[11px]" style={{ color: "#f87171", letterSpacing: "0.01em" }}>
+                <span
+                  className="text-[11px]"
+                  style={{ color: "#f87171", letterSpacing: "0.01em" }}
+                >
                   {errors.email.message}
                 </span>
               )}
             </div>
 
             <div className="flex flex-col gap-1.5">
-              <label className="text-[12px] font-medium" style={{ color: "#9399A6", letterSpacing: "0.01em" }}>
+              <label
+                className="text-[12px] font-medium"
+                style={{ color: "#9399A6", letterSpacing: "0.01em" }}
+              >
                 Password
               </label>
               <div className="relative">
@@ -184,7 +227,9 @@ export default function RegisterPage() {
                   type={showPassword ? "text" : "password"}
                   className="w-full rounded-[10px] pl-3.5 pr-10 py-[11px] text-[14px] outline-none transition-all duration-150"
                   style={{
-                    border: errors.password ? "1px solid rgba(248,113,113,0.5)" : "1px solid rgba(255,255,255,0.08)",
+                    border: errors.password
+                      ? "1px solid rgba(248,113,113,0.5)"
+                      : "1px solid rgba(255,255,255,0.08)",
                     background: "rgba(255,255,255,0.03)",
                     color: "#F0F3F8",
                     fontFamily: "inherit",
@@ -196,7 +241,9 @@ export default function RegisterPage() {
                     e.target.style.boxShadow = "0 0 0 3px rgba(0,212,255,0.08)";
                   }}
                   onBlur={(e) => {
-                    e.target.style.borderColor = errors.password ? "rgba(248,113,113,0.5)" : "rgba(255,255,255,0.08)";
+                    e.target.style.borderColor = errors.password
+                      ? "rgba(248,113,113,0.5)"
+                      : "rgba(255,255,255,0.08)";
                     e.target.style.background = "rgba(255,255,255,0.03)";
                     e.target.style.boxShadow = "none";
                   }}
@@ -210,22 +257,41 @@ export default function RegisterPage() {
                   tabIndex={-1}
                   onClick={() => setShowPassword((v) => !v)}
                   className="absolute right-3 top-1/2 -translate-y-1/2 flex items-center transition-colors duration-150"
-                  style={{ background: "none", border: "none", color: "#4b5563", cursor: "pointer" }}
-                  onMouseEnter={(e) => (e.currentTarget.style.color = "#9399A6")}
-                  onMouseLeave={(e) => (e.currentTarget.style.color = "#4b5563")}
+                  style={{
+                    background: "none",
+                    border: "none",
+                    color: "#4b5563",
+                    cursor: "pointer",
+                  }}
+                  onMouseEnter={(e) =>
+                    (e.currentTarget.style.color = "#9399A6")
+                  }
+                  onMouseLeave={(e) =>
+                    (e.currentTarget.style.color = "#4b5563")
+                  }
                 >
-                  {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                  {showPassword ? (
+                    <EyeOff className="w-4 h-4" />
+                  ) : (
+                    <Eye className="w-4 h-4" />
+                  )}
                 </button>
               </div>
               {errors.password && (
-                <span className="text-[11px]" style={{ color: "#f87171", letterSpacing: "0.01em" }}>
+                <span
+                  className="text-[11px]"
+                  style={{ color: "#f87171", letterSpacing: "0.01em" }}
+                >
                   {errors.password.message}
                 </span>
               )}
             </div>
 
             <div className="flex flex-col gap-1.5">
-              <label className="text-[12px] font-medium" style={{ color: "#9399A6", letterSpacing: "0.01em" }}>
+              <label
+                className="text-[12px] font-medium"
+                style={{ color: "#9399A6", letterSpacing: "0.01em" }}
+              >
                 Confirm password
               </label>
               <div className="relative">
@@ -233,7 +299,9 @@ export default function RegisterPage() {
                   type={showConfirmPassword ? "text" : "password"}
                   className="w-full rounded-[10px] pl-3.5 pr-10 py-[11px] text-[14px] outline-none transition-all duration-150"
                   style={{
-                    border: errors.confirmPassword ? "1px solid rgba(248,113,113,0.5)" : "1px solid rgba(255,255,255,0.08)",
+                    border: errors.confirmPassword
+                      ? "1px solid rgba(248,113,113,0.5)"
+                      : "1px solid rgba(255,255,255,0.08)",
                     background: "rgba(255,255,255,0.03)",
                     color: "#F0F3F8",
                     fontFamily: "inherit",
@@ -245,7 +313,9 @@ export default function RegisterPage() {
                     e.target.style.boxShadow = "0 0 0 3px rgba(0,212,255,0.08)";
                   }}
                   onBlur={(e) => {
-                    e.target.style.borderColor = errors.confirmPassword ? "rgba(248,113,113,0.5)" : "rgba(255,255,255,0.08)";
+                    e.target.style.borderColor = errors.confirmPassword
+                      ? "rgba(248,113,113,0.5)"
+                      : "rgba(255,255,255,0.08)";
                     e.target.style.background = "rgba(255,255,255,0.03)";
                     e.target.style.boxShadow = "none";
                   }}
@@ -259,15 +329,31 @@ export default function RegisterPage() {
                   tabIndex={-1}
                   onClick={() => setShowConfirmPassword((v) => !v)}
                   className="absolute right-3 top-1/2 -translate-y-1/2 flex items-center transition-colors duration-150"
-                  style={{ background: "none", border: "none", color: "#4b5563", cursor: "pointer" }}
-                  onMouseEnter={(e) => (e.currentTarget.style.color = "#9399A6")}
-                  onMouseLeave={(e) => (e.currentTarget.style.color = "#4b5563")}
+                  style={{
+                    background: "none",
+                    border: "none",
+                    color: "#4b5563",
+                    cursor: "pointer",
+                  }}
+                  onMouseEnter={(e) =>
+                    (e.currentTarget.style.color = "#9399A6")
+                  }
+                  onMouseLeave={(e) =>
+                    (e.currentTarget.style.color = "#4b5563")
+                  }
                 >
-                  {showConfirmPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                  {showConfirmPassword ? (
+                    <EyeOff className="w-4 h-4" />
+                  ) : (
+                    <Eye className="w-4 h-4" />
+                  )}
                 </button>
               </div>
               {errors.confirmPassword && (
-                <span className="text-[11px]" style={{ color: "#f87171", letterSpacing: "0.01em" }}>
+                <span
+                  className="text-[11px]"
+                  style={{ color: "#f87171", letterSpacing: "0.01em" }}
+                >
                   {errors.confirmPassword.message}
                 </span>
               )}
@@ -278,21 +364,37 @@ export default function RegisterPage() {
                 <input
                   type="checkbox"
                   className="mt-0.5 w-[15px] h-[15px] rounded flex-shrink-0 cursor-pointer accent-[#00D4FF]"
-                  {...register("terms", { required: "You must accept the terms to continue" })}
+                  {...register("terms", {
+                    required: "You must accept the terms to continue",
+                  })}
                 />
-                <span className="text-[12.5px] leading-snug" style={{ color: "#6b7280" }}>
+                <span
+                  className="text-[12.5px] leading-snug"
+                  style={{ color: "#6b7280" }}
+                >
                   I agree to the{" "}
-                  <a href="#" className="transition-opacity hover:opacity-75" style={{ color: "#00D4FF", textDecoration: "none" }}>
+                  <a
+                    href="#"
+                    className="transition-opacity hover:opacity-75"
+                    style={{ color: "#00D4FF", textDecoration: "none" }}
+                  >
                     Terms of Service
                   </a>{" "}
                   and{" "}
-                  <a href="#" className="transition-opacity hover:opacity-75" style={{ color: "#00D4FF", textDecoration: "none" }}>
+                  <a
+                    href="#"
+                    className="transition-opacity hover:opacity-75"
+                    style={{ color: "#00D4FF", textDecoration: "none" }}
+                  >
                     Privacy Policy
                   </a>
                 </span>
               </label>
               {errors.terms && (
-                <span className="text-[11px]" style={{ color: "#f87171", letterSpacing: "0.01em" }}>
+                <span
+                  className="text-[11px]"
+                  style={{ color: "#f87171", letterSpacing: "0.01em" }}
+                >
                   {errors.terms.message}
                 </span>
               )}
@@ -325,13 +427,15 @@ export default function RegisterPage() {
                 if (!isSubmitting) {
                   e.currentTarget.style.opacity = "0.92";
                   e.currentTarget.style.transform = "translateY(-1px)";
-                  e.currentTarget.style.boxShadow = "0 8px 28px rgba(0,212,255,0.28)";
+                  e.currentTarget.style.boxShadow =
+                    "0 8px 28px rgba(0,212,255,0.28)";
                 }
               }}
               onMouseLeave={(e) => {
                 e.currentTarget.style.opacity = "1";
                 e.currentTarget.style.transform = "translateY(0)";
-                e.currentTarget.style.boxShadow = "0 4px 20px rgba(0,212,255,0.2)";
+                e.currentTarget.style.boxShadow =
+                  "0 4px 20px rgba(0,212,255,0.2)";
               }}
             >
               {isSubmitting ? (
@@ -355,7 +459,10 @@ export default function RegisterPage() {
             </button>
           </form>
 
-          <p className="mt-6 text-center text-[13px]" style={{ color: "#4b5563" }}>
+          <p
+            className="mt-6 text-center text-[13px]"
+            style={{ color: "#4b5563" }}
+          >
             Already have an account?{" "}
             <Link
               href="/login"

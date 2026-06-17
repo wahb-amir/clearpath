@@ -6,7 +6,7 @@ import { motion } from "framer-motion";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { ArrowRight, Eye, EyeOff, ShieldCheck } from "lucide-react";
-
+import { apiFetch } from "@/lib/auth/apiFetch";
 const API_BASE_URL = (process.env.NEXT_PUBLIC_BACKEND_URL || "").replace(/\/$/, "");
 
 export default function LoginPage() {
@@ -31,11 +31,10 @@ export default function LoginPage() {
     try {
       if (!API_BASE_URL) throw new Error("Missing NEXT_PUBLIC_API_BASE_URL");
 
-      const response = await fetch(`${API_BASE_URL}/auth/login`, {
+      const response = await apiFetch(`${API_BASE_URL}/auth/login`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email: data.email, password: data.password }),
-        credentials: "include",
+        body: JSON.stringify({ email: data.email, password: data.password })
       });
 
       const payload = await response.json().catch(() => ({}));
