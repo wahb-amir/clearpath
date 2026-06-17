@@ -2,6 +2,39 @@
 
 @import "tailwindcss";
 
+@theme {
+  /* Remap Tailwind text utility classes to reference custom CSS variables */
+  --text-xs: var(--text-xs-val);
+  --text-sm: var(--text-sm-val);
+  --text-base: var(--text-base-val);
+  --text-lg: var(--text-lg-val);
+  --text-xl: var(--text-xl-val);
+  --text-2xl: var(--text-2xl-val);
+  --text-3xl: var(--text-3xl-val);
+}
+
+/* Base/Default text sizes */
+:root {
+  --text-xs-val: 0.75rem;
+  --text-sm-val: 0.875rem;
+  --text-base-val: 1rem;
+  --text-lg-val: 1.125rem;
+  --text-xl-val: 1.25rem;
+  --text-2xl-val: 1.5rem;
+  --text-3xl-val: 1.875rem;
+}
+
+
+[data-large-text="true"] {
+  --text-xs-val: 1rem;       /* 12px -> 16px (Now matches default base) */
+  --text-sm-val: 1.125rem;   /* 14px -> 18px */
+  --text-base-val: 1.25rem;  /* 16px -> 20px */
+  --text-lg-val: 1.5rem;     /* 18px -> 24px */
+  --text-xl-val: 1.75rem;    /* 20px -> 28px */
+  --text-2xl-val: 2.125rem;  /* 24px -> 34px */
+  --text-3xl-val: 2.5rem;    /* 30px -> 40px */
+}
+
 :root {
   /* Color tokens */
   --background: 223 48% 8%;

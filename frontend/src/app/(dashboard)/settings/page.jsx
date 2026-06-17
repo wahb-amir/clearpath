@@ -1,11 +1,10 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { motion } from "framer-motion";
 import {
   Globe,
   Bell,
-  Moon,
   Type,
   ShieldAlert,
   LogOut,
@@ -19,14 +18,38 @@ export default function SettingsPage() {
     largeText: false,
   });
 
+  // 1. On mount: Load saved largeText setting from localStorage
+  useEffect(() => {
+    const savedLargeText = localStorage.getItem("clearpath-large-text");
+    if (savedLargeText === "true") {
+      setSettings((prev) => ({ ...prev, largeText: true }));
+      document.documentElement.setAttribute("data-large-text", "true");
+    }
+  }, []);
+
+  // 2. Custom toggle logic to handle the state, localStorage, and DOM attribute
   const toggleSetting = (key) => {
-    setSettings((prev) => ({ ...prev, [key]: !prev[key] }));
+    setSettings((prev) => {
+      const updatedValue = !prev[key];
+      
+      if (key === "largeText") {
+        if (updatedValue) {
+          document.documentElement.setAttribute("data-large-text", "true");
+          localStorage.setItem("clearpath-large-text", "true");
+        } else {
+          document.documentElement.removeAttribute("data-large-text");
+          localStorage.setItem("clearpath-large-text", "false");
+        }
+      }
+
+      return { ...prev, [key]: updatedValue };
+    });
   };
 
   return (
     <div className="mx-auto max-w-3xl p-4 md:p-8">
       <div className="mb-8">
-        <h1 className="mb-2 text-3xl font-display font-bold text-slate-100">
+        <h1 className="mb-2 text-3xl font-bold text-slate-100">
           Settings
         </h1>
         <p className="text-slate-400">
@@ -48,27 +71,6 @@ export default function SettingsPage() {
           </div>
 
           <div className="space-y-6 p-6">
-            {/* Theme */}
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-3">
-                <div className="rounded-lg bg-slate-800 p-2 text-slate-400">
-                  <Moon size={20} />
-                </div>
-                <div>
-                  <div className="font-medium text-slate-200">Theme</div>
-                  <div className="text-sm text-slate-400">
-                    Select your preferred interface theme.
-                  </div>
-                </div>
-              </div>
-
-              <select className="rounded-xl border border-slate-800 bg-slate-950 px-3 py-2 text-sm text-slate-300">
-                <option>System Default</option>
-                <option>Dark Mode</option>
-                <option>Light Mode</option>
-              </select>
-            </div>
-
             {/* Large Text */}
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-3">
@@ -84,6 +86,7 @@ export default function SettingsPage() {
               </div>
 
               <button
+                type="button"
                 onClick={() => toggleSetting("largeText")}
                 className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${
                   settings.largeText ? "bg-blue-600" : "bg-slate-700"
@@ -130,6 +133,7 @@ export default function SettingsPage() {
               </div>
 
               <button
+                type="button"
                 onClick={() => toggleSetting("emailAlerts")}
                 className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${
                   settings.emailAlerts ? "bg-blue-600" : "bg-slate-700"
@@ -160,6 +164,7 @@ export default function SettingsPage() {
               </div>
 
               <button
+                type="button"
                 onClick={() => toggleSetting("weeklyDigest")}
                 className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${
                   settings.weeklyDigest ? "bg-blue-600" : "bg-slate-700"
@@ -198,7 +203,7 @@ export default function SettingsPage() {
               <span className="font-medium text-slate-200">
                 Sign out of all devices
               </span>
-              <button className="flex items-center gap-2 rounded-lg bg-slate-800 px-4 py-2 text-sm text-slate-200 transition-colors hover:bg-slate-700">
+              <button type="button" className="flex items-center gap-2 rounded-lg bg-slate-800 px-4 py-2 text-sm text-slate-200 transition-colors hover:bg-slate-700">
                 <LogOut size={16} /> Log Out
               </button>
             </div>
