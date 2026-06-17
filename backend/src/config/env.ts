@@ -58,6 +58,11 @@ const envSchema = z.object({
 
   // ─── Internal APIs ─────────────────────────────────────
   INTERNAL_API_KEY: z.string().min(16),
+
+  CLEARPATH_ANALYSIS_QUEUE_NAME:z.string().default("clearpath-ai-analysis"),
+
+  GROQ_API_KEY:z.string(),
+  GROQ_MODEL:z.string().default("llama-3.3-70b-versatile")
 });
 
 const _env = envSchema.safeParse(process.env);
