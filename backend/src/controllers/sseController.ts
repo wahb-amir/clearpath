@@ -1,16 +1,10 @@
-import type { Request, Response, NextFunction } from 'express';
+import type { Response, NextFunction } from 'express';
+import type { AuthRequest } from '../middlewares/auth'; 
 import { documentIdParamSchema, sseQuerySchema } from '../validators/documentAnalysis';
 import { streamDocumentEvents } from '../sse/sseService';
 
-/**
- * GET /documents/:id/events
- *
- * Supports reconnection via the standard `Last-Event-ID` header (sent
- * automatically by EventSource on reconnect) or a `?lastEventId=`
- * query param fallback.
- */
 export async function streamDocumentEventsController(
-  req: Request & { user?: { id: string } },
+  req: AuthRequest, 
   res: Response,
   next: NextFunction,
 ): Promise<void> {
@@ -23,7 +17,8 @@ export async function streamDocumentEventsController(
       ? Number.parseInt(headerLastEventId, 10)
       : queryLastEventId ?? null;
 
-    const userId = req.user!.id;
+    // Now TypeScript knows userId exists on req.user
+    const userId = req.user!.userId; 
 
     await streamDocumentEvents({
       res,

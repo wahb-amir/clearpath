@@ -60,6 +60,12 @@ export interface AnalysisJobData {
   mimeType: string;
   analysisVersion: string;
 }
+export interface AiAnalysisJobData {
+  documentId: string;
+  analysisRequestId: string;
+  userId: string;
+  analysisVersion: string;
+}
 
 /** Outbox payload for 'analysis.requested' events. */
 export interface AnalysisRequestedOutboxPayload {

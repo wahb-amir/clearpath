@@ -14,18 +14,40 @@ export const PIPELINE_EVENT_TYPES = [
   'text_cleaned',
   'language_detected',
   'structure_preserved',
-  'chunking_completed',
   'entities_extracted',
-  'summary_created',
+  'chunking_completed',
   'embedding_completed',
+  'summary_created',
+
+  'preprocessing_completed',
+
+  'ai_analysis_queued',
+  'ai_analysis_started',
+
+  'ai_understanding_started',
+  'ai_understanding_completed',
+
+  'ai_extraction_started',
+  'ai_extraction_completed',
+
+  'ai_verification_started',
+  'ai_verification_completed',
+
+  'ai_synthesis_started',
+
+  'ai_summary_delta',
+
+  'ai_human_review_required',
+
+  'ai_completed',
+
   'analysis_completed',
-  'failed',
-  // meta events for SSE plumbing
-  'snapshot',
+  'analysis_failed',
   'heartbeat',
+  'snapshot'
 ] as const;
 
-export type PipelineEventType = (typeof PIPELINE_EVENT_TYPES)[number];
+export type PipelineEventType = typeof PIPELINE_EVENT_TYPES[number];
 
 export interface PipelineEventPayload {
   [key: string]: unknown;
@@ -41,6 +63,7 @@ export interface PipelineEventRecord {
   progress: number | null;
   payload: PipelineEventPayload | null;
   createdAt: string;
+  
 }
 
 /** Lightweight notification published over Redis pub/sub. */

@@ -3,6 +3,7 @@ import { pgPool, withTransaction } from "../db/pool";
 import { env } from "../config/env";
 import { enqueueAnalysisJob } from "../queue/analysisQueue";
 import { jobIdForAnalysisRequest } from "../utils/idempotency";
+import { enqueueAiAnalysisJob } from "../queue/analysisQueue";
 import type {
   AnalysisJobData,
   AnalysisRequestedOutboxPayload,
@@ -137,7 +138,7 @@ export class OutboxDispatcher {
           analysisVersion: payload.analysisVersion,
         };
         const rawJobId = jobIdForAnalysisRequest(payload.analysisRequestId);
-        const sanitizedJobId = rawJobId.replace(/:/g, "-"); 
+        const sanitizedJobId = rawJobId.replace(/:/g, "-");
 
         await enqueueAnalysisJob(sanitizedJobId, jobData);
 
@@ -147,6 +148,17 @@ export class OutboxDispatcher {
            WHERE id = $1`,
           [row.id],
         );
+        break;
+      }
+      case "document.preprocessing.completed": {
+        const payload = row.payload as {
+          documentId: string;
+          userId: string;
+          analysisRequestId: string;
+          analysisVersion: string;
+        };
+
+        await enqueueAiAnalysisJob(`ai:${payload.analysisRequestId}`, payload);
         break;
       }
       default:

@@ -71,9 +71,8 @@ async function uploadDocumentFile(file) {
 
   const { documentId, uploadSessionId, path, uploadToken } = await signResponse.json();
 
-  console.log("[UPLOAD FLOW] Step 2: Uploading file directly to Supabase Storage...");
+  console.log(" Uploading file directly to Supabase Storage...");
 
-  // ✅ FIX: Import Supabase BEFORE attempting to use it
   const { supabaseBrowser: supabase } = await import("@/lib/supabase/browser-client");
 
   // 2) Upload file bytes directly to Storage bucket using the token
