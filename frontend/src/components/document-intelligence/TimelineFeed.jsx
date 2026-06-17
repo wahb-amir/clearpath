@@ -9,7 +9,7 @@ export default function TimelineFeed({ timeline, latestEventId, timelineEndRef }
     <div className="mt-8 border-t border-[#2B303B] pt-5">
       <div className="flex items-center justify-between mb-4">
         <span className="font-semibold text-sm text-gray-200 flex items-center gap-2">
-          <Activity size={16} className="text-blue-400" /> Server Logs
+          <Activity size={16} className="text-blue-400" /> Events
         </span>
         <span className="text-xs font-medium text-gray-500 bg-[#1A1D24] py-1 px-2.5 rounded-full border border-[#2B303B]">
           {timeline.length} Event{timeline.length !== 1 && "s"}
