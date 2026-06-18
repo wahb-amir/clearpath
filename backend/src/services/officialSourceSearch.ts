@@ -1,3 +1,4 @@
+import { env } from "../config/env";
 export interface OfficialSourceSnippet {
   title: string;
   url: string;
@@ -12,17 +13,16 @@ export interface OfficialSearchOptions {
   timeoutMs?: number;
 }
 
-interface BraveResult {
+interface TavilyResult {
   title?: string;
   url?: string;
-  description?: string;
+  content?: string;
 }
 
-interface BraveSearchResponse {
-  web?: {
-    results?: BraveResult[];
-  };
+interface TavilySearchResponse {
+  results?: TavilyResult[];
 }
+
 
 function normalizeText(value: string): string {
   return value.replace(/\s+/g, " ").trim();
@@ -41,27 +41,36 @@ function hostnameMatches(hostname: string, allowedDomains: string[]): boolean {
   });
 }
 
-function dedupeSnippets(snippets: OfficialSourceSnippet[]): OfficialSourceSnippet[] {
+function dedupeSnippets(
+  snippets: OfficialSourceSnippet[],
+): OfficialSourceSnippet[] {
   const seen = new Set<string>();
   const deduped: OfficialSourceSnippet[] = [];
+
   for (const snippet of snippets) {
     const key = `${snippet.url}::${snippet.source}`;
     if (seen.has(key)) continue;
     seen.add(key);
     deduped.push(snippet);
   }
+
   return deduped;
 }
 
-async function fetchPageExcerpt(url: string, timeoutMs = 9000): Promise<string> {
+async function fetchPageExcerpt(
+  url: string,
+  timeoutMs = 9000,
+): Promise<string> {
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), timeoutMs);
+
   try {
     const response = await fetch(url, {
       signal: controller.signal,
       headers: {
-        "user-agent": "Mozilla/5.0 (compatible; ClearPath/1.0; +https://example.invalid)"
-      }
+        "user-agent":
+          "Mozilla/5.0 (compatible; ClearPath/1.0; +https://example.invalid)",
+      },
     });
 
     if (!response.ok) {
@@ -82,51 +91,67 @@ async function fetchPageExcerpt(url: string, timeoutMs = 9000): Promise<string> 
 }
 
 /**
- * Fetch-based real web search adapter for the grounding stage.
+ * Drop-in replacement for the old Brave-based adapter.
  *
- * The pipeline uses this to gather short official snippets, then feeds those
- * snippets into the verifier prompt. Search is intentionally filtered toward
- * authoritative sources (.gov / .edu or a caller-provided allowlist).
+ * Uses Tavily Search API, which has a free plan and returns
+ * title/url/content fields that fit this pipeline well.
  */
 export async function searchOfficialSources(
   query: string,
-  options: OfficialSearchOptions = {}
+  options: OfficialSearchOptions = {},
 ): Promise<OfficialSourceSnippet[]> {
-  const apiKey = process.env.BRAVE_SEARCH_API_KEY;
+  const apiKey = env.TAVILY_API_KEY;
+
   if (!apiKey) {
     throw new Error(
-      "Missing BRAVE_SEARCH_API_KEY. Configure a web search provider before enabling Stage 3 grounding."
+      "Missing TAVILY_API_KEY. Configure Tavily before enabling Stage 3 grounding.",
     );
   }
+ 
 
   const count = Math.min(Math.max(options.count ?? 5, 1), 10);
   const language = options.language ?? "en";
   const timeoutMs = options.timeoutMs ?? 9000;
+  const allowedDomains = options.officialDomains?.filter(Boolean) ?? [];
 
-  const params = new URLSearchParams({
-    q: query,
-    count: String(count),
-    search_lang: language
-  });
+  const body: Record<string, unknown> = {
+    query,
+    max_results: count,
+    search_depth: "basic",
+    include_answer: false,
+    include_raw_content: false,
+  };
 
-  const response = await fetch(`https://api.search.brave.com/res/v1/web/search?${params.toString()}`, {
+  if (language) {
+    body["country"] = language;
+  }
+
+  if (allowedDomains.length > 0) {
+    body["include_domains"] = allowedDomains;
+  }
+
+  const response = await fetch("https://api.tavily.com/search", {
+    method: "POST",
     headers: {
-      Accept: "application/json",
-      "X-Subscription-Token": apiKey
-    }
+      "Content-Type": "application/json",
+      Authorization: `Bearer ${apiKey}`,
+    },
+    body: JSON.stringify(body),
   });
 
   if (!response.ok) {
-    const body = await response.text().catch(() => "");
-    throw new Error(`Official source search failed (${response.status}): ${body.slice(0, 300)}`);
+    const errBody = await response.text().catch(() => "");
+    throw new Error(
+      `Official source search failed (${response.status}): ${errBody.slice(0, 300)}`,
+    );
   }
 
-  const data = (await response.json()) as BraveSearchResponse;
-  const results = data.web?.results ?? [];
+  const data = (await response.json()) as TavilySearchResponse;
+  const results = data.results ?? [];
 
-  const allowedDomains = options.officialDomains?.filter(Boolean) ?? [];
   const filtered = results.filter((result) => {
     if (!result.url || !result.title) return false;
+
     try {
       const hostname = new URL(result.url).hostname;
       if (allowedDomains.length > 0) {
@@ -145,8 +170,8 @@ export async function searchOfficialSources(
     snippets.push({
       title: result.title,
       url: result.url,
-      snippet: normalizeText(result.description ?? ""),
-      source: "search_result"
+      snippet: normalizeText(result.content ?? ""),
+      source: "search_result",
     });
   }
 
@@ -159,7 +184,7 @@ export async function searchOfficialSources(
           title: target.title,
           url: target.url,
           snippet: excerpt,
-          source: "page_excerpt"
+          source: "page_excerpt",
         });
       }
     } catch {
@@ -170,7 +195,10 @@ export async function searchOfficialSources(
   return dedupeSnippets(snippets).slice(0, 8);
 }
 
-export function isTrustedOfficialUrl(url: string, allowlist: string[] = []): boolean {
+export function isTrustedOfficialUrl(
+  url: string,
+  allowlist: string[] = [],
+): boolean {
   try {
     const hostname = new URL(url).hostname.toLowerCase();
     if (allowlist.length > 0) {

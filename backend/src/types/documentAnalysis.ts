@@ -78,10 +78,6 @@ export interface DocumentAnalysisJobData {
   analysisRequestId: string;
   documentId: string;
   userId: string;
-  /**
-   * Optional. The worker can rebuild the source text from sections/chunks,
-   * but a caller may pass a pre-extracted document payload for testing.
-   */
   sourceText?: string;
   fileType?: string;
   language?: string | null;
