@@ -34,6 +34,15 @@ const ScanAnimation = dynamic(() => import("@/components/3d/ScanAnimation"), {
   ssr: false,
 });
 
+// Clean UI Utility: Formats UPPERCASE_SNAKE_CASE to elegant Title Case
+function formatStageText(stage) {
+  if (!stage) return "Idle";
+  return stage
+    .toLowerCase()
+    .replace(/_/g, " ")
+    .replace(/\b\w/g, (char) => char.toUpperCase());
+}
+
 function formatBytes(bytes) {
   if (!Number.isFinite(bytes)) return "—";
   if (bytes < 1024) return `${bytes} B`;
@@ -138,61 +147,83 @@ function TimelineItem({ item, active }) {
       <Sparkles size={14} />
     );
 
-  const accent =
-    item.stage === "FAILED"
-      ? "from-rose-500/80 to-rose-400/50"
-      : item.stage === "COMPLETED"
-        ? "from-emerald-500/80 to-emerald-400/50"
-        : "from-blue-500/80 to-cyan-400/50";
+  const isWorking = active && item.stage !== "FAILED" && item.stage !== "COMPLETED";
 
   return (
     <motion.div
       layout
-      initial={{ opacity: 0, y: 10, scale: 0.985 }}
+      initial={{ opacity: 0, y: 15, scale: 0.95 }}
       animate={{ opacity: 1, y: 0, scale: 1 }}
-      exit={{ opacity: 0, y: -8, scale: 0.985 }}
-      transition={{ type: "spring", stiffness: 420, damping: 34 }}
-      className={`relative overflow-hidden rounded-2xl border ${
+      exit={{ opacity: 0, scale: 0.95, transition: { duration: 0.2 } }}
+      transition={{ type: "spring", stiffness: 400, damping: 30 }}
+      className={`relative overflow-hidden rounded-2xl border transition-colors duration-300 ${
         active
-          ? "border-white/15 bg-white/[0.06] shadow-[0_0_0_1px_rgba(255,255,255,0.03),0_18px_40px_rgba(0,0,0,0.25)]"
-          : "border-white/8 bg-white/[0.03]"
+          ? "border-cyan-500/30 bg-[#0B0D10]"
+          : "border-white/5 bg-white/[0.02] hover:bg-white/[0.04]"
       } p-4`}
     >
-      <div
-        className={`absolute inset-y-0 left-0 w-1 bg-gradient-to-b ${accent} opacity-90`}
-      />
-      <div className="flex items-start gap-3 pl-2">
-        <div
-          className={`mt-0.5 grid h-9 w-9 place-items-center rounded-xl border ${
-            item.stage === "FAILED"
-              ? "border-rose-500/20 bg-rose-500/10 text-rose-300"
-              : item.stage === "COMPLETED"
-                ? "border-emerald-500/20 bg-emerald-500/10 text-emerald-300"
-                : "border-blue-500/20 bg-blue-500/10 text-blue-300"
-          }`}
-        >
-          {icon}
+      {/* Subtle "Breathing" Background Animation for Active Step */}
+      {isWorking && (
+        <motion.div
+          className="absolute inset-0 bg-gradient-to-r from-cyan-500/10 to-blue-500/5"
+          animate={{ opacity: [0.4, 0.8, 0.4] }}
+          transition={{ duration: 2.5, repeat: Infinity, ease: "easeInOut" }}
+        />
+      )}
+
+      {/* Active Left Border Accent */}
+      {active && (
+        <motion.div
+          layoutId="active-accent"
+          className="absolute inset-y-0 left-0 w-1 bg-gradient-to-b from-cyan-400 to-blue-500 shadow-[0_0_10px_rgba(6,182,212,0.5)]"
+        />
+      )}
+
+      <div className="relative z-10 flex items-start justify-between gap-4 pl-1">
+        <div className="flex min-w-0 flex-1 items-start gap-3">
+          <div
+            className={`mt-0.5 grid h-9 w-9 shrink-0 place-items-center rounded-xl border ${
+              item.stage === "FAILED"
+                ? "border-rose-500/20 bg-rose-500/10 text-rose-300"
+                : item.stage === "COMPLETED"
+                  ? "border-emerald-500/20 bg-emerald-500/10 text-emerald-300"
+                  : active
+                    ? "border-cyan-500/30 bg-cyan-500/20 text-cyan-300 shadow-[0_0_15px_rgba(6,182,212,0.2)]"
+                    : "border-blue-500/20 bg-blue-500/10 text-blue-300"
+            }`}
+          >
+            {icon}
+          </div>
+
+          <div className="min-w-0 flex-1">
+            <h4 className="truncate text-sm font-semibold text-white">
+              {item.label || EVENT_LABELS[item.name] || item.name}
+            </h4>
+            <p className="mt-1 text-sm leading-relaxed text-gray-400">
+              {item.message || "Updated"}
+            </p>
+          </div>
         </div>
 
-        <div className="min-w-0 flex-1">
-          <div className="flex flex-wrap items-center gap-2">
-            <span className="text-sm font-semibold text-white">
-              {item.label || EVENT_LABELS[item.name] || item.name}
-            </span>
-            <span className="rounded-full border border-white/10 bg-white/5 px-2 py-0.5 text-[11px] font-medium tracking-wide text-gray-400">
-              {item.stage}
-            </span>
-          </div>
-
-          <p className="mt-1 text-sm leading-6 text-gray-300">
-            {item.message || "Updated"}
-          </p>
-
-          <div className="mt-2 flex items-center gap-2 text-[11px] text-gray-500">
-            <span>{new Date(item.createdAt).toLocaleTimeString()}</span>
-            <span>•</span>
-            <span>Event #{item.eventId}</span>
-          </div>
+        {/* Right Aligned Metadata Panel with Strict Overflow Prevention */}
+        <div className="flex shrink-0 flex-col items-end gap-1.5 pt-0.5">
+          <span className="text-[11px] font-medium tracking-wider text-gray-500">
+            {new Date(item.createdAt).toLocaleTimeString([], {
+              hour: "2-digit",
+              minute: "2-digit",
+              second: "2-digit",
+            })}
+          </span>
+          <span
+            title={item.stage}
+            className={`max-w-[110px] sm:max-w-[160px] truncate rounded-md border px-2 py-0.5 text-[10px] font-bold tracking-wider ${
+              active
+                ? "border-cyan-500/20 bg-cyan-500/10 text-cyan-400"
+                : "border-white/10 bg-white/5 text-gray-400"
+            }`}
+          >
+            {formatStageText(item.stage)}
+          </span>
         </div>
       </div>
     </motion.div>
@@ -216,12 +247,23 @@ function StatusCard({
   error,
   onRetry,
 }) {
+  const scrollRef = useRef(null);
+
+  useEffect(() => {
+    if (scrollRef.current) {
+      scrollRef.current.scrollTo({
+        top: scrollRef.current.scrollHeight,
+        behavior: "smooth",
+      });
+    }
+  }, [timeline]);
+
   return (
-    <div className="mt-5 rounded-[24px] border border-[#2B303B] bg-[#0B0D10]/95 p-4 sm:p-5 shadow-[0_20px_60px_rgba(0,0,0,0.28)]">
+    <div className="mt-5 rounded-[24px] border border-[#2B303B] bg-[#0B0D10]/95 p-4 shadow-[0_20px_60px_rgba(0,0,0,0.28)] sm:p-5">
       <div className="flex flex-wrap items-center justify-between gap-3">
-        <div className="flex min-w-0 items-center gap-3">
+        <div className="flex min-w-0 flex-1 items-center gap-3">
           <div
-            className={`grid h-11 w-11 place-items-center rounded-2xl border ${
+            className={`grid h-11 w-11 shrink-0 place-items-center rounded-2xl border ${
               completed
                 ? "border-emerald-500/20 bg-emerald-500/10 text-emerald-300"
                 : failed
@@ -246,11 +288,13 @@ function StatusCard({
             )}
           </div>
 
-          <div className="min-w-0">
+          <div className="min-w-0 flex-1">
             <div className="flex flex-wrap items-center gap-2">
-              <h3 className="text-sm font-semibold text-white">{message}</h3>
+              <h3 className="truncate text-sm font-semibold text-white max-w-[200px] sm:max-w-none">
+                {message}
+              </h3>
               <span
-                className={`rounded-full border px-2.5 py-0.5 text-[11px] font-semibold tracking-wide ${
+                className={`rounded-full border px-2.5 py-0.5 text-[11px] font-semibold tracking-wide shrink-0 ${
                   statusMeta.tone === "success"
                     ? "border-emerald-500/20 bg-emerald-500/10 text-emerald-300"
                     : statusMeta.tone === "danger"
@@ -266,7 +310,7 @@ function StatusCard({
               </span>
             </div>
 
-            <p className="mt-1 text-xs text-gray-500">
+            <p className="mt-1 text-xs text-gray-500 truncate">
               {stage === "COMPLETED"
                 ? "Analysis finished and ready to review."
                 : stage === "FAILED"
@@ -280,7 +324,7 @@ function StatusCard({
           <button
             type="button"
             onClick={onRetry}
-            className={`inline-flex items-center gap-2 rounded-xl border px-3.5 py-2 text-sm font-medium transition-all ${
+            className={`inline-flex items-center gap-2 rounded-xl border px-3.5 py-2 text-sm font-medium transition-all shrink-0 ${
               failed
                 ? "border-rose-500/20 bg-rose-500/10 text-rose-200 hover:bg-rose-500/15"
                 : "border-white/10 bg-white/5 text-gray-200 hover:bg-white/10"
@@ -307,15 +351,20 @@ function StatusCard({
         </div>
       </div>
 
-      <div className="mt-4 grid gap-3 sm:grid-cols-3">
-        <div className="rounded-2xl border border-white/8 bg-white/[0.03] p-3">
+      <div className="mt-4 grid gap-3 grid-cols-1 sm:grid-cols-3">
+        <div className="rounded-2xl border border-white/8 bg-white/[0.03] p-3 min-w-0">
           <div className="text-[11px] uppercase tracking-wider text-gray-500">
             Stage
           </div>
-          <div className="mt-1 text-sm font-medium text-white">{stage}</div>
+          <div 
+            title={stage}
+            className="mt-1 truncate text-sm font-medium text-white"
+          >
+            {formatStageText(stage)}
+          </div>
         </div>
 
-        <div className="rounded-2xl border border-white/8 bg-white/[0.03] p-3">
+        <div className="rounded-2xl border border-white/8 bg-white/[0.03] p-3 min-w-0">
           <div className="text-[11px] uppercase tracking-wider text-gray-500">
             Request
           </div>
@@ -324,7 +373,7 @@ function StatusCard({
           </div>
         </div>
 
-        <div className="rounded-2xl border border-white/8 bg-white/[0.03] p-3">
+        <div className="rounded-2xl border border-white/8 bg-white/[0.03] p-3 min-w-0">
           <div className="text-[11px] uppercase tracking-wider text-gray-500">
             Worker
           </div>
@@ -342,22 +391,25 @@ function StatusCard({
             animate={{ opacity: 1, y: 0, scale: 1 }}
             exit={{ opacity: 0, y: -8, scale: 0.985 }}
             transition={{ type: "spring", stiffness: 400, damping: 30 }}
-            className="mt-4 rounded-2xl border border-rose-500/15 bg-rose-500/10 p-3 text-sm text-rose-100"
+            className="mt-4 rounded-2xl border border-rose-500/15 bg-rose-500/10 p-3 text-sm text-rose-100 break-words"
           >
             {error}
           </motion.div>
         ) : null}
       </AnimatePresence>
 
-      <div className="mt-5">
-        <div className="mb-3 flex items-center justify-between">
+      <div className="mt-6 border-t border-white/5 pt-5">
+        <div className="mb-4 flex items-center justify-between px-1">
           <h4 className="text-sm font-semibold text-white">Live event stream</h4>
-          <span className="text-[11px] text-gray-500">
+          <span className="rounded-full bg-white/5 px-2 py-0.5 text-[11px] font-medium text-gray-400">
             {timeline.length} event{timeline.length === 1 ? "" : "s"}
           </span>
         </div>
 
-        <div className="space-y-3">
+        <div
+          ref={scrollRef}
+          className="custom-scrollbar max-h-[280px] space-y-3 overflow-y-auto pr-2 pb-2"
+        >
           <AnimatePresence initial={false} mode="popLayout">
             {timeline.map((item) => (
               <TimelineItem
@@ -366,6 +418,15 @@ function StatusCard({
                 active={item.eventId === latestEventId}
               />
             ))}
+            {timeline.length === 0 && !isConnected && !completed && (
+              <motion.div
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                className="py-8 text-center text-sm text-gray-500"
+              >
+                Waiting for analysis to begin...
+              </motion.div>
+            )}
           </AnimatePresence>
         </div>
       </div>
@@ -400,7 +461,7 @@ export default function DocumentIntelligencePanel({
 
   const isMobile = useIsMobile();
   const busy = analyzing || isAnalyzing;
-
+  const isFileBusy = busy && !completed && !failed;
   useEffect(() => {
     return () => {
       abortRef.current?.abort();
@@ -625,7 +686,9 @@ export default function DocumentIntelligencePanel({
           if (controller.signal.aborted) return;
           setIsConnected(false);
           setReconnecting(true);
-          setError(err instanceof Error ? err.message : "Connection interrupted");
+          setError(
+            err instanceof Error ? err.message : "Connection interrupted"
+          );
         },
       }).catch((err) => {
         if (controller.signal.aborted) return;
@@ -646,7 +709,7 @@ export default function DocumentIntelligencePanel({
 
   return (
     <div
-      className="w-full max-w-4xl mx-auto font-sans text-gray-100"
+      className="mx-auto w-full max-w-4xl font-sans text-gray-100"
       style={{ position: "sticky", top: "80px" }}
     >
       <div className="overflow-hidden rounded-[28px] border border-[#2B303B] bg-[linear-gradient(180deg,#141821_0%,#0B0D10_100%)] shadow-[0_24px_80px_rgba(0,0,0,0.45)]">
@@ -703,19 +766,33 @@ export default function DocumentIntelligencePanel({
                   <div className="flex min-w-0 items-start gap-4">
                     <motion.div
                       layout
-                      className="grid h-14 w-14 place-items-center rounded-2xl border border-cyan-500/15 bg-cyan-500/10 text-cyan-300"
+                      className={`grid h-14 w-14 place-items-center rounded-2xl border ${
+                        completed
+                          ? "border-emerald-500/15 bg-emerald-500/10 text-emerald-400"
+                          : failed
+                            ? "border-rose-500/15 bg-rose-500/10 text-rose-400"
+                            : "border-cyan-500/15 bg-cyan-500/10 text-cyan-300"
+                      }`}
                       animate={
-                        busy
+                        isFileBusy
                           ? { scale: [1, 1.04, 1], rotate: [0, 2, 0] }
                           : { scale: 1, rotate: 0 }
                       }
                       transition={
-                        busy
+                        isFileBusy
                           ? { duration: 1.2, repeat: Infinity, ease: "easeInOut" }
                           : { duration: 0.2 }
                       }
                     >
-                      {busy ? <Loader2 size={22} className="animate-spin" /> : <FileText size={22} />}
+                      {isFileBusy ? (
+                        <Loader2 size={22} className="animate-spin" />
+                      ) : completed ? (
+                        <CheckCircle2 size={22} />
+                      ) : failed ? (
+                        <AlertCircle size={22} />
+                      ) : (
+                        <FileText size={22} />
+                      )}
                     </motion.div>
 
                     <div className="min-w-0">
@@ -766,7 +843,11 @@ export default function DocumentIntelligencePanel({
                           : "border border-cyan-500/20 bg-cyan-500/15 text-cyan-100 hover:bg-cyan-500/20"
                       }`}
                     >
-                      {busy ? <Loader2 size={16} className="animate-spin" /> : <Sparkles size={16} />}
+                      {busy ? (
+                        <Loader2 size={16} className="animate-spin" />
+                      ) : (
+                        <Sparkles size={16} />
+                      )}
                       {busy ? "Analyzing..." : "Analyze file"}
                     </button>
                   </div>
