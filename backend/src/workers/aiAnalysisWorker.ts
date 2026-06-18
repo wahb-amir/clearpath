@@ -1,11 +1,10 @@
-import { ConnectionOptions, Worker, type Job } from "bullmq";
-import { createWorkerConnection } from "../redis/connection";
+import { type Job } from "bullmq";
 import { env } from "../config/env";
-import { pgPool, withTransaction } from "../db/pool";
+import { pgPool } from "../db/pool";
 import type { AiAnalysisJobData, DocumentRow } from "../types/dtos";
 import { reportStage, reportProgress, reportFailure } from "./stageReporter";
+import { runAndPersistDocumentAnalysis } from "../services/documentAnalysisOrchestrator";
 
-// plug your actual AI pipeline implementation here
 export async function runAiPipeline(job: Job<AiAnalysisJobData>): Promise<void> {
   const { documentId, analysisRequestId, userId, analysisVersion } = job.data;
 
@@ -18,6 +17,16 @@ export async function runAiPipeline(job: Job<AiAnalysisJobData>): Promise<void> 
   const doc = docResult.rows[0];
 
   if (doc.analysis_status === "COMPLETED") {
+    return;
+  }
+
+  if (doc.analysis_status === "FAILED" || doc.analysis_status === "CANCELLED") {
+    // Document already reached a terminal state (e.g. a prior attempt
+    // failed permanently). Don't retry into a dead end - BullMQ retries
+    // would otherwise throw InvalidStateTransitionError forever.
+    console.warn(
+      `[ai-analysis] Skipping job ${job.id}: document ${documentId} is already ${doc.analysis_status}`,
+    );
     return;
   }
 
@@ -42,132 +51,97 @@ export async function runAiPipeline(job: Job<AiAnalysisJobData>): Promise<void> 
     progress: 5,
   });
 
-  // TODO: call your guardrailed Groq + search pipeline here
-  const finalResult = {
-    summary: "placeholder",
-    action_items: [],
-    key_deadlines: [],
-    questions_to_ask: [],
-    ai_confidence: { overall: 0.5 },
-    trusted_sources: [],
-    human_review: { required: true, reason: "AI pipeline not yet wired" },
-  };
-
-  await withTransaction(async (client) => {
-    await client.query(
-      `
-      INSERT INTO document_analysis_results (
-        analysis_request_id,
-        document_id,
-        user_id,
-        status,
-        summary,
-        action_items,
-        key_deadlines,
-        questions_to_ask,
-        ai_confidence,
-        trusted_sources,
-        human_review,
-        created_at,
-        updated_at
-      )
-      VALUES ($1, $2, $3, 'completed', $4, $5::jsonb, $6::jsonb, $7::jsonb, $8::jsonb, $9::jsonb, $10::jsonb, now(), now())
-      ON CONFLICT (analysis_request_id)
-      DO UPDATE SET
-        status = EXCLUDED.status,
-        summary = EXCLUDED.summary,
-        action_items = EXCLUDED.action_items,
-        key_deadlines = EXCLUDED.key_deadlines,
-        questions_to_ask = EXCLUDED.questions_to_ask,
-        ai_confidence = EXCLUDED.ai_confidence,
-        trusted_sources = EXCLUDED.trusted_sources,
-        human_review = EXCLUDED.human_review,
-        updated_at = now()
-      `,
-      [
-        analysisRequestId,
-        documentId,
-        userId,
-        finalResult.summary,
-        JSON.stringify(finalResult.action_items),
-        JSON.stringify(finalResult.key_deadlines),
-        JSON.stringify(finalResult.questions_to_ask),
-        JSON.stringify(finalResult.ai_confidence),
-        JSON.stringify(finalResult.trusted_sources),
-        JSON.stringify(finalResult.human_review),
-      ],
-    );
-
-    await client.query(
-      `
-      UPDATE documents
-         SET analysis_status = 'COMPLETED',
-             current_stage = 'COMPLETED',
-             worker_id = $1
-       WHERE id = $2
-      `,
-      [env.WORKER_ID, documentId],
-    );
-
-    await client.query(
-      `
-      UPDATE document_analysis_requests
-         SET status = 'COMPLETED',
-             finished_at = now()
-       WHERE id = $1
-      `,
-      [analysisRequestId],
-    );
-
-    const { insertPipelineEvent } =
-      await import("../services/analysisRequestService");
-    await insertPipelineEvent(client, {
+  try {
+    await reportProgress({
       documentId,
       userId,
+      stage: "AI_PROCESSING",
+      eventType: "ai_understanding_started",
+      message: "Reading the document and identifying its purpose",
+      progress: 15,
+    });
+
+    const result = await runAndPersistDocumentAnalysis({
+      analysisRequestId,
+      documentId,
+      userId,
+      fileType: doc.mime_type,
+      language: doc.language,
+    });
+
+    await reportProgress({
+      documentId,
+      userId,
+      stage: "AI_PROCESSING",
+      eventType: "ai_synthesis_started",
+      message: "Synthesizing the summary, action items, and deadlines",
+      progress: 85,
+    });
+
+    if (result.human_review.required) {
+      await reportProgress({
+        documentId,
+        userId,
+        stage: "AI_PROCESSING",
+        eventType: "ai_human_review_required",
+        message: result.human_review.reason,
+        progress: 90,
+        payload: { reason: result.human_review.reason },
+      });
+    }
+
+    await reportStage({
+      documentId,
+      userId,
+      workerId: env.WORKER_ID,
+      toStatus: "AI_COMPLETED",
       eventType: "ai_completed",
-      stage: "COMPLETED",
       message: "AI analysis completed",
       progress: 100,
-      payload: finalResult,
+      payload: {
+        analysisVersion,
+        summary: result.summary,
+        actionItems: result.action_items,
+        keyDeadlines: result.key_deadlines,
+        questionsToAsk: result.questions_to_ask,
+        aiConfidence: result.ai_confidence,
+        trustedSources: result.trusted_sources,
+        humanReview: result.human_review,
+        status: result.status,
+      },
     });
-  });
 
-  await reportProgress({
-    documentId,
-    userId,
-    stage: "COMPLETED",
-    eventType: "ai_completed",
-    message: "AI analysis completed",
-    progress: 100,
-    payload: { analysisVersion, result: finalResult },
-  });
-}
-
-export function createAiAnalysisWorker(p0: Job<AiAnalysisJobData, any, string>): Worker<AiAnalysisJobData> {
-  const worker = new Worker<AiAnalysisJobData>(
-    env.ANALYSIS_QUEUE_NAME,
-    async (job: Job<AiAnalysisJobData>) => {
-      if (job.name !== "ai-analysis") return;
-      await runAiPipeline(job);
-    },
-    {
-      connection: createWorkerConnection() as ConnectionOptions,
-      concurrency: 1,
-      lockDuration: 10 * 60 * 1000,
-    },
-  );
-
-  worker.on("active", (job) => {
-    console.log("[ai-worker] ACTIVE", job.id);
-  });
-
-  worker.on("completed", (job) => {
-    console.log("[ai-worker] COMPLETED", job.id);
-  });
-
-  worker.on("failed", (job, err) => {
-    console.error("[ai-worker] FAILED", job?.id, err);
-  });
-
-  return worker;
+    await reportStage({
+      documentId,
+      userId,
+      workerId: env.WORKER_ID,
+      toStatus: "COMPLETED",
+      eventType: "analysis_completed",
+      message:
+        result.status === "review_required"
+          ? "Analysis completed - human review recommended"
+          : "Analysis completed",
+      progress: 100,
+      payload: {
+        analysisVersion,
+        summary: result.summary,
+        actionItems: result.action_items,
+        keyDeadlines: result.key_deadlines,
+        questionsToAsk: result.questions_to_ask,
+        aiConfidence: result.ai_confidence,
+        trustedSources: result.trusted_sources,
+        humanReview: result.human_review,
+        status: result.status,
+      },
+    });
+  } catch (error) {
+    await reportFailure({
+      documentId,
+      analysisRequestId,
+      userId,
+      workerId: env.WORKER_ID,
+      error,
+    });
+    throw error;
+  }
 }

@@ -85,6 +85,7 @@ export async function processAnalysisJob(job: Job<AnalysisJobData>): Promise<voi
   if (
     doc.analysis_status === "COMPLETED" ||
     doc.analysis_status === "CANCELLED" ||
+    doc.analysis_status === "FAILED" ||
     doc.analysis_status === "PREPROCESSING_COMPLETED" ||
     doc.analysis_status === "AI_QUEUED" ||
     doc.analysis_status === "AI_PROCESSING" ||
