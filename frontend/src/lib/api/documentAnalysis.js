@@ -8,8 +8,7 @@ if (!API_BASE_URL) {
   console.warn("NEXT_PUBLIC_BACKEND_URL is not set");
 }
 
-
-let refreshPromise= null;
+let refreshPromise = null;
 
 function resolveUrl(pathOrUrl) {
   if (/^https?:\/\//i.test(pathOrUrl)) return pathOrUrl;
@@ -18,10 +17,7 @@ function resolveUrl(pathOrUrl) {
 }
 
 function shouldSkipRefresh(url) {
-  return (
-    url.includes("/auth/refresh") ||
-    url.includes("/login")
-  );
+  return url.includes("/auth/refresh") || url.includes("/login");
 }
 
 export async function refreshSession() {
@@ -44,15 +40,8 @@ export async function refreshSession() {
   return refreshPromise;
 }
 
-export async function apiFetch(
-  input,
-  init
-) {
-  const {
-    retryOnUnauthorized = true,
-    credentials,
-    ...rest
-  } = init;
+export async function apiFetch(input, init = {}) {
+  const { retryOnUnauthorized = true, credentials, ...rest } = init;
 
   const request = new Request(input, {
     ...rest,
@@ -93,16 +82,36 @@ export async function startAnalysisRequest(params) {
     analysisVersion = "v1",
   } = params;
 
-  const res = await apiFetch(
-    resolveUrl(`/documents/${documentId}/analyze`),
-    {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({ purpose, analysisVersion }),
-    }
+  const res = await apiFetch(resolveUrl(`/analysis/documents/${documentId}/analyze`), {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({ purpose, analysisVersion }),
+  });
+
+  if (!res.ok) {
+    throw new Error(await readErrorMessage(res));
+  }
+
+  return res.json();
+}
+
+/**
+ * GET /analysis/history
+ * Returns paginated analysis history for the authenticated user.
+ * @param {{ page?: number, pageSize?: number, status?: string }} params
+ */
+export async function fetchAnalysisHistory({
+  page = 1,
+  pageSize = 20,
+  status = "all",
+} = {}) {
+  const url = resolveUrl(
+    `/analysis/history?page=${page}&pageSize=${pageSize}&status=${status}`
   );
+
+  const res = await apiFetch(url, { method: "GET" });
 
   if (!res.ok) {
     throw new Error(await readErrorMessage(res));
@@ -114,11 +123,9 @@ export async function startAnalysisRequest(params) {
 export async function openAnalysisStream(params) {
   const { sseUrl, onMessage, onError, signal, lastEventId } = params;
 
-  const headers = lastEventId
-    ? { "Last-Event-ID": lastEventId }
-    : {};
+  const headers = lastEventId ? { "Last-Event-ID": lastEventId } : {};
 
-  return fetchEventSource(resolveUrl(sseUrl), {
+  return fetchEventSource(resolveUrl(`/analysis/${sseUrl}`), {
     method: "GET",
     credentials: "include",
     headers,

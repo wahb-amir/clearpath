@@ -25,7 +25,6 @@ export async function getAnalysisHistoryController(
   next: NextFunction,
 ): Promise<void> {
   try {
-    console.log('hit')
     const userId = req.user?.userId;
     if (!userId) {
       res.status(401).json({ error: 'Unauthorized' });
