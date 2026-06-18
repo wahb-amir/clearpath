@@ -9,8 +9,6 @@ import ConfidenceCard from "@/components/results/ConfidenceCard";
 import SourcesCard from "@/components/results/SourcesCard";
 import { Inbox, Zap } from "lucide-react";
 
-/* ---------------- EMPTY STATE ---------------- */
-
 function EmptyState() {
   return (
     <motion.div
@@ -53,63 +51,14 @@ function EmptyState() {
         Upload a file or paste text, then click <strong>Analyze Document</strong>.
       </p>
 
-      <div style={{ display: "flex", gap: "0.75rem", flexWrap: "wrap", justifyContent: "center" }}>
-        {[
-          { icon: "🏫", label: "Attendance Warning" },
-          { icon: "🎓", label: "Scholarship Notice" },
-          { icon: "🏠", label: "Housing Assistance" },
-        ].map((item) => (
-          <div
-            key={item.label}
-            style={{
-              display: "flex",
-              alignItems: "center",
-              gap: "0.5rem",
-              padding: "0.5rem 0.875rem",
-              borderRadius: "10px",
-              background: "hsla(222, 35%, 12%, 0.8)",
-              border: "1px solid hsla(222, 25%, 16%, 0.6)",
-            }}
-          >
-            <span>{item.icon}</span>
-            <span style={{ fontSize: "0.78rem", color: "hsl(220, 10%, 60%)" }}>
-              {item.label}
-            </span>
-          </div>
-        ))}
-      </div>
-
-      <div
-        style={{
-          padding: "0.625rem 1rem",
-          borderRadius: "10px",
-          background: "hsla(142, 71%, 45%, 0.07)",
-          border: "1px solid hsla(142, 71%, 45%, 0.15)",
-          display: "flex",
-          alignItems: "center",
-          gap: "0.5rem",
-        }}
-      >
+      <div style={{ padding: "0.625rem 1rem", borderRadius: "10px" }}>
         <Zap size={13} color="hsl(142, 71%, 55%)" />
-        <span style={{ fontSize: "0.78rem", color: "hsl(142, 71%, 60%)" }}>
-          Works with notices, forms & screenshots
-        </span>
       </div>
     </motion.div>
   );
 }
 
-/* ---------------- ANALYZING STATE ---------------- */
-
 function AnalyzingState() {
-  const steps = [
-    "Reading document...",
-    "Extracting data...",
-    "Finding deadlines...",
-    "Generating plan...",
-    "Checking confidence...",
-  ];
-
   return (
     <motion.div
       initial={{ opacity: 0 }}
@@ -127,83 +76,36 @@ function AnalyzingState() {
         justifyContent: "center",
       }}
     >
-      <div style={{ position: "relative", width: 64, height: 64 }}>
-        <div
-          style={{
-            width: 64,
-            height: 64,
-            borderRadius: "50%",
-            border: "3px solid hsla(221, 83%, 53%, 0.15)",
-            borderTopColor: "hsl(221, 83%, 53%)",
-            animation: "spin 1.5s linear infinite",
-          }}
-        />
-        <div
-          style={{
-            position: "absolute",
-            top: 0,
-            left: 0,
-            width: 64,
-            height: 64,
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "center",
-          }}
-        >
-          <Zap size={24} color="hsl(191, 100%, 50%)" />
-        </div>
-      </div>
-
       <h3 style={{ color: "hsl(220, 20%, 90%)", fontWeight: 700 }}>
         AI is analyzing your document
       </h3>
-
-      <div style={{ display: "flex", flexDirection: "column", gap: "0.5rem", width: "100%", maxWidth: "300px" }}>
-        {steps.map((step) => (
-          <div
-            key={step}
-            style={{
-              display: "flex",
-              gap: "0.6rem",
-              padding: "0.5rem",
-              borderRadius: "8px",
-              background: "hsla(222, 40%, 7%, 0.5)",
-            }}
-          >
-            <span style={{ color: "hsl(221, 83%, 53%)" }}>•</span>
-            <span style={{ fontSize: "0.78rem", color: "hsl(220, 10%, 60%)" }}>
-              {step}
-            </span>
-          </div>
-        ))}
-      </div>
     </motion.div>
   );
 }
 
-/* ---------------- MAIN PANEL ---------------- */
+export default function ResultsPanel({ currentDoc, analyzing, aiResult }) {
+  const result = aiResult ?? currentDoc?.result ?? null;
 
-export default function ResultsPanel({ currentDoc, analyzing }) {
   return (
     <AnimatePresence mode="wait">
-      {analyzing ? (
-        <AnalyzingState key="analyzing" />
-      ) : !currentDoc ? (
-        <EmptyState key="empty" />
-      ) : (
+      {result ? (
         <motion.div
           key="results"
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
           style={{ display: "flex", flexDirection: "column", gap: "1rem" }}
         >
-          <SummaryCard result={currentDoc.result} />
-          <ChecklistCard result={currentDoc.result} />
-          <DeadlinesCard result={currentDoc.result} />
-          <QuestionsCard result={currentDoc.result} />
-          <ConfidenceCard result={currentDoc.result} />
-          <SourcesCard result={currentDoc.result} />
+          <SummaryCard result={result} />
+          <ChecklistCard result={result} />
+          <DeadlinesCard result={result} />
+          <QuestionsCard result={result} />
+          <ConfidenceCard result={result} />
+          <SourcesCard result={result} />
         </motion.div>
+      ) : analyzing ? (
+        <AnalyzingState key="analyzing" />
+      ) : (
+        <EmptyState key="empty" />
       )}
     </AnimatePresence>
   );

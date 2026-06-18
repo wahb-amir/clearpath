@@ -1,13 +1,10 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { AnimatePresence, motion } from "framer-motion";
 import dynamic from "next/dynamic";
 import {
   Upload,
-  Type,
-  Sparkles,
-  RefreshCw,
   FileStack,
   CheckCircle2,
   AlertCircle,
@@ -15,9 +12,10 @@ import {
   WifiOff,
   Loader2,
   FileText,
+  RefreshCw,
+  Sparkles,
 } from "lucide-react";
 
-import { sampleDocuments } from "@/lib/mockData";
 import { useIsMobile } from "@/lib/useIsMobile";
 import {
   openAnalysisStream,
@@ -31,30 +29,37 @@ import {
   isAcceptedDocumentFile,
 } from "../document-intelligence/constants";
 import FileUploadDropzone from "../document-intelligence/FileUploadDropzone";
-import SampleSelector from "../document-intelligence/SampleSelector";
-import PanelActions from "../document-intelligence/PanelActions";
-import ExecutionStatusCard from "../document-intelligence/ExecutionStatusCard";
 
 const ScanAnimation = dynamic(() => import("@/components/3d/ScanAnimation"), {
   ssr: false,
 });
 
+function formatBytes(bytes) {
+  if (!Number.isFinite(bytes)) return "—";
+  if (bytes < 1024) return `${bytes} B`;
+  const units = ["KB", "MB", "GB"];
+  let value = bytes / 1024;
+  let unitIndex = 0;
+
+  while (value >= 1024 && unitIndex < units.length - 1) {
+    value /= 1024;
+    unitIndex += 1;
+  }
+
+  return `${value.toFixed(value >= 10 ? 0 : 1)} ${units[unitIndex]}`;
+}
+
 async function uploadDocumentFile(file) {
   const baseUrl = process.env.NEXT_PUBLIC_BACKEND_URL?.replace(/\/$/, "") || "";
 
-  console.log("[UPLOAD FLOW] Step 1: Requesting signed URL from backend...");
-  
-  // 1) Ask backend to create DB row + signed upload URL
   const signResponse = await apiFetch(`${baseUrl}/uploads/sign`, {
     method: "POST",
-    headers: {
-      "Content-Type": "application/json"
-    },
+    headers: { "Content-Type": "application/json" },
     body: JSON.stringify({
       fileName: file.name,
       fileSize: file.size,
       mimeType: file.type,
-    })
+    }),
   });
 
   if (!signResponse.ok) {
@@ -69,13 +74,13 @@ async function uploadDocumentFile(file) {
     throw new Error(message);
   }
 
-  const { documentId, uploadSessionId, path, uploadToken } = await signResponse.json();
+  const { documentId, uploadSessionId, path, uploadToken } =
+    await signResponse.json();
 
-  console.log(" Uploading file directly to Supabase Storage...");
+  const { supabaseBrowser: supabase } = await import(
+    "@/lib/supabase/browser-client"
+  );
 
-  const { supabaseBrowser: supabase } = await import("@/lib/supabase/browser-client");
-
-  // 2) Upload file bytes directly to Storage bucket using the token
   const { error: uploadError } = await supabase.storage
     .from("documents")
     .uploadToSignedUrl(path, uploadToken, file, {
@@ -84,35 +89,26 @@ async function uploadDocumentFile(file) {
     });
 
   if (uploadError) {
-    console.error("[UPLOAD FLOW] Supabase storage error:", uploadError);
-    // Tell backend this upload attempt failed
     await apiFetch(`${baseUrl}/uploads/fail`, {
       method: "POST",
-      headers: {
-        "Content-Type": "application/json"
-      },
+      headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
         documentId,
         uploadSessionId,
         reason: uploadError.message,
-      })
+      }),
     });
 
     throw uploadError;
   }
 
-  console.log("[UPLOAD FLOW] Step 3: Verifying upload with backend...");
-
-  // 3) Tell backend to verify and mark uploaded
   const completeResponse = await apiFetch(`${baseUrl}/uploads/complete`, {
     method: "POST",
-    headers: {
-      "Content-Type": "application/json"
-    },
+    headers: { "Content-Type": "application/json" },
     body: JSON.stringify({
       documentId,
       uploadSessionId,
-    })
+    }),
   });
 
   if (!completeResponse.ok) {
@@ -127,18 +123,262 @@ async function uploadDocumentFile(file) {
     throw new Error(message);
   }
 
-  console.log("[UPLOAD FLOW] Complete! File is ready for analysis.");
   return await completeResponse.json();
 }
 
-export default function DocumentIntelligencePanel({ onAnalyze, analyzing = false }) {
-  const [dragOver, setDragOver] = useState(false);
-  const [selectedSample, setSelectedSample] = useState(sampleDocuments[0]?.id);
-  const [pasteText, setPasteText] = useState("");
-  const [activeTab, setActiveTab] = useState("upload");
+function TimelineItem({ item, active }) {
+  const icon =
+    item.stage === "FAILED" ? (
+      <AlertCircle size={14} />
+    ) : item.stage === "COMPLETED" ? (
+      <CheckCircle2 size={14} />
+    ) : item.stage === "RUNNING" || item.stage === "PROCESSING" ? (
+      <Loader2 size={14} className="animate-spin" />
+    ) : (
+      <Sparkles size={14} />
+    );
 
+  const accent =
+    item.stage === "FAILED"
+      ? "from-rose-500/80 to-rose-400/50"
+      : item.stage === "COMPLETED"
+        ? "from-emerald-500/80 to-emerald-400/50"
+        : "from-blue-500/80 to-cyan-400/50";
+
+  return (
+    <motion.div
+      layout
+      initial={{ opacity: 0, y: 10, scale: 0.985 }}
+      animate={{ opacity: 1, y: 0, scale: 1 }}
+      exit={{ opacity: 0, y: -8, scale: 0.985 }}
+      transition={{ type: "spring", stiffness: 420, damping: 34 }}
+      className={`relative overflow-hidden rounded-2xl border ${
+        active
+          ? "border-white/15 bg-white/[0.06] shadow-[0_0_0_1px_rgba(255,255,255,0.03),0_18px_40px_rgba(0,0,0,0.25)]"
+          : "border-white/8 bg-white/[0.03]"
+      } p-4`}
+    >
+      <div
+        className={`absolute inset-y-0 left-0 w-1 bg-gradient-to-b ${accent} opacity-90`}
+      />
+      <div className="flex items-start gap-3 pl-2">
+        <div
+          className={`mt-0.5 grid h-9 w-9 place-items-center rounded-xl border ${
+            item.stage === "FAILED"
+              ? "border-rose-500/20 bg-rose-500/10 text-rose-300"
+              : item.stage === "COMPLETED"
+                ? "border-emerald-500/20 bg-emerald-500/10 text-emerald-300"
+                : "border-blue-500/20 bg-blue-500/10 text-blue-300"
+          }`}
+        >
+          {icon}
+        </div>
+
+        <div className="min-w-0 flex-1">
+          <div className="flex flex-wrap items-center gap-2">
+            <span className="text-sm font-semibold text-white">
+              {item.label || EVENT_LABELS[item.name] || item.name}
+            </span>
+            <span className="rounded-full border border-white/10 bg-white/5 px-2 py-0.5 text-[11px] font-medium tracking-wide text-gray-400">
+              {item.stage}
+            </span>
+          </div>
+
+          <p className="mt-1 text-sm leading-6 text-gray-300">
+            {item.message || "Updated"}
+          </p>
+
+          <div className="mt-2 flex items-center gap-2 text-[11px] text-gray-500">
+            <span>{new Date(item.createdAt).toLocaleTimeString()}</span>
+            <span>•</span>
+            <span>Event #{item.eventId}</span>
+          </div>
+        </div>
+      </div>
+    </motion.div>
+  );
+}
+
+function StatusCard({
+  message,
+  statusMeta,
+  progress,
+  progressFillClass,
+  stage,
+  completed,
+  failed,
+  reconnecting,
+  isConnected,
+  timeline,
+  latestEventId,
+  analysisRequestId,
+  workerId,
+  error,
+  onRetry,
+}) {
+  return (
+    <div className="mt-5 rounded-[24px] border border-[#2B303B] bg-[#0B0D10]/95 p-4 sm:p-5 shadow-[0_20px_60px_rgba(0,0,0,0.28)]">
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <div className="flex min-w-0 items-center gap-3">
+          <div
+            className={`grid h-11 w-11 place-items-center rounded-2xl border ${
+              completed
+                ? "border-emerald-500/20 bg-emerald-500/10 text-emerald-300"
+                : failed
+                  ? "border-rose-500/20 bg-rose-500/10 text-rose-300"
+                  : reconnecting
+                    ? "border-amber-500/20 bg-amber-500/10 text-amber-300"
+                    : isConnected
+                      ? "border-cyan-500/20 bg-cyan-500/10 text-cyan-300"
+                      : "border-white/10 bg-white/5 text-gray-300"
+            }`}
+          >
+            {completed ? (
+              <CheckCircle2 size={20} />
+            ) : failed ? (
+              <AlertCircle size={20} />
+            ) : reconnecting ? (
+              <WifiOff size={20} />
+            ) : isConnected ? (
+              <Wifi size={20} />
+            ) : (
+              <Sparkles size={20} />
+            )}
+          </div>
+
+          <div className="min-w-0">
+            <div className="flex flex-wrap items-center gap-2">
+              <h3 className="text-sm font-semibold text-white">{message}</h3>
+              <span
+                className={`rounded-full border px-2.5 py-0.5 text-[11px] font-semibold tracking-wide ${
+                  statusMeta.tone === "success"
+                    ? "border-emerald-500/20 bg-emerald-500/10 text-emerald-300"
+                    : statusMeta.tone === "danger"
+                      ? "border-rose-500/20 bg-rose-500/10 text-rose-300"
+                      : statusMeta.tone === "warning"
+                        ? "border-amber-500/20 bg-amber-500/10 text-amber-300"
+                        : statusMeta.tone === "live"
+                          ? "border-cyan-500/20 bg-cyan-500/10 text-cyan-300"
+                          : "border-white/10 bg-white/5 text-gray-300"
+                }`}
+              >
+                {statusMeta.text}
+              </span>
+            </div>
+
+            <p className="mt-1 text-xs text-gray-500">
+              {stage === "COMPLETED"
+                ? "Analysis finished and ready to review."
+                : stage === "FAILED"
+                  ? "The upload or analysis stopped. You can retry with a fresh file."
+                  : "Live events are streamed here as they arrive."}
+            </p>
+          </div>
+        </div>
+
+        {(completed || failed) && (
+          <button
+            type="button"
+            onClick={onRetry}
+            className={`inline-flex items-center gap-2 rounded-xl border px-3.5 py-2 text-sm font-medium transition-all ${
+              failed
+                ? "border-rose-500/20 bg-rose-500/10 text-rose-200 hover:bg-rose-500/15"
+                : "border-white/10 bg-white/5 text-gray-200 hover:bg-white/10"
+            }`}
+          >
+            <RefreshCw size={14} />
+            {failed ? "Retry upload" : "Analyze another file"}
+          </button>
+        )}
+      </div>
+
+      <div className="mt-4">
+        <div className="mb-2 flex items-center justify-between text-[11px] text-gray-500">
+          <span>Progress</span>
+          <span>{Math.round(progress)}%</span>
+        </div>
+        <div className="h-2 overflow-hidden rounded-full bg-white/5">
+          <motion.div
+            className={`h-full rounded-full ${progressFillClass}`}
+            initial={{ width: 0 }}
+            animate={{ width: `${Math.max(4, Math.min(100, progress))}%` }}
+            transition={{ type: "spring", stiffness: 120, damping: 22 }}
+          />
+        </div>
+      </div>
+
+      <div className="mt-4 grid gap-3 sm:grid-cols-3">
+        <div className="rounded-2xl border border-white/8 bg-white/[0.03] p-3">
+          <div className="text-[11px] uppercase tracking-wider text-gray-500">
+            Stage
+          </div>
+          <div className="mt-1 text-sm font-medium text-white">{stage}</div>
+        </div>
+
+        <div className="rounded-2xl border border-white/8 bg-white/[0.03] p-3">
+          <div className="text-[11px] uppercase tracking-wider text-gray-500">
+            Request
+          </div>
+          <div className="mt-1 truncate text-sm font-medium text-white">
+            {analysisRequestId || "Waiting..."}
+          </div>
+        </div>
+
+        <div className="rounded-2xl border border-white/8 bg-white/[0.03] p-3">
+          <div className="text-[11px] uppercase tracking-wider text-gray-500">
+            Worker
+          </div>
+          <div className="mt-1 truncate text-sm font-medium text-white">
+            {workerId || "Waiting..."}
+          </div>
+        </div>
+      </div>
+
+      <AnimatePresence mode="popLayout">
+        {error ? (
+          <motion.div
+            key="error"
+            initial={{ opacity: 0, y: 10, scale: 0.985 }}
+            animate={{ opacity: 1, y: 0, scale: 1 }}
+            exit={{ opacity: 0, y: -8, scale: 0.985 }}
+            transition={{ type: "spring", stiffness: 400, damping: 30 }}
+            className="mt-4 rounded-2xl border border-rose-500/15 bg-rose-500/10 p-3 text-sm text-rose-100"
+          >
+            {error}
+          </motion.div>
+        ) : null}
+      </AnimatePresence>
+
+      <div className="mt-5">
+        <div className="mb-3 flex items-center justify-between">
+          <h4 className="text-sm font-semibold text-white">Live event stream</h4>
+          <span className="text-[11px] text-gray-500">
+            {timeline.length} event{timeline.length === 1 ? "" : "s"}
+          </span>
+        </div>
+
+        <div className="space-y-3">
+          <AnimatePresence initial={false} mode="popLayout">
+            {timeline.map((item) => (
+              <TimelineItem
+                key={item.eventId}
+                item={item}
+                active={item.eventId === latestEventId}
+              />
+            ))}
+          </AnimatePresence>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+export default function DocumentIntelligencePanel({
+  onAnalyze,
+  onAiResult,
+  analyzing = false,
+}) {
   const [selectedFile, setSelectedFile] = useState(null);
-
   const [isAnalyzing, setIsAnalyzing] = useState(false);
   const [isConnected, setIsConnected] = useState(false);
   const [reconnecting, setReconnecting] = useState(false);
@@ -152,19 +392,14 @@ export default function DocumentIntelligencePanel({ onAnalyze, analyzing = false
   const [error, setError] = useState(null);
   const [timeline, setTimeline] = useState([]);
   const [latestEventId, setLatestEventId] = useState(null);
+  const [filePickerKey, setFilePickerKey] = useState(0);
 
   const abortRef = useRef(null);
   const seenEventIdsRef = useRef(new Set());
   const lastEventIdRef = useRef(null);
-  const timelineEndRef = useRef(null);
 
   const isMobile = useIsMobile();
   const busy = analyzing || isAnalyzing;
-
-  const selectedDoc = useMemo(
-    () => sampleDocuments.find((d) => d.id === selectedSample),
-    [selectedSample]
-  );
 
   useEffect(() => {
     return () => {
@@ -172,17 +407,79 @@ export default function DocumentIntelligencePanel({ onAnalyze, analyzing = false
     };
   }, []);
 
-  useEffect(() => {
-    if (timelineEndRef.current) {
-      timelineEndRef.current.scrollTop = timelineEndRef.current.scrollHeight;
-    }
-  }, [timeline.length]);
+  const statusMeta = completed
+    ? { text: "Completed", tone: "success" }
+    : failed
+      ? { text: "Failed", tone: "danger" }
+      : reconnecting
+        ? { text: "Reconnecting", tone: "warning" }
+        : isConnected
+          ? { text: "Live", tone: "live" }
+          : { text: "Idle", tone: "neutral" };
 
-  const pushTimeline = (item) => {
-    setTimeline((prev) => {
-      if (prev.some((x) => x.eventId === item.eventId)) return prev;
-      return [...prev, item];
-    });
+  const progressFillClass = failed
+    ? "bg-gradient-to-r from-rose-500 to-rose-400"
+    : completed
+      ? "bg-gradient-to-r from-emerald-500 to-emerald-400"
+      : "bg-gradient-to-r from-cyan-500 to-blue-500";
+
+  const clearAnalysisState = ({ clearFile = false } = {}) => {
+    abortRef.current?.abort();
+
+    setError(null);
+    setFailed(false);
+    setCompleted(false);
+    setIsAnalyzing(false);
+    setIsConnected(false);
+    setReconnecting(false);
+    setStage("IDLE");
+    setMessage("Ready to analyze");
+    setProgress(0);
+    setWorkerId(null);
+    setAnalysisRequestId(null);
+    setTimeline([]);
+    setLatestEventId(null);
+    onAiResult?.(null);
+
+    seenEventIdsRef.current = new Set();
+    lastEventIdRef.current = null;
+
+    if (clearFile) {
+      setSelectedFile(null);
+      setFilePickerKey((k) => k + 1);
+    }
+  };
+
+  const handleFileSelect = (file) => {
+    if (!file) return;
+
+    if (!isAcceptedDocumentFile(file)) {
+      clearAnalysisState();
+      setError("Unsupported file type. Use PDF, DOC, DOCX, or TXT.");
+      setFailed(true);
+      return;
+    }
+
+    if (file.size > MAX_UPLOAD_BYTES) {
+      clearAnalysisState();
+      setError("File too large. Maximum size is 50MB.");
+      setFailed(true);
+      return;
+    }
+
+    clearAnalysisState();
+    setSelectedFile(file);
+    setMessage(`Ready to upload ${file.name}`);
+  };
+
+  const handleClearFile = () => {
+    if (busy) return;
+    clearAnalysisState({ clearFile: true });
+  };
+
+  const handleRetry = () => {
+    if (busy) return;
+    clearAnalysisState({ clearFile: true });
   };
 
   const applyEvent = (eventName, eventId, data) => {
@@ -205,6 +502,23 @@ export default function DocumentIntelligencePanel({ onAnalyze, analyzing = false
       setWorkerId(data.payload.workerId);
     }
 
+    if (
+      (eventName === "ai_completed" || eventName === "analysis_completed") &&
+      data.payload &&
+      typeof data.payload.summary === "string"
+    ) {
+      onAiResult?.({
+        summary: data.payload.summary,
+        actionItems: data.payload.actionItems ?? [],
+        keyDeadlines: data.payload.keyDeadlines ?? [],
+        questionsToAsk: data.payload.questionsToAsk ?? [],
+        aiConfidence: data.payload.aiConfidence ?? null,
+        trustedSources: data.payload.trustedSources ?? [],
+        humanReview: data.payload.humanReview ?? null,
+        status: data.payload.status ?? null,
+      });
+    }
+
     if (data.stage === "COMPLETED") {
       setCompleted(true);
       setIsAnalyzing(false);
@@ -222,65 +536,46 @@ export default function DocumentIntelligencePanel({ onAnalyze, analyzing = false
       );
     }
 
-    pushTimeline({
-      eventId,
-      name: eventName,
-      label: EVENT_LABELS[eventName] ?? eventName,
-      stage: data.stage,
-      message: data.message,
-      progress:
-        typeof data.progress === "number"
-          ? data.progress
-          : stageToProgress(data.stage),
-      payload: data.payload,
-      createdAt: data.createdAt || new Date().toISOString(),
+    setTimeline((prev) => {
+      if (prev.some((x) => x.eventId === eventId)) return prev;
+      return [
+        ...prev,
+        {
+          eventId,
+          name: eventName,
+          label: EVENT_LABELS[eventName] ?? eventName,
+          stage: data.stage,
+          message: data.message,
+          progress:
+            typeof data.progress === "number"
+              ? data.progress
+              : stageToProgress(data.stage),
+          payload: data.payload,
+          createdAt: data.createdAt || new Date().toISOString(),
+        },
+      ];
     });
   };
 
-  const handleFileSelect = (file) => {
-    if (!file) return;
-
-    if (!isAcceptedDocumentFile(file)) {
-      setError("Unsupported file type. Use PDF, DOC, DOCX, or TXT.");
-      setFailed(true);
-      setSelectedFile(null);
-      return;
-    }
-
-    if (file.size > MAX_UPLOAD_BYTES) {
-      setError("File too large. Maximum size is 50MB.");
-      setFailed(true);
-      setSelectedFile(null);
-      return;
-    }
-
-    setError(null);
-    setFailed(false);
-    setCompleted(false);
-    setSelectedFile(file);
-    setActiveTab("upload");
-    setMessage("File ready to upload");
-  };
-
-  const handleClearFile = () => {
-    if (busy) return;
-    setSelectedFile(null);
-  };
-
   const handleAnalyze = async () => {
-    const doc = selectedDoc || sampleDocuments[0];
+    if (!selectedFile) {
+      setError("Choose a file first.");
+      setFailed(true);
+      return;
+    }
 
     setError(null);
     setFailed(false);
     setCompleted(false);
     setTimeline([]);
-    setMessage(selectedFile ? "Uploading document…" : "Initializing analysis…");
+    setMessage("Uploading document...");
     setProgress(0);
     setStage("QUEUED");
     setIsAnalyzing(true);
     setIsConnected(false);
     setReconnecting(false);
     setLatestEventId(null);
+    onAiResult?.(null);
     seenEventIdsRef.current = new Set();
     lastEventIdRef.current = null;
 
@@ -289,23 +584,14 @@ export default function DocumentIntelligencePanel({ onAnalyze, analyzing = false
     abortRef.current = controller;
 
     try {
-      let documentId = doc?.id;
+      const uploadResult = await uploadDocumentFile(selectedFile);
+      const documentId =
+        uploadResult?.documentId ||
+        uploadResult?.id ||
+        uploadResult?.document?.id;
 
-      if (activeTab === "upload") {
-        if (!selectedFile) {
-          throw new Error("Choose a document first.");
-        }
-
-        // This triggers your new 3-step upload process!
-        const uploadResult = await uploadDocumentFile(selectedFile);
-        documentId =
-          uploadResult?.documentId ||
-          uploadResult?.id ||
-          uploadResult?.document?.id;
-
-        if (!documentId) {
-          throw new Error("Upload succeeded, but no documentId was returned.");
-        }
+      if (!documentId) {
+        throw new Error("Upload succeeded, but no documentId was returned.");
       }
 
       setMessage("Upload complete. Starting analysis...");
@@ -356,151 +642,171 @@ export default function DocumentIntelligencePanel({ onAnalyze, analyzing = false
     }
   };
 
-  const handleLoadSample = () => {
-    const doc = selectedDoc || sampleDocuments[0];
-    setPasteText(doc?.preview || "");
-    setActiveTab("paste");
-  };
-
-  const statusMeta = completed
-    ? { text: "Completed", tone: "success" }
-    : failed
-    ? { text: "Failed", tone: "danger" }
-    : reconnecting
-    ? { text: "Reconnecting", tone: "warning" }
-    : isConnected
-    ? { text: "Live", tone: "live" }
-    : { text: "Idle", tone: "neutral" };
-
-  const badgeColors = {
-    live: "bg-blue-500/10 text-blue-400 border border-blue-500/20",
-    success: "bg-emerald-500/10 text-emerald-400 border border-emerald-500/20",
-    danger: "bg-rose-500/10 text-rose-400 border border-rose-500/20",
-    warning: "bg-amber-500/10 text-amber-400 border border-amber-500/20",
-    neutral: "bg-white/5 text-gray-400 border border-white/10",
-  };
-
-  const progressFillClass = failed
-    ? "bg-gradient-to-r from-rose-500 to-rose-400"
-    : completed
-    ? "bg-gradient-to-r from-emerald-500 to-emerald-400"
-    : "bg-gradient-to-r from-blue-600 to-blue-400";
+  const hasFile = Boolean(selectedFile);
 
   return (
     <div
       className="w-full max-w-4xl mx-auto font-sans text-gray-100"
       style={{ position: "sticky", top: "80px" }}
     >
-      <div className="bg-[#13151A] border border-[#2B303B] rounded-[24px] p-5 sm:p-7 shadow-2xl shadow-black/40">
-        <div className="flex items-center gap-3 mb-6">
-          <div className="grid place-items-center w-10 h-10 rounded-xl bg-blue-500/10 text-blue-400 border border-blue-500/20 shadow-inner shadow-blue-500/10">
-            <FileStack size={20} />
-          </div>
-          <div>
-            <h2 className="m-0 text-base sm:text-lg font-semibold tracking-tight text-white">
-              Document Intelligence
-            </h2>
-            <p className="m-0 text-xs sm:text-sm text-gray-400 mt-0.5">
-              Securely analyze and extract insights from your data
-            </p>
+      <div className="overflow-hidden rounded-[28px] border border-[#2B303B] bg-[linear-gradient(180deg,#141821_0%,#0B0D10_100%)] shadow-[0_24px_80px_rgba(0,0,0,0.45)]">
+        <div className="border-b border-white/6 px-5 py-5 sm:px-7">
+          <div className="flex items-center gap-3">
+            <div className="grid h-11 w-11 place-items-center rounded-2xl border border-cyan-500/15 bg-cyan-500/10 text-cyan-300 shadow-inner shadow-cyan-500/10">
+              <FileStack size={20} />
+            </div>
+            <div>
+              <h2 className="text-base font-semibold tracking-tight text-white sm:text-lg">
+                Document Intelligence
+              </h2>
+              <p className="mt-0.5 text-xs text-gray-400 sm:text-sm">
+                Upload a file and track the live AI response as it streams in.
+              </p>
+            </div>
           </div>
         </div>
 
-        <div className="grid grid-cols-2 gap-1.5 bg-[#0B0D10] rounded-xl p-1.5 border border-[#2B303B]">
-          {[
-            { id: "upload", label: "Upload file", icon: Upload },
-            { id: "paste", label: "Paste text", icon: Type },
-          ].map((tab) => {
-            const Icon = tab.icon;
-            const active = activeTab === tab.id;
-
-            return (
-              <button
-                key={tab.id}
-                type="button"
-                className={`w-full min-w-0 inline-flex items-center justify-center gap-2 py-2 px-2 sm:px-3 rounded-lg text-sm font-medium cursor-pointer transition-all duration-200 ${
-                  active
-                    ? "bg-[#252A34] text-white shadow-sm border border-[#3A4150]"
-                    : "bg-transparent text-gray-400 hover:text-gray-200 hover:bg-white/5 border border-transparent"
-                }`}
-                onClick={() => setActiveTab(tab.id)}
+        <div className="px-5 py-5 sm:px-7 sm:py-6">
+          <AnimatePresence mode="wait" initial={false}>
+            {!hasFile ? (
+              <motion.div
+                key={`dropzone-${filePickerKey}`}
+                initial={{ opacity: 0, y: 16, scale: 0.985 }}
+                animate={{ opacity: 1, y: 0, scale: 1 }}
+                exit={{ opacity: 0, y: -16, scale: 0.975, filter: "blur(4px)" }}
+                transition={{ type: "spring", stiffness: 360, damping: 32 }}
+                className="rounded-[24px]"
               >
-                <Icon size={16} className="shrink-0" />
-                <span className="truncate">{tab.label}</span>
-              </button>
-            );
-          })}
-        </div>
+                <FileUploadDropzone
+                  busy={busy}
+                  isMobile={isMobile}
+                  selectedFile={selectedFile}
+                  onSelectFile={handleFileSelect}
+                  onClearFile={handleClearFile}
+                  ScanAnimation={ScanAnimation}
+                />
 
-        <AnimatePresence mode="wait">
-          {activeTab === "upload" ? (
-            <motion.div
-              key="upload"
-              initial={{ opacity: 0, y: 5 }}
-              animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0, y: -5 }}
-              transition={{ duration: 0.15 }}
-            >
-              <FileUploadDropzone
-                busy={busy}
-                isMobile={isMobile}
-                selectedFile={selectedFile}
-                onSelectFile={handleFileSelect}
-                onClearFile={handleClearFile}
-                ScanAnimation={ScanAnimation}
-              />
-            </motion.div>
-          ) : (
-            <motion.div
-              key="paste"
-              initial={{ opacity: 0, y: 5 }}
-              animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0, y: -5 }}
-              transition={{ duration: 0.15 }}
-            >
-              <textarea
-                className="w-full min-h-[180px] mt-5 py-3.5 px-4 rounded-[18px] border border-[#2B303B] text-sm resize-y text-gray-200 bg-[#0B0D10] focus:outline-none focus:border-blue-500 focus:bg-[#13151A] transition-colors placeholder:text-gray-600"
-                value={pasteText}
-                onChange={(e) => setPasteText(e.target.value)}
-                placeholder="Paste raw document text or JSON here..."
-              />
-            </motion.div>
-          )}
-        </AnimatePresence>
+                <div className="mt-3 rounded-2xl border border-white/8 bg-white/[0.03] px-4 py-3 text-xs leading-6 text-gray-400">
+                  Supported files: PDF, DOC, DOCX, TXT. Maximum size: 50MB.
+                </div>
+              </motion.div>
+            ) : (
+              <motion.div
+                key={`file-${selectedFile.name}-${selectedFile.size}`}
+                initial={{ opacity: 0, y: 14, scale: 0.98 }}
+                animate={{ opacity: 1, y: 0, scale: 1 }}
+                exit={{ opacity: 0, y: -12, scale: 0.98 }}
+                transition={{ type: "spring", stiffness: 380, damping: 30 }}
+                className="rounded-[24px] border border-white/8 bg-white/[0.03] p-4 sm:p-5"
+              >
+                <div className="flex flex-wrap items-start justify-between gap-4">
+                  <div className="flex min-w-0 items-start gap-4">
+                    <motion.div
+                      layout
+                      className="grid h-14 w-14 place-items-center rounded-2xl border border-cyan-500/15 bg-cyan-500/10 text-cyan-300"
+                      animate={
+                        busy
+                          ? { scale: [1, 1.04, 1], rotate: [0, 2, 0] }
+                          : { scale: 1, rotate: 0 }
+                      }
+                      transition={
+                        busy
+                          ? { duration: 1.2, repeat: Infinity, ease: "easeInOut" }
+                          : { duration: 0.2 }
+                      }
+                    >
+                      {busy ? <Loader2 size={22} className="animate-spin" /> : <FileText size={22} />}
+                    </motion.div>
 
-        <div className="mt-5 grid grid-cols-1 gap-3 sm:grid-cols-[minmax(0,240px)_minmax(0,1fr)]">
-          <SampleSelector
-            sampleDocuments={sampleDocuments}
-            selectedSample={selectedSample}
-            onSelectSample={setSelectedSample}
+                    <div className="min-w-0">
+                      <div className="flex flex-wrap items-center gap-2">
+                        <h3 className="truncate text-base font-semibold text-white">
+                          {selectedFile.name}
+                        </h3>
+                        <span className="rounded-full border border-white/10 bg-white/5 px-2 py-0.5 text-[11px] font-medium text-gray-300">
+                          {formatBytes(selectedFile.size)}
+                        </span>
+                      </div>
+
+                      <p className="mt-1 text-sm text-gray-400">
+                        {busy
+                          ? "Your file is uploading and being analyzed."
+                          : "File ready. Start analysis when you are ready."}
+                      </p>
+
+                      <div className="mt-3 flex flex-wrap items-center gap-2 text-[11px] text-gray-500">
+                        <span className="rounded-full border border-white/8 bg-white/[0.03] px-2.5 py-1">
+                          {selectedFile.type || "Unknown type"}
+                        </span>
+                        <span className="rounded-full border border-white/8 bg-white/[0.03] px-2.5 py-1">
+                          Drag-drop replaced with a smooth file card
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="flex flex-wrap items-center gap-2">
+                    {!busy && (
+                      <button
+                        type="button"
+                        onClick={handleClearFile}
+                        className="rounded-xl border border-white/10 bg-white/5 px-3.5 py-2 text-sm font-medium text-gray-200 transition hover:bg-white/10"
+                      >
+                        Change file
+                      </button>
+                    )}
+
+                    <button
+                      type="button"
+                      onClick={handleAnalyze}
+                      disabled={busy}
+                      className={`inline-flex items-center gap-2 rounded-xl px-4 py-2 text-sm font-semibold transition ${
+                        busy
+                          ? "cursor-not-allowed border border-cyan-500/15 bg-cyan-500/10 text-cyan-200/70"
+                          : "border border-cyan-500/20 bg-cyan-500/15 text-cyan-100 hover:bg-cyan-500/20"
+                      }`}
+                    >
+                      {busy ? <Loader2 size={16} className="animate-spin" /> : <Sparkles size={16} />}
+                      {busy ? "Analyzing..." : "Analyze file"}
+                    </button>
+                  </div>
+                </div>
+
+                <AnimatePresence mode="popLayout">
+                  {failed && error ? (
+                    <motion.div
+                      key="file-error"
+                      initial={{ opacity: 0, y: 8 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      exit={{ opacity: 0, y: -8 }}
+                      className="mt-4 rounded-2xl border border-rose-500/15 bg-rose-500/10 px-4 py-3 text-sm text-rose-100"
+                    >
+                      {error}
+                    </motion.div>
+                  ) : null}
+                </AnimatePresence>
+              </motion.div>
+            )}
+          </AnimatePresence>
+
+          <StatusCard
+            message={message}
+            statusMeta={statusMeta}
+            progress={progress}
+            progressFillClass={progressFillClass}
+            stage={stage}
+            completed={completed}
+            failed={failed}
+            reconnecting={reconnecting}
+            isConnected={isConnected}
+            timeline={timeline}
+            latestEventId={latestEventId}
+            analysisRequestId={analysisRequestId}
+            workerId={workerId}
+            error={error}
+            onRetry={handleRetry}
           />
-
-          <PanelActions
-            busy={busy}
-            activeTab={activeTab}
-            selectedFile={selectedFile}
-            onLoadSample={handleLoadSample}
-            onAnalyze={handleAnalyze}
-            onClearFile={handleClearFile}
-          />
         </div>
-
-        <ExecutionStatusCard
-          message={message}
-          badgeColors={badgeColors}
-          statusMeta={statusMeta}
-          progress={progress}
-          progressFillClass={progressFillClass}
-          stage={stage}
-          completed={completed}
-          failed={failed}
-          timeline={timeline}
-          latestEventId={latestEventId}
-          timelineEndRef={timelineEndRef}
-          analysisRequestId={analysisRequestId}
-          workerId={workerId}
-          error={error}
-        />
       </div>
 
       <style
