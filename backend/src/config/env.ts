@@ -61,8 +61,10 @@ const envSchema = z.object({
 
   CLEARPATH_ANALYSIS_QUEUE_NAME:z.string().default("clearpath-ai-analysis"),
 
-  GROQ_API_KEY:z.string(),
-  GROQ_MODEL:z.string().default("llama-3.3-70b-versatile")
+  GROQ_API_KEY:z.string().startsWith("gsk_"),
+  GROQ_MODEL:z.string().default("llama-3.3-70b-versatile"),
+
+  TAVILY_API_KEY:z.string()
 });
 
 const _env = envSchema.safeParse(process.env);
