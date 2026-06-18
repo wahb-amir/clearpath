@@ -80,6 +80,7 @@ router.post('/register', rateLimiter, async (req: Request, res: Response) => {
       .single();
 
     if (insertError || !newUser) {
+      console.log(insertError)
       res.status(500).json({ error: 'Failed to complete registration' });
       return;
     }
