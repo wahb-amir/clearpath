@@ -843,7 +843,7 @@ export default function DocumentIntelligencePanel({
                           : "border border-cyan-500/20 bg-cyan-500/15 text-cyan-100 hover:bg-cyan-500/20"
                       }`}
                     >
-                      {busy ? (
+                      {isFileBusy ? (
                         <Loader2 size={16} className="animate-spin" />
                       ) : (
                         <Sparkles size={16} />

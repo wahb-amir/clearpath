@@ -7,7 +7,7 @@ import DeadlinesCard from "@/components/results/DeadlinesCard";
 import QuestionsCard from "@/components/results/QuestionsCard";
 import ConfidenceCard from "@/components/results/ConfidenceCard";
 import SourcesCard from "@/components/results/SourcesCard";
-import { Inbox, Zap } from "lucide-react";
+import { Inbox, Zap, Loader2 } from "lucide-react";
 
 function EmptyState() {
   return (
@@ -58,27 +58,113 @@ function EmptyState() {
   );
 }
 
+// Utility component for reusable skeleton bars
+function SkeletonBlock({ width, height = "12px", borderRadius = "6px", opacity = 0.2 }) {
+  return (
+    <div
+      style={{
+        width,
+        height,
+        borderRadius,
+        background: `hsla(220, 20%, 60%, ${opacity})`,
+      }}
+    />
+  );
+}
+
+// Wrapper for the pulsing card effect
+function SkeletonCard({ children }) {
+  return (
+    <motion.div
+      initial={{ opacity: 0, y: 10 }}
+      animate={{ opacity: [0.3, 0.7, 0.3], y: 0 }}
+      transition={{ 
+        opacity: { duration: 2, repeat: Infinity, ease: "easeInOut" }, 
+        y: { duration: 0.4 } 
+      }}
+      style={{
+        background: "hsla(222, 35%, 12%, 0.6)",
+        border: "1px solid hsla(222, 25%, 20%, 0.4)",
+        borderRadius: "20px",
+        padding: "1.5rem",
+        display: "flex",
+        flexDirection: "column",
+        gap: "1.25rem",
+      }}
+    >
+      {children}
+    </motion.div>
+  );
+}
+
 function AnalyzingState() {
   return (
     <motion.div
       initial={{ opacity: 0 }}
       animate={{ opacity: 1 }}
-      style={{
-        background: "hsla(222, 35%, 10%, 0.85)",
-        borderRadius: "20px",
-        padding: "3rem 2rem",
-        textAlign: "center",
-        display: "flex",
-        flexDirection: "column",
-        alignItems: "center",
-        gap: "2rem",
-        minHeight: "400px",
-        justifyContent: "center",
-      }}
+      exit={{ opacity: 0, transition: { duration: 0.2 } }}
+      style={{ display: "flex", flexDirection: "column", gap: "1rem" }}
     >
-      <h3 style={{ color: "hsl(220, 20%, 90%)", fontWeight: 700 }}>
-        AI is analyzing your document
-      </h3>
+      {/* Visual Indicator of Progress */}
+      <div style={{ 
+        display: "flex", 
+        alignItems: "center", 
+        gap: "0.75rem", 
+        padding: "0.5rem 1rem",
+        marginBottom: "0.5rem"
+      }}>
+        <motion.div
+          animate={{ rotate: 360 }}
+          transition={{ duration: 2, repeat: Infinity, ease: "linear" }}
+        >
+          <Loader2 size={18} color="hsl(221, 83%, 53%)" />
+        </motion.div>
+        <span style={{ color: "hsl(221, 83%, 65%)", fontSize: "0.875rem", fontWeight: 600 }}>
+          Extracting intelligence...
+        </span>
+      </div>
+
+      {/* Summary Skeleton Layout */}
+      <SkeletonCard>
+        <div style={{ display: "flex", gap: "1rem", alignItems: "center" }}>
+          <SkeletonBlock width="40px" height="40px" borderRadius="12px" opacity={0.15} />
+          <SkeletonBlock width="140px" height="16px" opacity={0.3} />
+        </div>
+        <div style={{ display: "flex", flexDirection: "column", gap: "0.75rem", marginTop: "0.5rem" }}>
+          <SkeletonBlock width="100%" />
+          <SkeletonBlock width="95%" />
+          <SkeletonBlock width="80%" />
+        </div>
+      </SkeletonCard>
+
+      {/* Checklist Skeleton Layout */}
+      <SkeletonCard>
+        <div style={{ display: "flex", gap: "1rem", alignItems: "center" }}>
+          <SkeletonBlock width="40px" height="40px" borderRadius="12px" opacity={0.15} />
+          <SkeletonBlock width="120px" height="16px" opacity={0.3} />
+        </div>
+        <div style={{ display: "flex", flexDirection: "column", gap: "1rem", marginTop: "0.5rem" }}>
+          <div style={{ display: "flex", gap: "1rem", alignItems: "center" }}>
+            <SkeletonBlock width="20px" height="20px" borderRadius="6px" opacity={0.15} />
+            <SkeletonBlock width="75%" />
+          </div>
+          <div style={{ display: "flex", gap: "1rem", alignItems: "center" }}>
+            <SkeletonBlock width="20px" height="20px" borderRadius="6px" opacity={0.15} />
+            <SkeletonBlock width="60%" />
+          </div>
+        </div>
+      </SkeletonCard>
+
+      {/* Deadlines Skeleton Layout */}
+      <SkeletonCard>
+        <div style={{ display: "flex", gap: "1rem", alignItems: "center" }}>
+          <SkeletonBlock width="40px" height="40px" borderRadius="12px" opacity={0.15} />
+          <SkeletonBlock width="160px" height="16px" opacity={0.3} />
+        </div>
+        <div style={{ display: "flex", flexDirection: "column", gap: "0.75rem", marginTop: "0.5rem" }}>
+          <SkeletonBlock width="40%" />
+        </div>
+      </SkeletonCard>
     </motion.div>
   );
 }
@@ -91,8 +177,8 @@ export default function ResultsPanel({ currentDoc, analyzing, aiResult }) {
       {result ? (
         <motion.div
           key="results"
-          initial={{ opacity: 0 }}
-          animate={{ opacity: 1 }}
+          initial={{ opacity: 0, y: 10 }}
+          animate={{ opacity: 1, y: 0 }}
           style={{ display: "flex", flexDirection: "column", gap: "1rem" }}
         >
           <SummaryCard result={result} />
