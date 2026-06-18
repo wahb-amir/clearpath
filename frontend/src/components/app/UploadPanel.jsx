@@ -848,7 +848,7 @@ export default function DocumentIntelligencePanel({
                       ) : (
                         <Sparkles size={16} />
                       )}
-                      {busy ? "Analyzing..." : "Analyze file"}
+                      {isFileBusy ? "Analyzing..." : "Analyze file"}
                     </button>
                   </div>
                 </div>
