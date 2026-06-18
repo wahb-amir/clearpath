@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { motion } from "framer-motion";
 import {
   Search,
@@ -12,23 +12,73 @@ import {
   CheckCircle,
   ExternalLink,
   Bookmark,
+  Loader2,
+  ChevronLeft,
+  ChevronRight,
+  XCircle,
 } from "lucide-react";
-import { mockHistoryItems } from "@/lib/mockUserData";
-
+import { apiFetch } from "@/lib/auth/apiFetch";
 export default function HistoryPage() {
+  // Search state (handled client-side)
   const [searchQuery, setSearchQuery] = useState("");
-  const [filterType, setFilterType] = useState("all");
 
-  const filteredItems = mockHistoryItems.filter((item) => {
-    const matchesSearch = item.title
-      .toLowerCase()
-      .includes(searchQuery.toLowerCase());
+  // API query param states
+  const [statusFilter, setStatusFilter] = useState("all");
+  const [page, setPage] = useState(1);
+  const [pageSize] = useState(20);
 
-    const matchesType =
-      filterType === "all" || item.urgency === filterType;
+  // API response states
+  const [items, setItems] = useState([]);
+  const [totalPages, setTotalPages] = useState(1);
+  const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState(null);
 
-    return matchesSearch && matchesType;
-  });
+  // Fetch data when page or status filter changes
+  useEffect(() => {
+    const fetchHistory = async () => {
+      setIsLoading(true);
+      setError(null);
+
+      try {
+        const queryParams = new URLSearchParams({
+          page: page.toString(),
+          pageSize: pageSize.toString(),
+          status: statusFilter,
+        });
+
+        const response = await apiFetch(`/analysis/history?${queryParams.toString()}`, {});
+        
+        if (!response.ok) {
+          throw new Error("Failed to load document history.");
+        }
+
+        const data = await response.json();
+        
+        setItems(data.items || []);
+        setTotalPages(data.totalPages || 1);
+      } catch (err) {
+        setError(err.message || "An unexpected error occurred.");
+      } finally {
+        setIsLoading(false);
+      }
+    };
+
+    fetchHistory();
+  }, [page, statusFilter, pageSize]);
+
+  // Reset page to 1 when changing filters
+  const handleStatusChange = (newStatus) => {
+    setStatusFilter(newStatus);
+    setPage(1);
+  };
+
+  // Filter items locally matching the search query
+  const filteredItems = (items || []).filter((item) => {
+  const itemTitle = item?.title ?? '';
+  const search = searchQuery ?? '';
+  
+  return itemTitle.toLowerCase().includes(search.toLowerCase());
+});
 
   return (
     <div className="p-4 md:p-8">
@@ -51,7 +101,7 @@ export default function HistoryPage() {
           />
           <input
             type="text"
-            placeholder="Search documents by title..."
+            placeholder="Search fetched documents by title..."
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
             className="w-full bg-slate-900 border border-slate-800 rounded-xl py-2.5 pl-10 pr-4 text-sm text-slate-200 focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500 transition-all placeholder:text-slate-500"
@@ -60,14 +110,14 @@ export default function HistoryPage() {
 
         <div className="flex gap-2">
           <select
-            value={filterType}
-            onChange={(e) => setFilterType(e.target.value)}
+            value={statusFilter}
+            onChange={(e) => handleStatusChange(e.target.value)}
             className="bg-slate-900 border border-slate-800 rounded-xl py-2.5 px-4 text-sm text-slate-200 focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500"
           >
-            <option value="all">All Urgencies</option>
-            <option value="high">High Urgency</option>
-            <option value="medium">Medium Urgency</option>
-            <option value="low">Low Urgency</option>
+            <option value="all">All Statuses</option>
+            <option value="completed">Completed</option>
+            <option value="review_required">Review Required</option>
+            <option value="failed">Failed</option>
           </select>
 
           <button className="flex items-center gap-2 bg-slate-900 border border-slate-800 rounded-xl py-2.5 px-4 text-sm text-slate-200 hover:bg-slate-800 transition-colors">
@@ -77,25 +127,42 @@ export default function HistoryPage() {
         </div>
       </div>
 
-      {/* LIST */}
+      {/* DYNAMIC CONTENT CONTAINER */}
       <div className="space-y-4">
-        {filteredItems.length === 0 ? (
+        {isLoading ? (
+          /* LOADING STATE */
+          <div className="text-center py-24 bg-slate-900/30 rounded-2xl border border-slate-800/50 flex flex-col items-center justify-center gap-3">
+            <Loader2 size={36} className="text-blue-500 animate-spin" />
+            <p className="text-slate-400 text-sm">Loading history items...</p>
+          </div>
+        ) : error ? (
+          /* ERROR STATE */
+          <div className="text-center py-16 bg-rose-950/10 rounded-2xl border border-rose-900/30">
+            <XCircle size={48} className="mx-auto text-rose-500 mb-4" />
+            <h3 className="text-lg font-semibold text-slate-300 mb-1">
+              Error Loading History
+            </h3>
+            <p className="text-rose-400/80 text-sm max-w-md mx-auto">{error}</p>
+          </div>
+        ) : filteredItems.length === 0 ? (
+          /* EMPTY STATE */
           <div className="text-center py-16 bg-slate-900/50 rounded-2xl border border-slate-800/50">
             <FileText size={48} className="mx-auto text-slate-600 mb-4" />
             <h3 className="text-lg font-semibold text-slate-300 mb-1">
               No documents found
             </h3>
             <p className="text-slate-500 text-sm">
-              Try adjusting your search or filters.
+              Try adjusting your search or status filters.
             </p>
           </div>
         ) : (
+          /* LIST RENDERING */
           filteredItems.map((item, index) => (
             <motion.div
               key={item.id}
               initial={{ opacity: 0, y: 10 }}
               animate={{ opacity: 1, y: 0 }}
-              transition={{ delay: index * 0.05 }}
+              transition={{ delay: index * 0.03 }}
               className="bg-slate-900 border border-slate-800 hover:border-slate-700 rounded-2xl p-5 transition-colors group"
             >
               <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
@@ -148,6 +215,18 @@ export default function HistoryPage() {
                         <CheckCircle size={12} /> Done
                       </span>
                     )}
+
+                    {item.status === "review_required" && (
+                      <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-md text-xs font-medium bg-amber-500/10 text-amber-400 border border-amber-500/20">
+                        <AlertTriangle size={12} /> Review
+                      </span>
+                    )}
+
+                    {item.status === "failed" && (
+                      <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-md text-xs font-medium bg-rose-500/10 text-rose-400 border border-rose-500/20">
+                        <XCircle size={12} /> Failed
+                      </span>
+                    )}
                   </div>
 
                   <div className="flex items-center gap-2">
@@ -173,11 +252,38 @@ export default function HistoryPage() {
                     </button>
                   </div>
                 </div>
+
               </div>
             </motion.div>
           ))
         )}
       </div>
+
+      {/* PAGINATION CONTROLS */}
+      {!isLoading && !error && totalPages > 1 && (
+        <div className="flex items-center justify-between mt-8 pt-4 border-t border-slate-850">
+          <p className="text-xs text-slate-500">
+            Showing page <span className="text-slate-300 font-medium">{page}</span> of{" "}
+            <span className="text-slate-300 font-medium">{totalPages}</span>
+          </p>
+          <div className="flex gap-2">
+            <button
+              onClick={() => setPage((p) => Math.max(1, p - 1))}
+              disabled={page === 1}
+              className="flex items-center justify-center p-2 rounded-xl bg-slate-900 border border-slate-800 text-slate-400 hover:text-slate-200 disabled:opacity-40 disabled:hover:text-slate-400 transition-all"
+            >
+              <ChevronLeft size={18} />
+            </button>
+            <button
+              onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
+              disabled={page === totalPages}
+              className="flex items-center justify-center p-2 rounded-xl bg-slate-900 border border-slate-800 text-slate-400 hover:text-slate-200 disabled:opacity-40 disabled:hover:text-slate-400 transition-all"
+            >
+              <ChevronRight size={18} />
+            </button>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

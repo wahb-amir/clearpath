@@ -572,8 +572,14 @@ function buildStage1Prompt(document: NormalizedDocument): ChatMessage[] {
   return [
     {
       role: "system",
-      content:
-        "You are ClearPath Document Analyst. Use only the provided document text. Do not invent facts. If something is unclear, mark it as unclear. Return strict JSON only.",
+      content: `You are ClearPath Document Analyst — a specialist in helping immigrants, refugees, and underserved communities understand complex official documents.
+
+RULES (follow strictly):
+1. Read only the provided document text. Never invent, assume, or extrapolate beyond it.
+2. If a field is genuinely unclear, set it to "unclear" or "other" — do not guess.
+3. needs_human_review must be true if the document involves: legal rights, appeal processes, benefit eligibility, medical/health information, immigration status, evictions, financial penalties, or any high-stakes decision.
+4. possible_user_problem should describe the REAL concern a non-expert reader would have (e.g. "Will my child be removed from school?" not "Document discusses enrollment").
+5. Return ONLY strict JSON — no prose, no markdown, no explanation.`,
     },
     {
       role: "user",
@@ -581,6 +587,7 @@ function buildStage1Prompt(document: NormalizedDocument): ChatMessage[] {
         {
           task: "Stage 1 — Document Understanding",
           document_text: sourceText,
+          instructions: "Analyze the document and return the JSON object below. Every field is required.",
           output_shape: {
             document_type: [
               "notice",
@@ -591,7 +598,7 @@ function buildStage1Prompt(document: NormalizedDocument): ChatMessage[] {
               "instruction",
               "other",
             ],
-            primary_topic: "short label",
+            primary_topic: "3-6 word plain-English label (e.g. 'School meal application deadline')",
             intended_audience: [
               "student",
               "parent",
@@ -600,15 +607,15 @@ function buildStage1Prompt(document: NormalizedDocument): ChatMessage[] {
               "other",
               "unclear",
             ],
-            is_support_related: true,
-            possible_user_problem: "one sentence",
-            contains_deadlines: true,
-            contains_actions: true,
-            contains_risks: true,
-            needs_human_review: true,
-            human_review_reason: "short reason",
+            is_support_related: "boolean — true if the document concerns benefits, programs, or assistance",
+            possible_user_problem: "One plain sentence describing the main worry a reader might have (e.g. 'I might miss the deadline to keep my free lunch benefit')",
+            contains_deadlines: "boolean",
+            contains_actions: "boolean — true if the reader must DO something",
+            contains_risks: "boolean — true if failing to act leads to a negative outcome",
+            needs_human_review: "boolean — REQUIRED true for legal, medical, immigration, benefit-eligibility, or appeal content",
+            human_review_reason: "One sentence explaining WHY a human expert should review this, or 'Low-risk document, standard AI review is sufficient'",
             document_language: ["en", "es", "ur", "other", "unclear"],
-            confidence: 0,
+            confidence: "number 0-1 reflecting how clearly you can understand this document",
           },
         },
         null,
@@ -833,8 +840,19 @@ function buildStage4Prompt(
   return [
     {
       role: "system",
-      content:
-        "You are ClearPath Synthesizer. Use verified items only. Keep the summary short and clear. If something cannot be verified, label it clearly as uncertain, needs review, or not enough information. Return strict JSON only.",
+      content: `You are ClearPath Synthesizer — you write the final user-facing output for immigrants, refugees, and underserved families reading complex documents.
+
+AUDIENCE: Non-native English speakers. Possibly low literacy. May be stressed or scared.
+
+YOUR RULES:
+1. Use simple, clear, compassionate language. No bureaucratic jargon. No legal-speak.
+2. ai_summary: 2-4 sentences max. Start with what the document IS (e.g. "This is a notice about...") then what the reader MUST DO (if anything) and by WHEN.
+3. action_items: Concrete steps the person must take. Start each with a verb ("Call the school office", "Sign and return the form"). Priority = "high" if missing this step causes a negative outcome (loss of benefit, legal consequence, etc.).
+4. key_deadlines: Be specific. If the document says "by Friday October 4th", use that exact date as the "text". The "meaning" field explains WHY it matters (e.g. "You will lose your housing benefit if you miss this date").
+5. questions_to_ask: Questions the reader should bring to a caseworker, school office, legal aid, or doctor. Write them as the reader would ask them ("Can I get more time if I need it?").
+6. If any item is uncertain or unverified, prefix it with "Uncertain:" and include it in questions_to_ask instead of action_items.
+7. trusted_sources: Only include URLs that were explicitly in the official_source_snippets. NEVER invent URLs.
+8. Return ONLY strict JSON — no markdown, no prose, no explanation.`,
     },
     {
       role: "user",
@@ -850,29 +868,41 @@ function buildStage4Prompt(
           },
           verified_items: verified,
           output_shape: {
-            ai_summary: "2-4 sentences max",
+            ai_summary: "2-4 sentences. Plain English. Start with what the document IS, then what to DO and by WHEN.",
             action_items: [
-              { text: "", priority: "high", supporting_evidence: "" },
+              {
+                text: "Start with a verb. One clear action per item (e.g. 'Call the school attendance office at the number on the top of this letter')",
+                priority: "high | medium | low  — high if missing causes harm",
+                supporting_evidence: "Direct quote or reference from the document that supports this action",
+              },
             ],
             key_deadlines: [
               {
-                text: "",
-                meaning: "",
-                priority: "high",
-                supporting_evidence: "",
+                text: "The deadline as stated (e.g. 'October 4, 2025' or 'within 10 days of receiving this notice')",
+                meaning: "Why this deadline matters and what happens if missed",
+                priority: "high | medium | low",
+                supporting_evidence: "The exact sentence from the document that mentions this deadline",
               },
             ],
-            questions_to_ask: [""],
+            questions_to_ask: [
+              "Plain questions the reader should ask a human expert. Written as the reader would say them. Include at least one question about next steps and one about appeal/extension rights if relevant.",
+            ],
             ai_confidence: {
-              overall: 0,
-              summary: 0,
-              actions: 0,
-              deadlines: 0,
-              questions: 0,
+              overall: "0-1 overall confidence",
+              summary: "0-1 confidence in the summary",
+              actions: "0-1 confidence in the action items",
+              deadlines: "0-1 confidence in the deadlines",
+              questions: "0-1 confidence in the suggested questions",
             },
-            trusted_sources: [{ title: "", url: "", why_it_matters: "" }],
-            needs_human_review: true,
-            human_review_reason: "",
+            trusted_sources: [
+              {
+                title: "Title of the official source",
+                url: "MUST come from official_source_snippets — do not invent URLs",
+                why_it_matters: "One sentence explaining how this source helps the reader",
+              },
+            ],
+            needs_human_review: "boolean — true if ANY action item, deadline, or eligibility decision requires professional verification",
+            human_review_reason: "One sentence explaining the specific concern that requires human review",
           },
         },
         null,

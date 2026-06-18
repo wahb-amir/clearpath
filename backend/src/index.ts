@@ -8,6 +8,8 @@ import { supabase } from './lib/supabase';
 import documentAnalysisRoutes from './routes/documentAnalysis';
 import { errorHandler } from './middlewares/errorHandler';
 import uploadRoutes from './routes/upload';
+import { requireAuth } from './middlewares/auth';
+import { getAnalysisHistoryController } from './controllers/analysisHistoryController';
 const app = express();
 
 // Trust proxy is essential when behind Next.js or a load balancer
@@ -51,19 +53,19 @@ async function verifyDatabaseConnection() {
 // Fire the connection check
 verifyDatabaseConnection();
 
-// Routes
+// --- Routes ---
 app.use('/auth', authRoutes);
-
-//document analysis + SSE + internal outbox endpoints
-app.use('/', documentAnalysisRoutes);
 app.use('/uploads', uploadRoutes);
+
+// Mount all document analysis routes under the '/analysis' prefix
+app.use('/analysis', documentAnalysisRoutes);
 app.get('/api/health', (req, res) => {
   console.log('GET /api/health');
   res.json({ status: 'OK', message: 'ClearPath Backend is running' });
 });
+
 // global error handler - must be last middleware
 app.use(errorHandler);
-
 
 const PORT = env.PORT ?? 3000;
 
