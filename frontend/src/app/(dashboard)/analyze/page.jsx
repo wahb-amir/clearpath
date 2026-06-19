@@ -65,6 +65,7 @@ export default function AppPage() {
         }}
         className="app-grid"
       >
+        <div id="verification-panel-portal" style={{ gridColumn: "1 / -1" }} className="empty:hidden"></div>
         <motion.div
           initial={{ opacity: 0, x: -20 }}
           animate={{ opacity: 1, x: 0 }}

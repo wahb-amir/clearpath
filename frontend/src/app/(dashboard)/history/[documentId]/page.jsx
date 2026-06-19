@@ -12,6 +12,8 @@ import {
   AlertOctagon,
 } from "lucide-react";
 import { apiFetch } from "@/lib/auth/apiFetch";
+import ExtractionVerificationPanel from "@/components/document-intelligence/ExtractionVerificationPanel";
+import { fetchExtractedContent, confirmExtraction, openAnalysisStream } from "@/lib/api/documentAnalysis";
 
 // Direct imports of modular layout cards for pixel-perfect ResultsPanel parity
 import SummaryCard from "@/components/results/SummaryCard";
@@ -40,7 +42,9 @@ export default function RunDetailPage() {
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState(null);
 
-  const eventSourceRef = useRef(null);
+  const [extractedContent, setExtractedContent] = useState(null);
+  const [fetchingExtractedContent, setFetchingExtractedContent] = useState(false);
+
   const terminalEndRef = useRef(null);
   
   // Anti-spam tracker registry holding active debounce timeouts for each item index
@@ -73,68 +77,98 @@ export default function RunDetailPage() {
     fetchRunDetail(true);
 
     return () => {
-      if (eventSourceRef.current) {
-        eventSourceRef.current.close();
-      }
       // Clear any pending debounce micro-tasks on unmount to safeguard against memory leaks
       Object.values(debounceTimersRef.current).forEach(clearTimeout);
     };
   }, [documentId]);
 
-  // Live SSE listener strategy for handling active processes
+  // Live SSE listener using robust openAnalysisStream utility
   useEffect(() => {
     if (!run || run.status !== "running") {
-      if (eventSourceRef.current) {
-        eventSourceRef.current.close();
-        eventSourceRef.current = null;
-      }
       return;
     }
 
-    // Connect to your streaming update architecture
-    const sseUrl = `/api/documents/${documentId}/events`;
-    eventSourceRef.current = new EventSource(sseUrl);
+    const abortController = new AbortController();
 
-    eventSourceRef.current.onmessage = (event) => {
-      try {
-        const rawPayload = JSON.parse(event.data);
+    openAnalysisStream({
+      sseUrl: `documents/${documentId}/events`,
+      signal: abortController.signal,
+      onMessage: (eventName, data, eventId) => {
+        try {
+          const nextStage = data.stage;
+          const newEvent = {
+            id: eventId || Date.now(),
+            stage: nextStage || run.currentStage || "PROCESSING",
+            message: data.message || "Step complete.",
+            createdAt: data.createdAt || new Date().toISOString(),
+          };
 
-        const newEvent = {
-          id: rawPayload.id || Date.now(),
-          stage: rawPayload.stage || run.currentStage || "PROCESSING",
-          message: rawPayload.message || rawPayload.text || "Step complete.",
-          createdAt: new Date().toISOString(),
-        };
+          setEvents((prev) => {
+            if (prev.some((x) => x.id === newEvent.id)) return prev;
+            return [...prev, newEvent];
+          });
 
-        setEvents((prev) => [...prev, newEvent]);
+          // Update local run stages
+          setRun((prev) => {
+            if (!prev) return prev;
+            return {
+              ...prev,
+              docAnalysisStatus: nextStage || prev.docAnalysisStatus,
+              currentStage: nextStage || prev.currentStage,
+            };
+          });
 
-        // Automatically scroll terminal to the latest event trace
-        terminalEndRef.current?.scrollIntoView({ behavior: "smooth" });
+          // Scroll terminal to latest trace
+          terminalEndRef.current?.scrollIntoView({ behavior: "smooth" });
 
-        // Trigger database re-fetch and close channel upon hitting terminal phase flags
-        if (rawPayload.status && rawPayload.status !== "running") {
-          eventSourceRef.current?.close();
-          eventSourceRef.current = null;
-          fetchRunDetail(false);
+          // Refresh detailed DB parameters when a phase changes to verification or terminal state
+          if (
+            nextStage === "COMPLETED" ||
+            nextStage === "FAILED" ||
+            nextStage === "AWAITING_VERIFICATION"
+          ) {
+            fetchRunDetail(false);
+          }
+        } catch (err) {
+          console.error("Failed parsing inbound stream payload frame:", err);
         }
-      } catch (err) {
-        console.error("Failed parsing inbound stream payload frame:", err);
-      }
-    };
-
-    eventSourceRef.current.onerror = () => {
-      console.warn(
-        "SSE connection dropped frame stream channel. Auto-retry pending.",
-      );
-    };
+      },
+      onError: (err) => {
+        console.warn("SSE connection dropped frame stream channel:", err);
+      },
+    });
 
     return () => {
-      if (eventSourceRef.current) {
-        eventSourceRef.current.close();
-        eventSourceRef.current = null;
-      }
+      abortController.abort();
     };
   }, [run?.status, documentId]);
+
+  // Fetch extracted content when verification is required
+  useEffect(() => {
+    if (
+      run?.docAnalysisStatus === "AWAITING_VERIFICATION" &&
+      !extractedContent &&
+      !fetchingExtractedContent
+    ) {
+      setFetchingExtractedContent(true);
+      fetchExtractedContent(documentId)
+        .then((data) => {
+          if (data && data.extracted_content) {
+            setExtractedContent(data.extracted_content);
+          }
+        })
+        .catch((err) =>
+          console.error("Failed to fetch extracted content on history page:", err)
+        )
+        .finally(() => setFetchingExtractedContent(false));
+    }
+  }, [
+    run?.docAnalysisStatus,
+    extractedContent,
+    fetchingExtractedContent,
+    documentId,
+  ]);
+
 
   // FIX: Concurrently track active status before focusing terminal window
   // Keeps historical views stationary on mount while maintaining tracking parameters for active processing tasks
@@ -325,25 +359,58 @@ export default function RunDetailPage() {
         <div className="lg:col-span-2 space-y-4">
           <AnimatePresence mode="wait">
             {run.status === "running" ? (
-              <motion.div
-                key="running-pane"
-                initial={{ opacity: 0, y: 10 }}
-                animate={{ opacity: 1, y: 0 }}
-                exit={{ opacity: 0 }}
-                transition={{ ease: "easeIn", duration: 0.3 }}
-                className="bg-slate-900/40 border border-slate-800/80 rounded-2xl p-8 text-center space-y-4"
-              >
-                <div className="w-12 h-12 rounded-full bg-amber-500/10 border border-amber-500/20 flex items-center justify-center text-amber-400 mx-auto animate-spin">
-                  <Loader2 size={24} />
-                </div>
-                <h3 className="text-lg font-semibold text-slate-200">
-                  Execution Block Interlocked
-                </h3>
-                <p className="text-sm text-slate-400 max-w-sm mx-auto leading-relaxed">
-                  The analytical stack is executing processes on this document
-                  right now. Content maps will initialize dynamically below.
-                </p>
-              </motion.div>
+              run.docAnalysisStatus === "AWAITING_VERIFICATION" ? (
+                extractedContent ? (
+                  <motion.div
+                    key="verification-pane"
+                    initial={{ opacity: 0, y: 10 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    exit={{ opacity: 0 }}
+                    transition={{ duration: 0.3 }}
+                  >
+                    <ExtractionVerificationPanel
+                      documentId={documentId}
+                      fileName={run.fileName || "Document"}
+                      extractedContent={extractedContent}
+                      onConfirm={confirmExtraction}
+                      onConfirmed={() => {
+                        fetchRunDetail(false);
+                      }}
+                    />
+                  </motion.div>
+                ) : (
+                  <motion.div
+                    key="loading-verification-pane"
+                    initial={{ opacity: 0 }}
+                    animate={{ opacity: 1 }}
+                    exit={{ opacity: 0 }}
+                    className="bg-slate-900/40 border border-slate-800/80 rounded-2xl p-8 text-center"
+                  >
+                    <Loader2 className="animate-spin text-cyan-500 mx-auto mb-3" size={28} />
+                    <p className="text-sm text-slate-400">Loading extracted content for review...</p>
+                  </motion.div>
+                )
+              ) : (
+                <motion.div
+                  key="running-pane"
+                  initial={{ opacity: 0, y: 10 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  exit={{ opacity: 0 }}
+                  transition={{ ease: "easeIn", duration: 0.3 }}
+                  className="bg-slate-900/40 border border-slate-800/80 rounded-2xl p-8 text-center space-y-4"
+                >
+                  <div className="w-12 h-12 rounded-full bg-amber-500/10 border border-amber-500/20 flex items-center justify-center text-amber-400 mx-auto animate-spin">
+                    <Loader2 size={24} />
+                  </div>
+                  <h3 className="text-lg font-semibold text-slate-200">
+                    Execution Block Interlocked
+                  </h3>
+                  <p className="text-sm text-slate-400 max-w-sm mx-auto leading-relaxed">
+                    The analytical stack is executing processes on this document
+                    right now. Content maps will initialize dynamically below.
+                  </p>
+                </motion.div>
+              )
             ) : run.status === "failed" ? (
               <motion.div
                 key="failed-pane"

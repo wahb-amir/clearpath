@@ -21,7 +21,10 @@ import { useIsMobile } from "@/lib/useIsMobile";
 import {
   openAnalysisStream,
   startAnalysisRequest,
+  fetchExtractedContent,
+  confirmExtraction,
 } from "@/lib/api/documentAnalysis";
+import ExtractionVerificationPanel from "../document-intelligence/ExtractionVerificationPanel";
 import { apiFetch } from "@/lib/auth/apiFetch";
 import {
   EVENT_LABELS,
@@ -481,6 +484,7 @@ export default function DocumentIntelligencePanel({
   const [progress, setProgress] = useState(0);
   const [workerId, setWorkerId] = useState(null);
   const [analysisRequestId, setAnalysisRequestId] = useState(null);
+  const [extractedContent, setExtractedContent] = useState(null);
   const [error, setError] = useState(null);
   const [timeline, setTimeline] = useState([]);
   const [latestEventId, setLatestEventId] = useState(null);
@@ -524,6 +528,19 @@ export default function DocumentIntelligencePanel({
   const serverDocumentId = serverDocument?.id ?? null;
   const serverFileName = serverDocument?.fileName ?? null;
   const serverStage = normalizeStage(serverDocument?.analysisStatus);
+
+  useEffect(() => {
+    if (stage === "AWAITING_VERIFICATION" && !extractedContent && (activeSession?.documentId || serverDocumentId)) {
+      const docId = activeSession?.documentId || serverDocumentId;
+      if (docId) {
+        fetchExtractedContent(docId).then(data => {
+          if (data && data.extracted_content) {
+            setExtractedContent(data.extracted_content);
+          }
+        }).catch(err => console.error("Failed to fetch extracted content", err));
+      }
+    }
+  }, [stage, extractedContent, activeSession?.documentId, serverDocumentId]);
 
   const busy = Boolean(analyzing || isAnalyzing || serverRunning);
   const isFileBusy = busy && !completed && !failed;
@@ -1042,6 +1059,10 @@ export default function DocumentIntelligencePanel({
             setWorkerId(data.payload.workerId);
           }
 
+          if (nextStage === "AWAITING_VERIFICATION" && data.payload?.extractedContent) {
+            setExtractedContent(data.payload.extractedContent);
+          }
+
           if (
             (eventName === "ai_completed" || eventName === "analysis_completed") &&
             data.payload &&
@@ -1303,23 +1324,44 @@ export default function DocumentIntelligencePanel({
             )}
           </AnimatePresence>
 
-          <StatusCard
-            message={message}
-            statusMeta={statusMeta}
-            progress={progress}
-            progressFillClass={progressFillClass}
-            stage={stage}
-            completed={completed}
-            failed={failed}
-            reconnecting={reconnecting}
-            isConnected={isConnected}
-            timeline={timeline}
-            latestEventId={latestEventId}
-            analysisRequestId={analysisRequestId}
-            workerId={workerId}
-            error={error}
-            onRetry={handleRetry}
-          />
+          {stage === "AWAITING_VERIFICATION" ? (
+            extractedContent ? (
+              <div className="mt-4">
+                <ExtractionVerificationPanel
+                  documentId={activeSession?.documentId || serverDocumentId}
+                  fileName={currentDocument?.name || "Document"}
+                  extractedContent={extractedContent}
+                  onConfirm={confirmExtraction}
+                  onConfirmed={() => {
+                    setStage("VERIFIED");
+                    setMessage("Extraction confirmed. Continuing analysis...");
+                  }}
+                />
+              </div>
+            ) : (
+              <div className="mt-8 flex justify-center p-12">
+                <Loader2 className="animate-spin text-cyan-500" size={32} />
+              </div>
+            )
+          ) : (
+            <StatusCard
+              message={message}
+              statusMeta={statusMeta}
+              progress={progress}
+              progressFillClass={progressFillClass}
+              stage={stage}
+              completed={completed}
+              failed={failed}
+              reconnecting={reconnecting}
+              isConnected={isConnected}
+              timeline={timeline}
+              latestEventId={latestEventId}
+              analysisRequestId={analysisRequestId}
+              workerId={workerId}
+              error={error}
+              onRetry={handleRetry}
+            />
+          )}
         </div>
       </div>
 
