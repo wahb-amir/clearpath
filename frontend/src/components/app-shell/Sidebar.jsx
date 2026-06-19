@@ -28,7 +28,7 @@ const primaryNav = [
 const secondaryNav = [
   { href: "/help-center", label: "Help Center", icon: HelpCircle },
   { href: "/safety", label: "Safety & Trust", icon: ShieldCheck },
-  { href: "#", label: "Feedback", icon: MessageSquare },
+  { href: "/feedback", label: "Feedback", icon: MessageSquare },
 ];
 
 
