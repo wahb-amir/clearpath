@@ -1,10 +1,10 @@
-import { execFile } from 'child_process';
-import { promisify } from 'util';
-import { writeFile, mkdtemp, readFile, rm } from 'fs/promises';
-import { tmpdir } from 'os';
-import path from 'path';
-import { env } from '../../config/env';
-import { OcrFailedError } from '../../types/errors';
+import { execFile } from "child_process";
+import { promisify } from "util";
+import { writeFile, mkdtemp, readFile, rm } from "fs/promises";
+import { tmpdir } from "os";
+import path from "path";
+import { env } from "../../config/env";
+import { OcrFailedError } from "../../types/errors";
 
 const execFileAsync = promisify(execFile);
 
@@ -31,22 +31,26 @@ export async function runTesseractOcr(
   imageBuffer: Buffer,
   langs: string = env.TESSERACT_LANGS,
 ): Promise<OcrResult> {
-  const dir = await mkdtemp(path.join(tmpdir(), 'ocr-'));
-  const inputPath = path.join(dir, 'input.png');
-  const outputBase = path.join(dir, 'output');
+  const dir = await mkdtemp(path.join(tmpdir(), "ocr-"));
+  const inputPath = path.join(dir, "input.png");
+  const outputBase = path.join(dir, "output");
 
   try {
     await writeFile(inputPath, imageBuffer);
 
     // tsv output includes per-word confidence scores
-    await execFileAsync('tesseract', [inputPath, outputBase, '-l', langs, 'tsv'], {
-      maxBuffer: 1024 * 1024 * 32,
-    });
+    await execFileAsync(
+      "tesseract",
+      [inputPath, outputBase, "-l", langs, "tsv"],
+      {
+        maxBuffer: 1024 * 1024 * 32,
+      },
+    );
 
-    const tsv = await readFile(`${outputBase}.tsv`, 'utf-8');
+    const tsv = await readFile(`${outputBase}.tsv`, "utf-8");
     return parseTesseractTsv(tsv);
   } catch (err) {
-    throw new OcrFailedError('Tesseract OCR execution failed', {
+    throw new OcrFailedError("Tesseract OCR execution failed", {
       cause: err instanceof Error ? err.message : String(err),
     });
   } finally {
@@ -60,10 +64,10 @@ export async function runTesseractOcr(
  * (Tesseract uses -1 for non-text rows like page/block boundaries).
  */
 function parseTesseractTsv(tsv: string): OcrResult {
-  const lines = tsv.trim().split('\n');
-  const header = lines[0].split('\t');
-  const textIdx = header.indexOf('text');
-  const confIdx = header.indexOf('conf');
+  const lines = tsv.trim().split("\n");
+  const header = lines[0].split("\t");
+  const textIdx = header.indexOf("text");
+  const confIdx = header.indexOf("conf");
 
   const words: string[] = [];
   const confidences: number[] = [];
@@ -71,7 +75,7 @@ function parseTesseractTsv(tsv: string): OcrResult {
   let lastBlockNum = -1;
 
   for (let i = 1; i < lines.length; i++) {
-    const cols = lines[i].split('\t');
+    const cols = lines[i].split("\t");
     if (cols.length <= Math.max(textIdx, confIdx)) continue;
 
     const conf = Number.parseFloat(cols[confIdx]);
@@ -79,11 +83,14 @@ function parseTesseractTsv(tsv: string): OcrResult {
 
     if (conf >= 0 && text && text.trim().length > 0) {
       // Insert line breaks between Tesseract line groups for structure
-      const lineNum = Number.parseInt(cols[4] ?? '0', 10); // line_num column
-      const blockNum = Number.parseInt(cols[2] ?? '0', 10); // block_num column
+      const lineNum = Number.parseInt(cols[4] ?? "0", 10); // line_num column
+      const blockNum = Number.parseInt(cols[2] ?? "0", 10); // block_num column
 
-      if (lastLineNum !== -1 && (lineNum !== lastLineNum || blockNum !== lastBlockNum)) {
-        words.push('\n');
+      if (
+        lastLineNum !== -1 &&
+        (lineNum !== lastLineNum || blockNum !== lastBlockNum)
+      ) {
+        words.push("\n");
       }
       lastLineNum = lineNum;
       lastBlockNum = blockNum;
@@ -94,9 +101,9 @@ function parseTesseractTsv(tsv: string): OcrResult {
   }
 
   const text = words
-    .join(' ')
-    .replace(/ \n /g, '\n')
-    .replace(/ +/g, ' ')
+    .join(" ")
+    .replace(/ \n /g, "\n")
+    .replace(/ +/g, " ")
     .trim();
 
   const meanConfidence =
@@ -118,35 +125,39 @@ export async function rasterizePdfPage(
   pageNumber: number,
   dpi = 200,
 ): Promise<Buffer> {
-  const dir = await mkdtemp(path.join(tmpdir(), 'pdfpage-'));
-  const inputPath = path.join(dir, 'input.pdf');
-  const outputBase = path.join(dir, 'page');
+  const dir = await mkdtemp(path.join(tmpdir(), "pdfpage-"));
+  const inputPath = path.join(dir, "input.pdf");
+  const outputBase = path.join(dir, "page");
 
   try {
     await writeFile(inputPath, pdfBuffer);
-    await execFileAsync('pdftoppm', [
-      '-png',
-      '-r',
+    await execFileAsync("pdftoppm", [
+      "-png",
+      "-r",
       String(dpi),
-      '-f',
+      "-f",
       String(pageNumber),
-      '-l',
+      "-l",
       String(pageNumber),
       inputPath,
       outputBase,
     ]);
 
     // pdftoppm names output like page-1.png or page-01.png depending on page count
-    const { readdir } = await import('fs/promises');
+    const { readdir } = await import("fs/promises");
     const files = await readdir(dir);
-    const pageFile = files.find((f) => f.startsWith('page') && f.endsWith('.png'));
+    const pageFile = files.find(
+      (f) => f.startsWith("page") && f.endsWith(".png"),
+    );
     if (!pageFile) {
-      throw new OcrFailedError(`pdftoppm produced no output for page ${pageNumber}`);
+      throw new OcrFailedError(
+        `pdftoppm produced no output for page ${pageNumber}`,
+      );
     }
     return await readFile(path.join(dir, pageFile));
   } catch (err) {
     if (err instanceof OcrFailedError) throw err;
-    throw new OcrFailedError('PDF rasterization failed', {
+    throw new OcrFailedError("PDF rasterization failed", {
       cause: err instanceof Error ? err.message : String(err),
     });
   } finally {

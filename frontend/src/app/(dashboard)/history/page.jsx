@@ -48,14 +48,17 @@ export default function HistoryPage() {
           status: statusFilter,
         });
 
-        const response = await apiFetch(`/api/analysis/history?${queryParams.toString()}`, {});
-        
+        const response = await apiFetch(
+          `/api/analysis/history?${queryParams.toString()}`,
+          {},
+        );
+
         if (!response.ok) {
           throw new Error("Failed to load document history.");
         }
 
         const data = await response.json();
-        
+
         setItems(data.items || []);
         setTotalPages(data.totalPages || 1);
       } catch (err) {
@@ -76,8 +79,8 @@ export default function HistoryPage() {
 
   // Filter items locally matching the search query
   const filteredItems = (items || []).filter((item) => {
-    const itemTitle = item?.title || item?.document?.fileName || '';
-    const search = searchQuery ?? '';
+    const itemTitle = item?.title || item?.document?.fileName || "";
+    const search = searchQuery ?? "";
     return itemTitle.toLowerCase().includes(search.toLowerCase());
   });
 
@@ -89,7 +92,8 @@ export default function HistoryPage() {
           Document Analysis History
         </h1>
         <p className="text-slate-400 text-sm">
-          Monitor, view details, and manage your live-running and historical engine pipelines.
+          Monitor, view details, and manage your live-running and historical
+          engine pipelines.
         </p>
       </div>
 
@@ -160,8 +164,8 @@ export default function HistoryPage() {
         ) : (
           /* LIST RENDERING */
           filteredItems.map((item, index) => (
-            <Link 
-              key={item.id} 
+            <Link
+              key={item.id}
               href={`/history/${item.documentId || item.id}`}
               className="block group"
             >
@@ -172,15 +176,16 @@ export default function HistoryPage() {
                 className="bg-slate-900 border border-slate-800 group-hover:border-slate-700 rounded-2xl p-5 transition-colors"
               >
                 <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
-                  
                   {/* LEFT SIDE */}
                   <div className="flex items-start gap-4 flex-1 min-w-0">
-                    <div className={`w-10 h-10 rounded-full border flex items-center justify-center flex-shrink-0 mt-1 ${
-                      item.status === 'running' 
-                        ? 'bg-amber-500/10 border-amber-500/20 text-amber-400 animate-pulse' 
-                        : 'bg-blue-900/30 border-blue-800/50 text-blue-400'
-                    }`}>
-                      {item.status === 'running' ? (
+                    <div
+                      className={`w-10 h-10 rounded-full border flex items-center justify-center flex-shrink-0 mt-1 ${
+                        item.status === "running"
+                          ? "bg-amber-500/10 border-amber-500/20 text-amber-400 animate-pulse"
+                          : "bg-blue-900/30 border-blue-800/50 text-blue-400"
+                      }`}
+                    >
+                      {item.status === "running" ? (
                         <Loader2 size={20} className="animate-spin" />
                       ) : (
                         <FileText size={20} />
@@ -189,17 +194,26 @@ export default function HistoryPage() {
 
                     <div className="flex-1 min-w-0">
                       <h3 className="text-lg font-semibold text-slate-200 mb-1 group-hover:text-blue-400 transition-colors truncate">
-                        {item.title || item.document?.fileName || "Unnamed Document"}
+                        {item.title ||
+                          item.document?.fileName ||
+                          "Unnamed Document"}
                       </h3>
 
                       <div className="flex flex-wrap items-center gap-3 text-xs text-slate-500 mb-2">
                         <span className="flex items-center gap-1">
-                          <FileText size={12} /> {item.type || item.document?.mimeType?.split('/')[1]?.toUpperCase() || 'DOCUMENT'}
+                          <FileText size={12} />{" "}
+                          {item.type ||
+                            item.document?.mimeType
+                              ?.split("/")[1]
+                              ?.toUpperCase() ||
+                            "DOCUMENT"}
                         </span>
                         <span className="w-1 h-1 rounded-full bg-slate-700" />
                         <span className="flex items-center gap-1">
                           <Clock size={12} />
-                          {new Date(item.date || item.createdAt).toLocaleDateString()}
+                          {new Date(
+                            item.date || item.createdAt,
+                          ).toLocaleDateString()}
                         </span>
                       </div>
 
@@ -207,21 +221,30 @@ export default function HistoryPage() {
                       {item.status === "running" ? (
                         <div className="mt-3 max-w-md bg-slate-950/60 p-3 rounded-xl border border-slate-800/40">
                           <div className="flex justify-between items-center text-[11px] font-mono mb-1.5">
-                            <span className="text-amber-400 font-bold">STAGE: {item.currentStage || "QUEUED"}</span>
-                            <span className="text-slate-400 animate-pulse">{item.docAnalysisStatus?.toLowerCase()}</span>
+                            <span className="text-amber-400 font-bold">
+                              STAGE: {item.currentStage || "QUEUED"}
+                            </span>
+                            <span className="text-slate-400 animate-pulse">
+                              {item.docAnalysisStatus?.toLowerCase()}
+                            </span>
                           </div>
                           <div className="w-full h-1.5 bg-slate-800 rounded-full overflow-hidden">
-                            <motion.div 
+                            <motion.div
                               className="h-full bg-gradient-to-r from-amber-500 to-orange-400 rounded-full"
                               animate={{ x: ["-100%", "100%"] }}
-                              transition={{ repeat: Infinity, duration: 1.8, ease: "linear" }}
+                              transition={{
+                                repeat: Infinity,
+                                duration: 1.8,
+                                ease: "linear",
+                              }}
                               style={{ width: "40%" }}
                             />
                           </div>
                         </div>
                       ) : (
                         <p className="text-sm text-slate-400 line-clamp-2 leading-relaxed max-w-2xl">
-                          {item.summary || "No executive summary parsed for this pipeline container entry."}
+                          {item.summary ||
+                            "No executive summary parsed for this pipeline container entry."}
                         </p>
                       )}
                     </div>
@@ -262,7 +285,8 @@ export default function HistoryPage() {
 
                       {item.status === "running" && (
                         <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-md text-xs font-medium bg-amber-500/10 text-amber-400 border border-amber-500/20 animate-pulse">
-                          <Loader2 size={12} className="animate-spin" /> In Flight
+                          <Loader2 size={12} className="animate-spin" /> In
+                          Flight
                         </span>
                       )}
                     </div>
@@ -289,15 +313,14 @@ export default function HistoryPage() {
                         <ExternalLink size={18} />
                       </div>
 
-                      <button 
-                        onClick={(e) => e.preventDefault()} 
+                      <button
+                        onClick={(e) => e.preventDefault()}
                         className="p-2 rounded-lg text-slate-500 hover:text-slate-300 hover:bg-slate-800 transition-colors"
                       >
                         <MoreHorizontal size={18} />
                       </button>
                     </div>
                   </div>
-
                 </div>
               </motion.div>
             </Link>
@@ -309,7 +332,8 @@ export default function HistoryPage() {
       {!isLoading && !error && totalPages > 1 && (
         <div className="flex items-center justify-between mt-8 pt-4 border-t border-slate-850">
           <p className="text-xs text-slate-500">
-            Showing page <span className="text-slate-300 font-medium">{page}</span> of{" "}
+            Showing page{" "}
+            <span className="text-slate-300 font-medium">{page}</span> of{" "}
             <span className="text-slate-300 font-medium">{totalPages}</span>
           </p>
           <div className="flex gap-2">

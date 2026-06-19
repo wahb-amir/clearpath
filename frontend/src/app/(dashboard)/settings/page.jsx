@@ -2,17 +2,14 @@
 
 import { useState, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import {
-  Globe,
-  Bell,
-  Type,
-  ShieldAlert,
-  LogOut,
-} from "lucide-react";
+import { Globe, Bell, Type, ShieldAlert, LogOut } from "lucide-react";
 import { apiFetch } from "@/lib/auth/apiFetch";
 
 // Note: Use NEXT_PUBLIC_ prefixes so env variables are exposed to the client bundle safely
-const API_BASE_URL = (process.env.NEXT_PUBLIC_BACKEND_URL || "").replace(/\/$/, "");
+const API_BASE_URL = (process.env.NEXT_PUBLIC_BACKEND_URL || "").replace(
+  /\/$/,
+  "",
+);
 
 export default function SettingsPage() {
   const [settings, setSettings] = useState({
@@ -39,7 +36,7 @@ export default function SettingsPage() {
   const toggleSetting = (key) => {
     setSettings((prev) => {
       const updatedValue = !prev[key];
-      
+
       if (key === "largeText") {
         if (updatedValue) {
           document.documentElement.setAttribute("data-large-text", "true");
@@ -74,10 +71,12 @@ export default function SettingsPage() {
 
       // Clear any optional local states if necessary, then force flush route
       setIsModalOpen(false);
-      window.location.href = "/login"; 
+      window.location.href = "/login";
     } catch (err) {
       console.error("Error while logging out:", err);
-      setLogoutError(err instanceof Error ? err.message : "An unexpected error occurred.");
+      setLogoutError(
+        err instanceof Error ? err.message : "An unexpected error occurred.",
+      );
     } finally {
       setIsLoggingOut(false);
     }
@@ -86,12 +85,8 @@ export default function SettingsPage() {
   return (
     <div className="mx-auto max-w-3xl p-4 md:p-8 relative">
       <div className="mb-8">
-        <h1 className="mb-2 text-3xl font-bold text-slate-100">
-          Settings
-        </h1>
-        <p className="text-slate-400">
-          Customize your ClearPath experience.
-        </p>
+        <h1 className="mb-2 text-3xl font-bold text-slate-100">Settings</h1>
+        <p className="text-slate-400">Customize your ClearPath experience.</p>
       </div>
 
       <div className="space-y-6">
@@ -160,9 +155,7 @@ export default function SettingsPage() {
                   <Bell size={20} />
                 </div>
                 <div>
-                  <div className="font-medium text-slate-200">
-                    Email Alerts
-                  </div>
+                  <div className="font-medium text-slate-200">Email Alerts</div>
                   <div className="text-sm text-slate-400">
                     Get notified about deadlines.
                   </div>
@@ -240,8 +233,8 @@ export default function SettingsPage() {
               <span className="font-medium text-slate-200">
                 Sign out of all devices
               </span>
-              <button 
-                type="button" 
+              <button
+                type="button"
                 onClick={() => setIsModalOpen(true)}
                 className="flex items-center gap-2 rounded-lg bg-slate-800 px-4 py-2 text-sm text-slate-200 transition-colors hover:bg-slate-700"
               >
@@ -277,9 +270,10 @@ export default function SettingsPage() {
                 <LogOut size={22} />
                 <h3 className="text-xl font-bold">Sign Out</h3>
               </div>
-              
+
               <p className="text-sm text-slate-400 mb-5 leading-relaxed">
-                Are you sure you want to log out of your ClearPath session? You will need to sign in again to re-access your account metrics.
+                Are you sure you want to log out of your ClearPath session? You
+                will need to sign in again to re-access your account metrics.
               </p>
 
               {logoutError && (

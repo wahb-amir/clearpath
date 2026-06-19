@@ -2,7 +2,7 @@ import type { PoolClient } from "pg";
 import { pgPool, withTransaction } from "../db/pool";
 import type {
   DocumentAnalysisPipelineResult,
-  FinalDocumentAnalysisResult
+  FinalDocumentAnalysisResult,
 } from "../types/documentAnalysis";
 
 export interface PersistedDocumentAnalysisRow extends FinalDocumentAnalysisResult {
@@ -27,14 +27,14 @@ export interface UpsertAnalysisResultInput {
 }
 
 export async function loadAnalysisResultByRequestId(
-  analysisRequestId: string
+  analysisRequestId: string,
 ): Promise<PersistedDocumentAnalysisRow | null> {
   const query = await pgPool.query<PersistedDocumentAnalysisRow>(
     `SELECT *
        FROM document_analysis_results
       WHERE analysis_request_id = $1
       LIMIT 1`,
-    [analysisRequestId]
+    [analysisRequestId],
   );
 
   return query.rows[0] ?? null;
@@ -45,7 +45,7 @@ export async function getOrCreatePendingAnalysisResult(
   analysisRequestId: string,
   documentId: string,
   userId: string,
-  model: string
+  model: string,
 ): Promise<void> {
   await client.query(
     `INSERT INTO document_analysis_results (
@@ -58,14 +58,14 @@ export async function getOrCreatePendingAnalysisResult(
       user_id = EXCLUDED.user_id,
       model = EXCLUDED.model,
       updated_at = now()`,
-    [analysisRequestId, documentId, userId, model]
+    [analysisRequestId, documentId, userId, model],
   );
 }
 
 export async function markAnalysisResultProcessing(
   client: PoolClient,
   analysisRequestId: string,
-  model: string
+  model: string,
 ): Promise<void> {
   await client.query(
     `UPDATE document_analysis_results
@@ -74,15 +74,16 @@ export async function markAnalysisResultProcessing(
             error_message = NULL,
             updated_at = now()
       WHERE analysis_request_id = $1`,
-    [analysisRequestId, model]
+    [analysisRequestId, model],
   );
 }
 
 export async function finalizeAnalysisResult(
   client: PoolClient,
-  input: UpsertAnalysisResultInput
+  input: UpsertAnalysisResultInput,
 ): Promise<void> {
-  const status = input.result.status === "review_required" ? "review_required" : "completed";
+  const status =
+    input.result.status === "review_required" ? "review_required" : "completed";
 
   await client.query(
     `INSERT INTO document_analysis_results (
@@ -137,8 +138,8 @@ export async function finalizeAnalysisResult(
       JSON.stringify(input.result.ai_confidence),
       JSON.stringify(input.result.trusted_sources),
       JSON.stringify(input.result.human_review),
-      JSON.stringify(input.result.stage_outputs)
-    ]
+      JSON.stringify(input.result.stage_outputs),
+    ],
   );
 }
 
@@ -148,7 +149,7 @@ export async function failAnalysisResult(
   documentId: string,
   userId: string,
   model: string,
-  errorMessage: string
+  errorMessage: string,
 ): Promise<void> {
   await client.query(
     `INSERT INTO document_analysis_results (
@@ -169,10 +170,12 @@ export async function failAnalysisResult(
       status = 'failed',
       error_message = EXCLUDED.error_message,
       updated_at = now()`,
-    [analysisRequestId, documentId, userId, model, errorMessage]
+    [analysisRequestId, documentId, userId, model, errorMessage],
   );
 }
 
-export async function withAnalysisResultTransaction<T>(fn: (client: PoolClient) => Promise<T>): Promise<T> {
+export async function withAnalysisResultTransaction<T>(
+  fn: (client: PoolClient) => Promise<T>,
+): Promise<T> {
   return withTransaction(fn);
 }

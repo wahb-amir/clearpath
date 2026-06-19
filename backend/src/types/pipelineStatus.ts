@@ -26,20 +26,29 @@ export const ANALYSIS_STATUSES = [
 export type AnalysisStatus = (typeof ANALYSIS_STATUSES)[number];
 
 export const ANALYSIS_REQUEST_STATUSES = [
-  'PENDING',
-  'QUEUED',
-  'PROCESSING',
-  'COMPLETED',
-  'FAILED',
-  'CANCELLED',
+  "PENDING",
+  "QUEUED",
+  "PROCESSING",
+  "COMPLETED",
+  "FAILED",
+  "CANCELLED",
 ] as const;
 
 export type AnalysisRequestStatus = (typeof ANALYSIS_REQUEST_STATUSES)[number];
 
-export const UPLOAD_STATUSES = ['PENDING_UPLOAD', 'UPLOADED', 'FAILED'] as const;
+export const UPLOAD_STATUSES = [
+  "PENDING_UPLOAD",
+  "UPLOADED",
+  "FAILED",
+] as const;
 export type UploadStatus = (typeof UPLOAD_STATUSES)[number];
 
-export const DOCUMENT_QUALITIES = ['good', 'medium', 'poor', 'unknown'] as const;
+export const DOCUMENT_QUALITIES = [
+  "good",
+  "medium",
+  "poor",
+  "unknown",
+] as const;
 export type DocumentQuality = (typeof DOCUMENT_QUALITIES)[number];
 
 /**
@@ -50,28 +59,28 @@ export type DocumentQuality = (typeof DOCUMENT_QUALITIES)[number];
  * FAILED/CANCELLED first, then a new analysis request resets to QUEUED).
  */
 const IN_FLIGHT_STATUSES: AnalysisStatus[] = [
-  'QUEUED',
-  'PROCESSING',
-  'EXTRACTING',
-  'OCRING',
-  'CLEANING',
-  'STRUCTURING',
-  'CHUNKING',
-  'EMBEDDING',
-  'SUMMARIZING',
+  "QUEUED",
+  "PROCESSING",
+  "EXTRACTING",
+  "OCRING",
+  "CLEANING",
+  "STRUCTURING",
+  "CHUNKING",
+  "EMBEDDING",
+  "SUMMARIZING",
 ];
 
 const PIPELINE_ORDER: AnalysisStatus[] = [
-  'QUEUED',
-  'PROCESSING',
-  'EXTRACTING',
-  'OCRING',
-  'CLEANING',
-  'STRUCTURING',
-  'CHUNKING',
-  'EMBEDDING',
-  'SUMMARIZING',
-  'COMPLETED',
+  "QUEUED",
+  "PROCESSING",
+  "EXTRACTING",
+  "OCRING",
+  "CLEANING",
+  "STRUCTURING",
+  "CHUNKING",
+  "EMBEDDING",
+  "SUMMARIZING",
+  "COMPLETED",
 ];
 
 const ALLOWED_TRANSITIONS: Record<AnalysisStatus, AnalysisStatus[]> = {
@@ -107,7 +116,9 @@ export function isInFlight(status: AnalysisStatus): boolean {
 }
 
 export function isTerminal(status: AnalysisStatus): boolean {
-  return status === 'COMPLETED' || status === 'FAILED' || status === 'CANCELLED';
+  return (
+    status === "COMPLETED" || status === "FAILED" || status === "CANCELLED"
+  );
 }
 
 /**

@@ -7,7 +7,10 @@ import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { ArrowRight, Eye, EyeOff, ShieldCheck } from "lucide-react";
 import { apiFetch } from "@/lib/auth/apiFetch";
-const API_BASE_URL = (process.env.NEXT_PUBLIC_BACKEND_URL || "").replace(/\/$/, "");
+const API_BASE_URL = (process.env.NEXT_PUBLIC_BACKEND_URL || "").replace(
+  /\/$/,
+  "",
+);
 
 export default function LoginPage() {
   const router = useRouter();
@@ -34,7 +37,7 @@ export default function LoginPage() {
       const response = await apiFetch(`${API_BASE_URL}/auth/login`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email: data.email, password: data.password })
+        body: JSON.stringify({ email: data.email, password: data.password }),
       });
 
       const payload = await response.json().catch(() => ({}));
@@ -42,7 +45,9 @@ export default function LoginPage() {
 
       window.location.href = "/app";
     } catch (error) {
-      setSubmitError(error instanceof Error ? error.message : "Something went wrong");
+      setSubmitError(
+        error instanceof Error ? error.message : "Something went wrong",
+      );
     }
   };
 
@@ -62,7 +67,8 @@ export default function LoginPage() {
         className="w-full max-w-md rounded-3xl overflow-hidden"
         style={{
           border: "1px solid rgba(255,255,255,0.07)",
-          boxShadow: "0 32px 120px rgba(0,0,0,0.6), 0 0 0 1px rgba(0,212,255,0.04)",
+          boxShadow:
+            "0 32px 120px rgba(0,0,0,0.6), 0 0 0 1px rgba(0,212,255,0.04)",
           backgroundColor: "#0d1117",
         }}
       >
@@ -86,14 +92,24 @@ export default function LoginPage() {
             >
               Welcome back
             </h1>
-            <p className="text-[13px] leading-relaxed" style={{ color: "#6b7280" }}>
+            <p
+              className="text-[13px] leading-relaxed"
+              style={{ color: "#6b7280" }}
+            >
               Sign in to your ClearPath account.
             </p>
           </div>
 
-          <form className="flex flex-col gap-4" onSubmit={handleSubmit(onSubmit)} noValidate>
+          <form
+            className="flex flex-col gap-4"
+            onSubmit={handleSubmit(onSubmit)}
+            noValidate
+          >
             <div className="flex flex-col gap-1.5">
-              <label className="text-[12px] font-medium" style={{ color: "#9399A6", letterSpacing: "0.01em" }}>
+              <label
+                className="text-[12px] font-medium"
+                style={{ color: "#9399A6", letterSpacing: "0.01em" }}
+              >
                 Email address
               </label>
               <input
@@ -101,7 +117,9 @@ export default function LoginPage() {
                 autoComplete="email"
                 className="w-full rounded-[10px] px-3.5 py-[11px] text-[14px] outline-none transition-all duration-150"
                 style={{
-                  border: errors.email ? "1px solid rgba(248,113,113,0.5)" : "1px solid rgba(255,255,255,0.08)",
+                  border: errors.email
+                    ? "1px solid rgba(248,113,113,0.5)"
+                    : "1px solid rgba(255,255,255,0.08)",
                   background: "rgba(255,255,255,0.03)",
                   color: "#F0F3F8",
                   fontFamily: "inherit",
@@ -113,24 +131,35 @@ export default function LoginPage() {
                   e.target.style.boxShadow = "0 0 0 3px rgba(0,212,255,0.08)";
                 }}
                 onBlur={(e) => {
-                  e.target.style.borderColor = errors.email ? "rgba(248,113,113,0.5)" : "rgba(255,255,255,0.08)";
+                  e.target.style.borderColor = errors.email
+                    ? "rgba(248,113,113,0.5)"
+                    : "rgba(255,255,255,0.08)";
                   e.target.style.background = "rgba(255,255,255,0.03)";
                   e.target.style.boxShadow = "none";
                 }}
                 {...register("email", {
                   required: "Email is required",
-                  pattern: { value: /^\S+@\S+\.\S+$/, message: "Enter a valid email address" },
+                  pattern: {
+                    value: /^\S+@\S+\.\S+$/,
+                    message: "Enter a valid email address",
+                  },
                 })}
               />
               {errors.email && (
-                <span className="text-[11px]" style={{ color: "#f87171", letterSpacing: "0.01em" }}>
+                <span
+                  className="text-[11px]"
+                  style={{ color: "#f87171", letterSpacing: "0.01em" }}
+                >
                   {errors.email.message}
                 </span>
               )}
             </div>
 
             <div className="flex flex-col gap-1.5">
-              <label className="text-[12px] font-medium" style={{ color: "#9399A6", letterSpacing: "0.01em" }}>
+              <label
+                className="text-[12px] font-medium"
+                style={{ color: "#9399A6", letterSpacing: "0.01em" }}
+              >
                 Password
               </label>
               <div className="relative">
@@ -139,7 +168,9 @@ export default function LoginPage() {
                   autoComplete="current-password"
                   className="w-full rounded-[10px] pl-3.5 pr-10 py-[11px] text-[14px] outline-none transition-all duration-150"
                   style={{
-                    border: errors.password ? "1px solid rgba(248,113,113,0.5)" : "1px solid rgba(255,255,255,0.08)",
+                    border: errors.password
+                      ? "1px solid rgba(248,113,113,0.5)"
+                      : "1px solid rgba(255,255,255,0.08)",
                     background: "rgba(255,255,255,0.03)",
                     color: "#F0F3F8",
                     fontFamily: "inherit",
@@ -151,13 +182,18 @@ export default function LoginPage() {
                     e.target.style.boxShadow = "0 0 0 3px rgba(0,212,255,0.08)";
                   }}
                   onBlur={(e) => {
-                    e.target.style.borderColor = errors.password ? "rgba(248,113,113,0.5)" : "rgba(255,255,255,0.08)";
+                    e.target.style.borderColor = errors.password
+                      ? "rgba(248,113,113,0.5)"
+                      : "rgba(255,255,255,0.08)";
                     e.target.style.background = "rgba(255,255,255,0.03)";
                     e.target.style.boxShadow = "none";
                   }}
                   {...register("password", {
                     required: "Password is required",
-                    minLength: { value: 8, message: "Password must be at least 8 characters" },
+                    minLength: {
+                      value: 8,
+                      message: "Password must be at least 8 characters",
+                    },
                   })}
                 />
                 <button
@@ -166,15 +202,31 @@ export default function LoginPage() {
                   onClick={() => setShowPassword((v) => !v)}
                   aria-label={showPassword ? "Hide password" : "Show password"}
                   className="absolute right-3 top-1/2 -translate-y-1/2 flex items-center transition-colors duration-150"
-                  style={{ background: "none", border: "none", color: "#4b5563", cursor: "pointer" }}
-                  onMouseEnter={(e) => (e.currentTarget.style.color = "#9399A6")}
-                  onMouseLeave={(e) => (e.currentTarget.style.color = "#4b5563")}
+                  style={{
+                    background: "none",
+                    border: "none",
+                    color: "#4b5563",
+                    cursor: "pointer",
+                  }}
+                  onMouseEnter={(e) =>
+                    (e.currentTarget.style.color = "#9399A6")
+                  }
+                  onMouseLeave={(e) =>
+                    (e.currentTarget.style.color = "#4b5563")
+                  }
                 >
-                  {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                  {showPassword ? (
+                    <EyeOff className="w-4 h-4" />
+                  ) : (
+                    <Eye className="w-4 h-4" />
+                  )}
                 </button>
               </div>
               {errors.password && (
-                <span className="text-[11px]" style={{ color: "#f87171", letterSpacing: "0.01em" }}>
+                <span
+                  className="text-[11px]"
+                  style={{ color: "#f87171", letterSpacing: "0.01em" }}
+                >
                   {errors.password.message}
                 </span>
               )}
@@ -227,13 +279,15 @@ export default function LoginPage() {
                 if (!isSubmitting) {
                   e.currentTarget.style.opacity = "0.92";
                   e.currentTarget.style.transform = "translateY(-1px)";
-                  e.currentTarget.style.boxShadow = "0 8px 28px rgba(0,212,255,0.28)";
+                  e.currentTarget.style.boxShadow =
+                    "0 8px 28px rgba(0,212,255,0.28)";
                 }
               }}
               onMouseLeave={(e) => {
                 e.currentTarget.style.opacity = "1";
                 e.currentTarget.style.transform = "translateY(0)";
-                e.currentTarget.style.boxShadow = "0 4px 20px rgba(0,212,255,0.2)";
+                e.currentTarget.style.boxShadow =
+                  "0 4px 20px rgba(0,212,255,0.2)";
               }}
             >
               {isSubmitting ? (
@@ -257,7 +311,10 @@ export default function LoginPage() {
             </button>
           </form>
 
-          <p className="mt-6 text-center text-[13px]" style={{ color: "#4b5563" }}>
+          <p
+            className="mt-6 text-center text-[13px]"
+            style={{ color: "#4b5563" }}
+          >
             Don&apos;t have an account?{" "}
             <Link
               href="/register"

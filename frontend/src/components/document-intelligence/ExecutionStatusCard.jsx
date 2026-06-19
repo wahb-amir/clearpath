@@ -1,7 +1,13 @@
 "use client";
 
 import { motion } from "framer-motion";
-import { AlertCircle, CheckCircle2, Loader2, Wifi, WifiOff } from "lucide-react";
+import {
+  AlertCircle,
+  CheckCircle2,
+  Loader2,
+  Wifi,
+  WifiOff,
+} from "lucide-react";
 import TimelineFeed from "./TimelineFeed";
 
 export default function ExecutionStatusCard({
@@ -24,7 +30,9 @@ export default function ExecutionStatusCard({
     <div className="mt-6 p-5 sm:p-6 rounded-[20px] border border-[#2B303B] bg-[#0B0D10]">
       <div className="flex flex-col sm:flex-row justify-between gap-3 items-start sm:items-center mb-4">
         <div>
-          <div className="font-semibold text-sm text-white">Execution Status</div>
+          <div className="font-semibold text-sm text-white">
+            Execution Status
+          </div>
           <div className="text-xs sm:text-sm text-gray-400 mt-1">{message}</div>
         </div>
 
@@ -55,7 +63,11 @@ export default function ExecutionStatusCard({
         <span>{stage !== "IDLE" ? stage.replace(/_/g, " ") : "WAITING"}</span>
         <span
           className={
-            completed ? "text-emerald-400" : failed ? "text-rose-400" : "text-blue-400"
+            completed
+              ? "text-emerald-400"
+              : failed
+                ? "text-rose-400"
+                : "text-blue-400"
           }
         >
           {progress}%

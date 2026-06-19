@@ -23,20 +23,21 @@ export default function AboutPage() {
       content: (
         <>
           <p>
-            ClearPath was built for the USAII 2024 Hackathon (AI for Social Good track).
-            Our mission is to bridge the "clarity gap" between bureaucratic institutions
-            and the families they serve.
+            ClearPath was built for the USAII 2024 Hackathon (AI for Social Good
+            track). Our mission is to bridge the "clarity gap" between
+            bureaucratic institutions and the families they serve.
           </p>
 
           <p>
-            Every day, parents and students receive confusing notices about attendance,
-            financial aid, housing, and legal obligations. These documents often cause
-            stress and missed deadlines.
+            Every day, parents and students receive confusing notices about
+            attendance, financial aid, housing, and legal obligations. These
+            documents often cause stress and missed deadlines.
           </p>
 
           <p>
-            We use generative AI to translate documents into plain language and extract
-            what matters: what it means, when it is due, and what to do next.
+            We use generative AI to translate documents into plain language and
+            extract what matters: what it means, when it is due, and what to do
+            next.
           </p>
         </>
       ),
@@ -48,9 +49,22 @@ export default function AboutPage() {
       icon: AlertTriangle,
       color: "hsl(38, 92%, 55%)",
       content: (
-        <ul style={{ paddingLeft: "1.2rem", display: "flex", flexDirection: "column", gap: "0.5rem" }}>
-          <li>We do not provide legal advice. ClearPath is a reading aid, not a lawyer.</li>
-          <li>We do not guarantee perfect accuracy. Always verify critical information.</li>
+        <ul
+          style={{
+            paddingLeft: "1.2rem",
+            display: "flex",
+            flexDirection: "column",
+            gap: "0.5rem",
+          }}
+        >
+          <li>
+            We do not provide legal advice. ClearPath is a reading aid, not a
+            lawyer.
+          </li>
+          <li>
+            We do not guarantee perfect accuracy. Always verify critical
+            information.
+          </li>
           <li>We do not submit forms for you. We only explain them.</li>
           <li>We are not a substitute for human professionals.</li>
         </ul>
@@ -65,8 +79,9 @@ export default function AboutPage() {
       content: (
         <>
           <p>
-            AI is powerful, but it should not replace human judgment in high-stakes situations.
-            ClearPath follows a Human-in-the-Loop (HITL) design.
+            AI is powerful, but it should not replace human judgment in
+            high-stakes situations. ClearPath follows a Human-in-the-Loop (HITL)
+            design.
           </p>
 
           <div
@@ -78,8 +93,8 @@ export default function AboutPage() {
               marginTop: "1rem",
             }}
           >
-            <strong>Confidence Scoring:</strong> Each extracted item gets a confidence score.
-            Low-confidence outputs trigger warnings.
+            <strong>Confidence Scoring:</strong> Each extracted item gets a
+            confidence score. Low-confidence outputs trigger warnings.
           </div>
 
           <div
@@ -91,8 +106,8 @@ export default function AboutPage() {
               marginTop: "0.5rem",
             }}
           >
-            <strong>Suggested Questions:</strong> The system suggests questions for human experts
-            instead of guessing.
+            <strong>Suggested Questions:</strong> The system suggests questions
+            for human experts instead of guessing.
           </div>
         </>
       ),
@@ -109,11 +124,16 @@ export default function AboutPage() {
             ClearPath handles sensitive documents, so privacy is a top priority.
           </p>
 
-          <p>
-            In this prototype:
-          </p>
+          <p>In this prototype:</p>
 
-          <ul style={{ paddingLeft: "1.2rem", display: "flex", flexDirection: "column", gap: "0.5rem" }}>
+          <ul
+            style={{
+              paddingLeft: "1.2rem",
+              display: "flex",
+              flexDirection: "column",
+              gap: "0.5rem",
+            }}
+          >
             <li>No user accounts are required.</li>
             <li>No documents are stored in a database.</li>
             <li>Processing happens locally in the session.</li>
@@ -189,7 +209,13 @@ export default function AboutPage() {
                   padding: "2rem",
                 }}
               >
-                <div style={{ display: "flex", gap: "0.75rem", marginBottom: "1rem" }}>
+                <div
+                  style={{
+                    display: "flex",
+                    gap: "0.75rem",
+                    marginBottom: "1rem",
+                  }}
+                >
                   <Icon size={18} color={section.color} />
                   <h2 style={{ color: "white" }}>{section.title}</h2>
                 </div>

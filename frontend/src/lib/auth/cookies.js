@@ -1,28 +1,28 @@
-import { cookies } from 'next/headers';
+import { cookies } from "next/headers";
 
-const ACCESS_TOKEN_NAME = 'access_token';
-const REFRESH_TOKEN_NAME = 'refresh_token';
-const SID_NAME = 'sid';
+const ACCESS_TOKEN_NAME = "access_token";
+const REFRESH_TOKEN_NAME = "refresh_token";
+const SID_NAME = "sid";
 
 // In production, require HTTPS for cookies
-const isProd = process.env.NODE_ENV === 'production';
+const isProd = process.env.NODE_ENV === "production";
 
 export async function setTokens(accessToken, refreshToken, sid, maxAge) {
   const cookieStore = await cookies();
-  
+
   cookieStore.set(ACCESS_TOKEN_NAME, accessToken, {
     httpOnly: true,
     secure: isProd,
-    sameSite: 'strict',
-    path: '/',
+    sameSite: "strict",
+    path: "/",
     maxAge: 15 * 60, // 15 mins for access token
   });
 
   cookieStore.set(REFRESH_TOKEN_NAME, refreshToken, {
     httpOnly: true,
     secure: isProd,
-    sameSite: 'strict',
-    path: '/',
+    sameSite: "strict",
+    path: "/",
     maxAge: maxAge || 7 * 24 * 60 * 60, // 7 days for refresh token
   });
 
@@ -30,8 +30,8 @@ export async function setTokens(accessToken, refreshToken, sid, maxAge) {
     cookieStore.set(SID_NAME, sid, {
       httpOnly: true,
       secure: isProd,
-      sameSite: 'strict',
-      path: '/',
+      sameSite: "strict",
+      path: "/",
       maxAge: maxAge || 7 * 24 * 60 * 60, // Keep sid as long as refresh token
     });
   }

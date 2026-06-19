@@ -86,9 +86,8 @@ async function uploadDocumentFile(file) {
   const { documentId, uploadSessionId, path, uploadToken } =
     await signResponse.json();
 
-  const { supabaseBrowser: supabase } = await import(
-    "@/lib/supabase/browser-client"
-  );
+  const { supabaseBrowser: supabase } =
+    await import("@/lib/supabase/browser-client");
 
   const { error: uploadError } = await supabase.storage
     .from("documents")
@@ -147,7 +146,8 @@ function TimelineItem({ item, active }) {
       <Sparkles size={14} />
     );
 
-  const isWorking = active && item.stage !== "FAILED" && item.stage !== "COMPLETED";
+  const isWorking =
+    active && item.stage !== "FAILED" && item.stage !== "COMPLETED";
 
   return (
     <motion.div
@@ -356,7 +356,7 @@ function StatusCard({
           <div className="text-[11px] uppercase tracking-wider text-gray-500">
             Stage
           </div>
-          <div 
+          <div
             title={stage}
             className="mt-1 truncate text-sm font-medium text-white"
           >
@@ -400,7 +400,9 @@ function StatusCard({
 
       <div className="mt-6 border-t border-white/5 pt-5">
         <div className="mb-4 flex items-center justify-between px-1">
-          <h4 className="text-sm font-semibold text-white">Live event stream</h4>
+          <h4 className="text-sm font-semibold text-white">
+            Live event stream
+          </h4>
           <span className="rounded-full bg-white/5 px-2 py-0.5 text-[11px] font-medium text-gray-400">
             {timeline.length} event{timeline.length === 1 ? "" : "s"}
           </span>
@@ -553,7 +555,7 @@ export default function DocumentIntelligencePanel({
     setProgress(
       typeof data.progress === "number"
         ? data.progress
-        : stageToProgress(data.stage)
+        : stageToProgress(data.stage),
     );
     setIsConnected(true);
     setReconnecting(false);
@@ -593,7 +595,7 @@ export default function DocumentIntelligencePanel({
       setError(
         typeof data.payload?.error === "string"
           ? data.payload.error
-          : "Analysis failed"
+          : "Analysis failed",
       );
     }
 
@@ -662,15 +664,15 @@ export default function DocumentIntelligencePanel({
         purpose: "full_analysis",
         analysisVersion: "v1",
       });
-      console.log(response)
-      
+      console.log(response);
+
       setAnalysisRequestId(response.analysisRequestId);
       setWorkerId(response.workerId);
       setStage(response.currentStatus);
       setMessage(
         response.deduplication?.isNewRequest
           ? "Analysis request created"
-          : "Existing analysis request resumed"
+          : "Existing analysis request resumed",
       );
       setProgress(stageToProgress(response.currentStatus));
 
@@ -688,7 +690,7 @@ export default function DocumentIntelligencePanel({
           setIsConnected(false);
           setReconnecting(true);
           setError(
-            err instanceof Error ? err.message : "Connection interrupted"
+            err instanceof Error ? err.message : "Connection interrupted",
           );
         },
       }).catch((err) => {
@@ -781,7 +783,11 @@ export default function DocumentIntelligencePanel({
                       }
                       transition={
                         isFileBusy
-                          ? { duration: 1.2, repeat: Infinity, ease: "easeInOut" }
+                          ? {
+                              duration: 1.2,
+                              repeat: Infinity,
+                              ease: "easeInOut",
+                            }
                           : { duration: 0.2 }
                       }
                     >

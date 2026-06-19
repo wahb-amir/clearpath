@@ -4,7 +4,11 @@ import { AnimatePresence, LayoutGroup, motion } from "framer-motion";
 import { Activity } from "lucide-react";
 import { EVENT_LABELS, timeAgo } from "./constants";
 
-export default function TimelineFeed({ timeline, latestEventId, timelineEndRef }) {
+export default function TimelineFeed({
+  timeline,
+  latestEventId,
+  timelineEndRef,
+}) {
   return (
     <div className="mt-8 border-t border-[#2B303B] pt-5">
       <div className="flex items-center justify-between mb-4">
@@ -35,8 +39,8 @@ export default function TimelineFeed({ timeline, latestEventId, timelineEndRef }
                   item.stage === "FAILED"
                     ? "bg-rose-500 shadow-[0_0_0_3px_rgba(244,63,94,0.15)]"
                     : item.stage === "COMPLETED"
-                    ? "bg-emerald-500 shadow-[0_0_0_3px_rgba(16,185,129,0.15)]"
-                    : "bg-blue-500 shadow-[0_0_0_3px_rgba(59,130,246,0.15)]";
+                      ? "bg-emerald-500 shadow-[0_0_0_3px_rgba(16,185,129,0.15)]"
+                      : "bg-blue-500 shadow-[0_0_0_3px_rgba(59,130,246,0.15)]";
 
                 return (
                   <motion.div
@@ -50,7 +54,9 @@ export default function TimelineFeed({ timeline, latestEventId, timelineEndRef }
                     <div className="flex flex-col items-center w-5 shrink-0">
                       <motion.span
                         className={`w-2 h-2 rounded-full mt-1.5 shrink-0 z-10 ${dotToneClass}`}
-                        animate={isLatest ? { scale: [1, 1.5, 1] } : { scale: 1 }}
+                        animate={
+                          isLatest ? { scale: [1, 1.5, 1] } : { scale: 1 }
+                        }
                         transition={{ duration: 0.6, ease: "easeInOut" }}
                       />
                       {!isLast && (

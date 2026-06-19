@@ -21,7 +21,7 @@ function DocumentMesh({ hovered }) {
     meshRef.current.position.z = THREE.MathUtils.lerp(
       meshRef.current.position.z,
       hovered ? 0.3 : 0,
-      0.05
+      0.05,
     );
   });
 
@@ -55,11 +55,7 @@ function DocumentMesh({ hovered }) {
         {/* Header strip */}
         <mesh position={[0, 0.85, 0.035]}>
           <boxGeometry args={[1.6, 0.28, 0.01]} />
-          <meshStandardMaterial
-            color="#06b6d4"
-            transparent
-            opacity={0.85}
-          />
+          <meshStandardMaterial color="#06b6d4" transparent opacity={0.85} />
         </mesh>
 
         {/* Check circle */}
@@ -71,11 +67,7 @@ function DocumentMesh({ hovered }) {
         {/* Ring */}
         <mesh rotation={[Math.PI / 2, 0, 0]}>
           <torusGeometry args={[1.5, 0.015, 16, 64]} />
-          <meshStandardMaterial
-            color="#06b6d4"
-            transparent
-            opacity={0.15}
-          />
+          <meshStandardMaterial color="#06b6d4" transparent opacity={0.15} />
         </mesh>
       </group>
     </Float>
@@ -120,18 +112,10 @@ function Particles({ count = 120 }) {
   return (
     <points ref={pointsRef}>
       <bufferGeometry>
-        <bufferAttribute
-          attach="attributes-position"
-          args={[positions, 3]}
-        />
+        <bufferAttribute attach="attributes-position" args={[positions, 3]} />
       </bufferGeometry>
 
-      <pointsMaterial
-        size={0.04}
-        color="#06b6d4"
-        transparent
-        opacity={0.5}
-      />
+      <pointsMaterial size={0.04} color="#06b6d4" transparent opacity={0.5} />
     </points>
   );
 }

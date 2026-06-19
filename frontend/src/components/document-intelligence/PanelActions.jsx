@@ -31,7 +31,9 @@ export default function PanelActions({
           <>
             <RefreshCw size={16} className="animate-spin shrink-0" />
             <span className="truncate">
-              {activeTab === "upload" && selectedFile ? "Uploading" : "Processing"}
+              {activeTab === "upload" && selectedFile
+                ? "Uploading"
+                : "Processing"}
             </span>
           </>
         ) : (

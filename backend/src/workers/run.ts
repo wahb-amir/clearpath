@@ -43,4 +43,6 @@ async function shutdown() {
 process.on("SIGTERM", shutdown);
 process.on("SIGINT", shutdown);
 
-console.log(`[worker] started (queue=${env.ANALYSIS_QUEUE_NAME}, workerId=${env.WORKER_ID})`);
+console.log(
+  `[worker] started (queue=${env.ANALYSIS_QUEUE_NAME}, workerId=${env.WORKER_ID})`,
+);

@@ -1,8 +1,8 @@
-import type { PoolClient } from 'pg';
-import type { DocumentSectionDraft } from './buildStructure';
-import type { ChunkDraft } from './buildChunks';
-import type { ExtractedFact } from './extractFacts';
-import { embedBatch, toPgVectorLiteral } from './embeddingProvider';
+import type { PoolClient } from "pg";
+import type { DocumentSectionDraft } from "./buildStructure";
+import type { ChunkDraft } from "./buildChunks";
+import type { ExtractedFact } from "./extractFacts";
+import { embedBatch, toPgVectorLiteral } from "./embeddingProvider";
 
 /**
  * Persists the section tree. Idempotent via cleanup-then-insert within
@@ -23,7 +23,10 @@ export async function persistSections(
 ): Promise<Map<DocumentSectionDraft, string>> {
   const idMap = new Map<DocumentSectionDraft, string>();
 
-  async function insert(node: DocumentSectionDraft, parentId: string | null): Promise<void> {
+  async function insert(
+    node: DocumentSectionDraft,
+    parentId: string | null,
+  ): Promise<void> {
     const result = await client.query<{ id: string }>(
       `INSERT INTO document_sections
          (document_id, parent_section_id, order_index, level, title, section_type, text_content)
@@ -78,9 +81,13 @@ export async function persistChunks(
 
   for (let i = 0; i < chunks.length; i++) {
     const chunk = chunks[i];
-    const sectionId = chunk.sectionDraftRef ? sectionIdMap.get(chunk.sectionDraftRef) ?? null : null;
+    const sectionId = chunk.sectionDraftRef
+      ? (sectionIdMap.get(chunk.sectionDraftRef) ?? null)
+      : null;
     const parentChunkId =
-      chunk.parentChunkIndex !== null ? insertedIds[chunk.parentChunkIndex] : null;
+      chunk.parentChunkIndex !== null
+        ? insertedIds[chunk.parentChunkIndex]
+        : null;
 
     const result = await client.query<{ id: string }>(
       `INSERT INTO document_chunks
@@ -121,7 +128,14 @@ export async function persistFacts(
          (document_id, fact_type, value, normalized_value, confidence, context)
        VALUES ($1, $2, $3, $4, $5, $6)
        ON CONFLICT (document_id, fact_type, value) DO NOTHING`,
-      [documentId, fact.factType, fact.value, fact.normalizedValue, fact.confidence, fact.context],
+      [
+        documentId,
+        fact.factType,
+        fact.value,
+        fact.normalizedValue,
+        fact.confidence,
+        fact.context,
+      ],
     );
   }
 }
@@ -138,13 +152,21 @@ export async function persistFacts(
  * stage-guard logic) - on a clean resume where STRUCTURING already
  * finished, this is skipped entirely.
  */
-export async function clearDerivedRecords(client: PoolClient, documentId: string): Promise<void> {
+export async function clearDerivedRecords(
+  client: PoolClient,
+  documentId: string,
+): Promise<void> {
   // chunks reference sections via FK ON DELETE CASCADE, and reference
   // each other via parent_chunk_id ON DELETE CASCADE, so deleting
   // sections cascades chunks too. Facts are independent.
-  await client.query(`DELETE FROM document_sections WHERE document_id = $1`, [documentId]);
-  await client.query(`DELETE FROM document_chunks WHERE document_id = $1 AND section_id IS NULL`, [
+  await client.query(`DELETE FROM document_sections WHERE document_id = $1`, [
     documentId,
-  ]); // document-level chunk has no section_id
-  await client.query(`DELETE FROM document_facts WHERE document_id = $1`, [documentId]);
+  ]);
+  await client.query(
+    `DELETE FROM document_chunks WHERE document_id = $1 AND section_id IS NULL`,
+    [documentId],
+  ); // document-level chunk has no section_id
+  await client.query(`DELETE FROM document_facts WHERE document_id = $1`, [
+    documentId,
+  ]);
 }

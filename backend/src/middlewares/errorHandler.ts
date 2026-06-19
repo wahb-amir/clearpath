@@ -1,6 +1,6 @@
-import type { Request, Response, NextFunction } from 'express';
-import { ZodError } from 'zod';
-import { AppError } from '../types/errors';
+import type { Request, Response, NextFunction } from "express";
+import { ZodError } from "zod";
+import { AppError } from "../types/errors";
 
 /**
  * Global Express error handler. Mount this LAST in src/index.ts
@@ -16,8 +16,8 @@ export function errorHandler(
 ): void {
   if (err instanceof ZodError) {
     res.status(400).json({
-      error: 'Validation failed',
-      code: 'VALIDATION_ERROR',
+      error: "Validation failed",
+      code: "VALIDATION_ERROR",
       issues: err.issues,
     });
     return;
@@ -33,9 +33,9 @@ export function errorHandler(
   }
 
   // Unexpected error - do not leak internals
-  console.error('[unhandled error]', err);
+  console.error("[unhandled error]", err);
   res.status(500).json({
-    error: 'An unexpected error occurred',
-    code: 'INTERNAL_SERVER_ERROR',
+    error: "An unexpected error occurred",
+    code: "INTERNAL_SERVER_ERROR",
   });
 }

@@ -1,5 +1,5 @@
-import type { Request, Response, NextFunction } from 'express';
-import { pgPool } from '../db/pool';
+import type { Request, Response, NextFunction } from "express";
+import { pgPool } from "../db/pool";
 
 interface AuthenticatedRequest extends Request {
   user?: {
@@ -9,19 +9,19 @@ interface AuthenticatedRequest extends Request {
 }
 
 const IN_FLIGHT_ANALYSIS_STATUSES = [
-  'QUEUED',
-  'PROCESSING',
-  'EXTRACTING',
-  'OCRING',
-  'CLEANING',
-  'STRUCTURING',
-  'CHUNKING',
-  'EMBEDDING',
-  'SUMMARIZING',
-  'PREPROCESSING_COMPLETED',
-  'AI_QUEUED',
-  'AI_PROCESSING',
-  'AI_COMPLETED',
+  "QUEUED",
+  "PROCESSING",
+  "EXTRACTING",
+  "OCRING",
+  "CLEANING",
+  "STRUCTURING",
+  "CHUNKING",
+  "EMBEDDING",
+  "SUMMARIZING",
+  "PREPROCESSING_COMPLETED",
+  "AI_QUEUED",
+  "AI_PROCESSING",
+  "AI_COMPLETED",
 ];
 
 /**
@@ -43,31 +43,31 @@ export async function getAnalysisHistoryController(
   try {
     const userId = req.user?.userId;
     if (!userId) {
-      res.status(401).json({ error: 'Unauthorized' });
+      res.status(401).json({ error: "Unauthorized" });
       return;
     }
 
-    const page = Math.max(1, parseInt(String(req.query.page ?? '1'), 10) || 1);
+    const page = Math.max(1, parseInt(String(req.query.page ?? "1"), 10) || 1);
     const pageSize = Math.min(
       100,
-      Math.max(1, parseInt(String(req.query.pageSize ?? '20'), 10) || 20),
+      Math.max(1, parseInt(String(req.query.pageSize ?? "20"), 10) || 20),
     );
-    const statusFilter = String(req.query.status ?? 'all');
+    const statusFilter = String(req.query.status ?? "all");
     const offset = (page - 1) * pageSize;
 
     let statusClause: string;
-    if (statusFilter === 'running') {
+    if (statusFilter === "running") {
       // Running = in-flight documents without a terminal result
-      statusClause = `AND d.analysis_status IN (${IN_FLIGHT_ANALYSIS_STATUSES.map(s => `'${s}'`).join(', ')})`;
-    } else if (statusFilter === 'completed') {
+      statusClause = `AND d.analysis_status IN (${IN_FLIGHT_ANALYSIS_STATUSES.map((s) => `'${s}'`).join(", ")})`;
+    } else if (statusFilter === "completed") {
       statusClause = `AND dar.status = 'completed'`;
-    } else if (statusFilter === 'review_required') {
+    } else if (statusFilter === "review_required") {
       statusClause = `AND dar.status = 'review_required'`;
-    } else if (statusFilter === 'failed') {
+    } else if (statusFilter === "failed") {
       statusClause = `AND dar.status = 'failed'`;
     } else {
       // "all" — include everything: terminal results + in-flight
-      statusClause = '';
+      statusClause = "";
     }
 
     // For "running", we query a different shape (no dar result yet, or pending)
@@ -76,7 +76,7 @@ export async function getAnalysisHistoryController(
     let rowsSql: string;
     let queryParams: unknown[];
 
-    if (statusFilter === 'running') {
+    if (statusFilter === "running") {
       countSql = `
         SELECT COUNT(*) AS total
         FROM documents d
@@ -84,7 +84,7 @@ export async function getAnalysisHistoryController(
           ON dar_req.document_id = d.id
           AND dar_req.status IN ('PENDING','QUEUED','PROCESSING')
         WHERE d.user_id = $1
-          AND d.analysis_status IN (${IN_FLIGHT_ANALYSIS_STATUSES.map(s => `'${s}'`).join(', ')})
+          AND d.analysis_status IN (${IN_FLIGHT_ANALYSIS_STATUSES.map((s) => `'${s}'`).join(", ")})
       `;
 
       rowsSql = `
@@ -114,12 +114,12 @@ export async function getAnalysisHistoryController(
           ON dar_req.document_id = d.id
           AND dar_req.status IN ('PENDING','QUEUED','PROCESSING')
         WHERE d.user_id = $1
-          AND d.analysis_status IN (${IN_FLIGHT_ANALYSIS_STATUSES.map(s => `'${s}'`).join(', ')})
+          AND d.analysis_status IN (${IN_FLIGHT_ANALYSIS_STATUSES.map((s) => `'${s}'`).join(", ")})
         ORDER BY d.updated_at DESC
         LIMIT $2 OFFSET $3
       `;
       queryParams = [userId, pageSize, offset];
-    } else if (statusFilter === 'all') {
+    } else if (statusFilter === "all") {
       // Combine terminal results + in-flight documents
       countSql = `
         SELECT (
@@ -127,7 +127,7 @@ export async function getAnalysisHistoryController(
            WHERE dar.user_id = $1 AND dar.status IN ('completed','review_required','failed'))
           +
           (SELECT COUNT(*) FROM documents d
-           WHERE d.user_id = $1 AND d.analysis_status IN (${IN_FLIGHT_ANALYSIS_STATUSES.map(s => `'${s}'`).join(', ')}))
+           WHERE d.user_id = $1 AND d.analysis_status IN (${IN_FLIGHT_ANALYSIS_STATUSES.map((s) => `'${s}'`).join(", ")}))
         ) AS total
       `;
 
@@ -187,7 +187,7 @@ export async function getAnalysisHistoryController(
             ON dar_req.document_id = d.id
             AND dar_req.status IN ('PENDING','QUEUED','PROCESSING')
           WHERE d.user_id = $1
-            AND d.analysis_status IN (${IN_FLIGHT_ANALYSIS_STATUSES.map(s => `'${s}'`).join(', ')})
+            AND d.analysis_status IN (${IN_FLIGHT_ANALYSIS_STATUSES.map((s) => `'${s}'`).join(", ")})
         ) combined
         ORDER BY updated_at DESC
         LIMIT $2 OFFSET $3
@@ -231,8 +231,10 @@ export async function getAnalysisHistoryController(
       queryParams = [userId, pageSize, offset];
     }
 
-    const countResult = await pgPool.query<{ total: string }>(countSql, [userId]);
-    const total = parseInt(countResult.rows[0]?.total ?? '0', 10);
+    const countResult = await pgPool.query<{ total: string }>(countSql, [
+      userId,
+    ]);
+    const total = parseInt(countResult.rows[0]?.total ?? "0", 10);
 
     const rowsResult = await pgPool.query(rowsSql, queryParams);
 
@@ -286,13 +288,13 @@ export async function getAnalysisRunDetailController(
   try {
     const userId = req.user?.userId;
     if (!userId) {
-      res.status(401).json({ error: 'Unauthorized' });
+      res.status(401).json({ error: "Unauthorized" });
       return;
     }
 
     const { documentId } = req.params;
     if (!documentId) {
-      res.status(400).json({ error: 'documentId is required' });
+      res.status(400).json({ error: "documentId is required" });
       return;
     }
 
@@ -322,7 +324,7 @@ export async function getAnalysisRunDetailController(
     );
 
     if (docResult.rowCount === 0) {
-      res.status(404).json({ error: 'Run not found' });
+      res.status(404).json({ error: "Run not found" });
       return;
     }
 
@@ -349,9 +351,9 @@ export async function getAnalysisRunDetailController(
     }));
 
     // Determine overall status
-    let status = row.result_status ?? 'running';
+    let status = row.result_status ?? "running";
     if (!row.result_id) {
-      status = 'running';
+      status = "running";
     }
 
     res.json({
@@ -395,7 +397,7 @@ export async function getUserRunningAnalysisController(
   try {
     const userId = req.user?.userId;
     if (!userId) {
-      res.status(401).json({ error: 'Unauthorized' });
+      res.status(401).json({ error: "Unauthorized" });
       return;
     }
 
@@ -403,7 +405,7 @@ export async function getUserRunningAnalysisController(
       `SELECT id, original_file_name, analysis_status
        FROM documents
        WHERE user_id = $1
-         AND analysis_status IN (${IN_FLIGHT_ANALYSIS_STATUSES.map(s => `'${s}'`).join(', ')})
+         AND analysis_status IN (${IN_FLIGHT_ANALYSIS_STATUSES.map((s) => `'${s}'`).join(", ")})
        ORDER BY updated_at DESC
        LIMIT 1`,
       [userId],

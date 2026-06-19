@@ -1,10 +1,13 @@
-import { jwtVerify, createRemoteJWKSet } from 'jose';
-import { getAccessToken } from './cookies';
+import { jwtVerify, createRemoteJWKSet } from "jose";
+import { getAccessToken } from "./cookies";
 
-const BACKEND_URL = process.env.NEXT_PUBLIC_BACKEND_URL || 'http://localhost:3001';
+const BACKEND_URL =
+  process.env.NEXT_PUBLIC_BACKEND_URL || "http://localhost:3001";
 
 // Create a remote JWK Set to dynamically fetch and cache public keys
-const JWKS = createRemoteJWKSet(new URL(`${BACKEND_URL}/auth/.well-known/jwks.json`));
+const JWKS = createRemoteJWKSet(
+  new URL(`${BACKEND_URL}/auth/.well-known/jwks.json`),
+);
 
 export async function getSession() {
   const token = await getAccessToken();
@@ -12,11 +15,11 @@ export async function getSession() {
 
   try {
     const { payload } = await jwtVerify(token, JWKS, {
-      algorithms: ['RS256'],
+      algorithms: ["RS256"],
     });
 
     return {
-      userId: payload.sub ,
+      userId: payload.sub,
       sid: payload.sid,
     };
   } catch (error) {

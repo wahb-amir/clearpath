@@ -10,7 +10,7 @@ import {
   ShieldCheck,
   Link as LinkIcon,
   UserCheck,
-  Info
+  Info,
 } from "lucide-react";
 
 export default function AiResultCard({ result }) {
@@ -72,7 +72,11 @@ export default function AiResultCard({ result }) {
                       <div className="mt-0.5 min-w-[16px]">
                         <div className="w-1.5 h-1.5 rounded-full bg-emerald-500 mt-1.5" />
                       </div>
-                      <span>{typeof item === 'string' ? item : item.task || JSON.stringify(item)}</span>
+                      <span>
+                        {typeof item === "string"
+                          ? item
+                          : item.task || JSON.stringify(item)}
+                      </span>
                     </li>
                   ))}
                 </ul>
@@ -95,7 +99,11 @@ export default function AiResultCard({ result }) {
                       <div className="mt-0.5 min-w-[16px]">
                         <div className="w-1.5 h-1.5 rounded-full bg-rose-500 mt-1.5" />
                       </div>
-                      <span>{typeof deadline === 'string' ? deadline : deadline.date || JSON.stringify(deadline)}</span>
+                      <span>
+                        {typeof deadline === "string"
+                          ? deadline
+                          : deadline.date || JSON.stringify(deadline)}
+                      </span>
                     </li>
                   ))}
                 </ul>
@@ -121,7 +129,9 @@ export default function AiResultCard({ result }) {
                     }`}
                   >
                     <span className="text-amber-500 font-medium mr-2">Q:</span>
-                    {typeof question === 'string' ? question : question.text || JSON.stringify(question)}
+                    {typeof question === "string"
+                      ? question
+                      : question.text || JSON.stringify(question)}
                   </div>
                 ))}
               </div>
@@ -131,7 +141,7 @@ export default function AiResultCard({ result }) {
 
         {/* Footer / Metadata */}
         <div className="bg-[#13151A] border-t border-[#2B303B] px-5 py-3 flex flex-wrap items-center gap-4 text-xs text-gray-400">
-         {result.aiConfidence && (
+          {result.aiConfidence && (
             <div className="flex items-center gap-1.5">
               <ShieldCheck className="w-3.5 h-3.5 text-emerald-500" />
               <span>
@@ -139,7 +149,7 @@ export default function AiResultCard({ result }) {
                 {Math.round(
                   (typeof result.aiConfidence === "number"
                     ? result.aiConfidence
-                    : result.aiConfidence.overall ?? 0) * 100
+                    : (result.aiConfidence.overall ?? 0)) * 100,
                 )}
                 %
               </span>
@@ -147,7 +157,10 @@ export default function AiResultCard({ result }) {
           )}
 
           {result.humanReview?.required && (
-            <div className="flex items-center gap-1.5" title={result.humanReview.reason}>
+            <div
+              className="flex items-center gap-1.5"
+              title={result.humanReview.reason}
+            >
               <UserCheck className="w-3.5 h-3.5 text-blue-400" />
               <span>Human Review Recommended</span>
             </div>

@@ -1,12 +1,7 @@
 "use client";
 
 import { motion } from "framer-motion";
-import {
-  ShieldAlert,
-  ShieldCheck,
-  AlertCircle,
-  Info,
-} from "lucide-react";
+import { ShieldAlert, ShieldCheck, AlertCircle, Info } from "lucide-react";
 
 function ConfidenceBar({ level }) {
   const config = {
@@ -58,9 +53,7 @@ function ConfidenceBar({ level }) {
 export default function ConfidenceCard({ result }) {
   const confidence = result?.confidence || [];
 
-  const hasLowConfidence = confidence.some(
-    (c) => c.level === "low"
-  );
+  const hasLowConfidence = confidence.some((c) => c.level === "low");
 
   return (
     <motion.div

@@ -1,5 +1,5 @@
-import { redirect } from 'next/navigation';
-import { getSession } from '@/lib/auth/session';
+import { redirect } from "next/navigation";
+import { getSession } from "@/lib/auth/session";
 
 /**
  * Use this in any Server Component or Layout to require authentication.
@@ -11,7 +11,7 @@ import { getSession } from '@/lib/auth/session';
 export async function requireSession() {
   const session = await getSession();
   if (!session) {
-    redirect('/login');
+    redirect("/login");
   }
   return session;
 }

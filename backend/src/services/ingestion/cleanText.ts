@@ -15,10 +15,10 @@ const OCR_ARTIFACT_CHARS = /[\u0000-\u0008\u000B\u000C\u000E-\u001F\uFFFD]/g;
 
 // Common OCR mis-recognitions that are safe to fix in isolation
 const SAFE_OCR_CORRECTIONS: Array<[RegExp, string]> = [
-  [/\bteh\b/g, 'the'],
-  [/\bhte\b/g, 'the'],
-  [/\b1l\b/g, 'll'],
-  [/(\w)\u00ad(\n)/g, '$1$2'], // soft hyphen before newline
+  [/\bteh\b/g, "the"],
+  [/\bhte\b/g, "the"],
+  [/\b1l\b/g, "ll"],
+  [/(\w)\u00ad(\n)/g, "$1$2"], // soft hyphen before newline
 ];
 
 export interface CleanTextResult {
@@ -27,29 +27,32 @@ export interface CleanTextResult {
   correctionsApplied: boolean;
 }
 
-export function cleanExtractedText(rawText: string, ocrConfidence: number): CleanTextResult {
+export function cleanExtractedText(
+  rawText: string,
+  ocrConfidence: number,
+): CleanTextResult {
   let text = rawText;
 
   // 1. Remove control characters / artifact glyphs
-  text = text.replace(OCR_ARTIFACT_CHARS, '');
+  text = text.replace(OCR_ARTIFACT_CHARS, "");
 
   // 2. Fix hyphenated line-wrap breaks: "exam-\nple" -> "example"
-  text = text.replace(/(\w)-\n(\w)/g, '$1$2');
+  text = text.replace(/(\w)-\n(\w)/g, "$1$2");
 
   // 3. Normalize Windows/Mac line endings
-  text = text.replace(/\r\n?/g, '\n');
+  text = text.replace(/\r\n?/g, "\n");
 
   // 4. Collapse 3+ blank lines to a single paragraph break
-  text = text.replace(/\n{3,}/g, '\n\n');
+  text = text.replace(/\n{3,}/g, "\n\n");
 
   // 5. Collapse repeated horizontal whitespace within a line (preserve newlines)
   text = text
-    .split('\n')
-    .map((line) => line.replace(/[ \t]{2,}/g, ' ').trimEnd())
-    .join('\n');
+    .split("\n")
+    .map((line) => line.replace(/[ \t]{2,}/g, " ").trimEnd())
+    .join("\n");
 
   // 6. Normalize common bullet glyphs to a consistent marker
-  text = text.replace(/^[\s]*[•●▪◦·]\s*/gm, '- ');
+  text = text.replace(/^[\s]*[•●▪◦·]\s*/gm, "- ");
 
   // 7. Conservative spelling corrections, only when OCR confidence is low
   //    enough that artifacts are expected, but high enough that the text

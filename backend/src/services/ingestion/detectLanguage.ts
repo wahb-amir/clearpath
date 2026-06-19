@@ -24,12 +24,12 @@ export function detectLanguage(text: string): LanguageDetectionResult {
   if (arabicScriptChars > latinChars && arabicScriptChars > 10) {
     // Urdu uses the Arabic script; without a dedicated Arabic-vs-Urdu
     // classifier we default to Urdu, which is the documented use case.
-    return { code: 'ur', name: 'Urdu' };
+    return { code: "ur", name: "Urdu" };
   }
 
   if (latinChars > 10) {
-    return { code: 'en', name: 'English' };
+    return { code: "en", name: "English" };
   }
 
-  return { code: 'unknown', name: 'Unknown' };
+  return { code: "unknown", name: "Unknown" };
 }

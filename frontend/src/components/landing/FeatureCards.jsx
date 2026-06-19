@@ -1,8 +1,15 @@
 "use client";
 import { motion } from "framer-motion";
 import {
-  FileText, Clock, ListChecks, MessageCircle,
-  ShieldCheck, Link2, Zap, Brain, Eye
+  FileText,
+  Clock,
+  ListChecks,
+  MessageCircle,
+  ShieldCheck,
+  Link2,
+  Zap,
+  Brain,
+  Eye,
 } from "lucide-react";
 
 const features = [
@@ -79,7 +86,14 @@ export default function FeatureCards() {
         }}
       />
 
-      <div style={{ maxWidth: "1280px", margin: "0 auto", position: "relative", zIndex: 1 }}>
+      <div
+        style={{
+          maxWidth: "1280px",
+          margin: "0 auto",
+          position: "relative",
+          zIndex: 1,
+        }}
+      >
         <motion.div
           initial={{ opacity: 0, y: 24 }}
           whileInView={{ opacity: 1, y: 0 }}
@@ -118,7 +132,8 @@ export default function FeatureCards() {
             Six powerful outputs,{" "}
             <span
               style={{
-                background: "linear-gradient(135deg, hsl(191, 70%, 72%) 0%, hsl(191, 100%, 50%) 100%)",
+                background:
+                  "linear-gradient(135deg, hsl(191, 70%, 72%) 0%, hsl(191, 100%, 50%) 100%)",
                 WebkitBackgroundClip: "text",
                 WebkitTextFillColor: "transparent",
                 backgroundClip: "text",
@@ -127,8 +142,17 @@ export default function FeatureCards() {
               one clear dashboard
             </span>
           </h2>
-          <p style={{ color: "hsl(220, 8%, 55%)", fontSize: "1rem", maxWidth: "500px", margin: "0 auto", lineHeight: 1.7 }}>
-            Designed specifically for the types of documents families and students actually receive.
+          <p
+            style={{
+              color: "hsl(220, 8%, 55%)",
+              fontSize: "1rem",
+              maxWidth: "500px",
+              margin: "0 auto",
+              lineHeight: 1.7,
+            }}
+          >
+            Designed specifically for the types of documents families and
+            students actually receive.
           </p>
         </motion.div>
 
@@ -147,8 +171,15 @@ export default function FeatureCards() {
                 initial={{ opacity: 0, y: 24 }}
                 whileInView={{ opacity: 1, y: 0 }}
                 viewport={{ once: true, margin: "-50px" }}
-                transition={{ duration: 0.5, delay: i * 0.07, ease: [0.22, 1, 0.36, 1] }}
-                whileHover={{ y: -5, borderColor: feature.border.replace("0.15", "0.45") }}
+                transition={{
+                  duration: 0.5,
+                  delay: i * 0.07,
+                  ease: [0.22, 1, 0.36, 1],
+                }}
+                whileHover={{
+                  y: -5,
+                  borderColor: feature.border.replace("0.15", "0.45"),
+                }}
                 style={{
                   padding: "1.5rem",
                   borderRadius: "16px",
@@ -185,7 +216,13 @@ export default function FeatureCards() {
                 >
                   {feature.title}
                 </h3>
-                <p style={{ color: "hsl(220, 8%, 52%)", fontSize: "0.85rem", lineHeight: 1.7 }}>
+                <p
+                  style={{
+                    color: "hsl(220, 8%, 52%)",
+                    fontSize: "0.85rem",
+                    lineHeight: 1.7,
+                  }}
+                >
                   {feature.description}
                 </p>
               </motion.div>

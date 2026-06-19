@@ -1,5 +1,5 @@
-import type { DocumentSectionDraft } from './buildStructure';
-import { contentHash } from './embeddingProvider';
+import type { DocumentSectionDraft } from "./buildStructure";
+import { contentHash } from "./embeddingProvider";
 
 /**
  * Hierarchical chunk representation, written to document_chunks with
@@ -21,7 +21,7 @@ import { contentHash } from './embeddingProvider';
  */
 
 export interface ChunkDraft {
-  chunkLevel: 'document' | 'section' | 'paragraph' | 'sentence';
+  chunkLevel: "document" | "section" | "paragraph" | "sentence";
   sectionId: string | null; // assigned by caller after section insertion
   sectionDraftRef?: DocumentSectionDraft; // internal linkage before DB insert
   parentChunkIndex: number | null; // index into the flat chunks array, resolved to parent_chunk_id after insert
@@ -57,7 +57,7 @@ export function buildChunks(params: {
 
   // 1. Document-level chunk (whole-document summary)
   chunks.push({
-    chunkLevel: 'document',
+    chunkLevel: "document",
     sectionId: null,
     parentChunkIndex: null,
     orderIndex: 0,
@@ -71,56 +71,69 @@ export function buildChunks(params: {
 
   const visit = (node: DocumentSectionDraft, parentChunkIndex: number) => {
     const sectionText =
-      (node.title ? `${node.title}\n` : '') +
+      (node.title ? `${node.title}\n` : "") +
       node.textContent +
       (node.children.length === 0
-        ? ''
-        : '\n' + node.children.map((c) => c.title ?? c.textContent.slice(0, 80)).join('\n'));
+        ? ""
+        : "\n" +
+          node.children
+            .map((c) => c.title ?? c.textContent.slice(0, 80))
+            .join("\n"));
 
     // 2. Section-level chunk (title + own text, used for routing/summary search)
     const sectionChunkIndex = chunks.length;
     chunks.push({
-      chunkLevel: 'section',
+      chunkLevel: "section",
       sectionId: null,
       sectionDraftRef: node,
       parentChunkIndex,
       orderIndex: sectionOrderCounter++,
-      content: sectionText.trim() || node.title || '(untitled section)',
+      content: sectionText.trim() || node.title || "(untitled section)",
       tokenCount: estimateTokens(sectionText),
-      contentHash: contentHash(`section:${node.title ?? ''}:${node.textContent}`),
+      contentHash: contentHash(
+        `section:${node.title ?? ""}:${node.textContent}`,
+      ),
     });
 
     // 3. Paragraph-level chunks from this section's own text
     if (node.textContent.trim().length > 0) {
-      const paragraphs = node.textContent.split(PARAGRAPH_SPLIT).filter((p) => p.trim());
+      const paragraphs = node.textContent
+        .split(PARAGRAPH_SPLIT)
+        .filter((p) => p.trim());
       paragraphs.forEach((paragraph, pIdx) => {
         const tokenCount = estimateTokens(paragraph);
         const paragraphChunkIndex = chunks.length;
 
         chunks.push({
-          chunkLevel: 'paragraph',
+          chunkLevel: "paragraph",
           sectionId: null,
           sectionDraftRef: node,
           parentChunkIndex: sectionChunkIndex,
           orderIndex: pIdx,
           content: paragraph.trim(),
           tokenCount,
-          contentHash: contentHash(`paragraph:${node.title ?? ''}:${pIdx}:${paragraph}`),
+          contentHash: contentHash(
+            `paragraph:${node.title ?? ""}:${pIdx}:${paragraph}`,
+          ),
         });
 
         // 4. Sentence-level fallback chunks for long/dense paragraphs
         if (tokenCount > SENTENCE_FALLBACK_TOKEN_THRESHOLD) {
-          const sentences = paragraph.split(SENTENCE_SPLIT).filter((s) => s.trim());
+          const sentences = paragraph
+            .split(SENTENCE_SPLIT)
+            .filter((s) => s.trim());
           sentences.forEach((sentence, sIdx) => {
             chunks.push({
-              chunkLevel: 'sentence',
+              chunkLevel: "sentence",
               sectionId: null,
               sectionDraftRef: node,
               parentChunkIndex: paragraphChunkIndex,
               orderIndex: sIdx,
               content: sentence.trim(),
               tokenCount: estimateTokens(sentence),
-              contentHash: contentHash(`sentence:${node.title ?? ''}:${pIdx}:${sIdx}:${sentence}`),
+              contentHash: contentHash(
+                `sentence:${node.title ?? ""}:${pIdx}:${sIdx}:${sentence}`,
+              ),
             });
           });
         }

@@ -1,9 +1,15 @@
-import type { Response } from 'express';
-import { pgPool } from '../db/pool';
-import { createSubscriberConnection, channelForDocument } from '../redis/connection';
-import { env } from '../config/env';
-import type { PipelineEventRecord, PipelineNotification } from '../types/pipelineEvents';
-import type { DocumentRow } from '../types/dtos';
+import type { Response } from "express";
+import { pgPool } from "../db/pool";
+import {
+  createSubscriberConnection,
+  channelForDocument,
+} from "../redis/connection";
+import { env } from "../config/env";
+import type {
+  PipelineEventRecord,
+  PipelineNotification,
+} from "../types/pipelineEvents";
+import type { DocumentRow } from "../types/dtos";
 
 interface PipelineEventDbRow {
   id: number;
@@ -22,8 +28,8 @@ function toEventRecord(row: PipelineEventDbRow): PipelineEventRecord {
     id: row.id,
     documentId: row.document_id,
     userId: row.user_id,
-    eventType: row.event_type as PipelineEventRecord['eventType'],
-    stage: row.stage as PipelineEventRecord['stage'],
+    eventType: row.event_type as PipelineEventRecord["eventType"],
+    stage: row.stage as PipelineEventRecord["stage"],
     message: row.message,
     progress: row.progress,
     payload: row.payload,
@@ -77,10 +83,10 @@ export async function streamDocumentEvents(params: {
 
   // SSE headers
   res.writeHead(200, {
-    'Content-Type': 'text/event-stream',
-    'Cache-Control': 'no-cache, no-transform',
-    Connection: 'keep-alive',
-    'X-Accel-Buffering': 'no', // disable nginx buffering for real-time delivery
+    "Content-Type": "text/event-stream",
+    "Cache-Control": "no-cache, no-transform",
+    Connection: "keep-alive",
+    "X-Accel-Buffering": "no", // disable nginx buffering for real-time delivery
   });
   res.flushHeaders?.();
 
@@ -94,7 +100,7 @@ export async function streamDocumentEvents(params: {
   );
 
   if (docResult.rowCount === 0) {
-    writeSseComment(res, 'document not found or access denied');
+    writeSseComment(res, "document not found or access denied");
     res.end();
     return;
   }
@@ -104,9 +110,9 @@ export async function streamDocumentEvents(params: {
     id: 0,
     documentId: doc.id,
     userId,
-    eventType: 'snapshot',
+    eventType: "snapshot",
     stage: doc.analysis_status,
-    message: 'Current document state',
+    message: "Current document state",
     progress: null,
     payload: {
       analysisStatus: doc.analysis_status,
@@ -128,7 +134,7 @@ export async function streamDocumentEvents(params: {
   const channel = channelForDocument(documentId);
   await subscriber.subscribe(channel);
 
-  subscriber.on('message', (_chan, message) => {
+  subscriber.on("message", (_chan, message) => {
     if (closed) return;
     try {
       const notification: PipelineNotification = JSON.parse(message);
@@ -142,7 +148,7 @@ export async function streamDocumentEvents(params: {
   // 5. Heartbeat
   const heartbeat = setInterval(() => {
     if (closed) return;
-    writeSseComment(res, 'heartbeat');
+    writeSseComment(res, "heartbeat");
   }, env.SSE_HEARTBEAT_INTERVAL_MS);
 
   // 6. Cleanup
@@ -158,8 +164,8 @@ export async function streamDocumentEvents(params: {
     }
   };
 
-  res.on('close', () => void cleanup());
-  res.on('error', () => void cleanup());
+  res.on("close", () => void cleanup());
+  res.on("error", () => void cleanup());
 
   /**
    * Fetches and writes all events with id > lastSentEventId, in order.

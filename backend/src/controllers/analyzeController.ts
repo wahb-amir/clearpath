@@ -1,7 +1,10 @@
-import type { Request, Response, NextFunction } from 'express';
-import { documentIdParamSchema, analyzeRequestBodySchema } from '../validators/documentAnalysis';
-import { triggerAnalysis } from '../services/analysisRequestService';
-import { pgPool } from '../db/pool';
+import type { Request, Response, NextFunction } from "express";
+import {
+  documentIdParamSchema,
+  analyzeRequestBodySchema,
+} from "../validators/documentAnalysis";
+import { triggerAnalysis } from "../services/analysisRequestService";
+import { pgPool } from "../db/pool";
 
 interface AuthenticatedRequest extends Request {
   user?: {
@@ -11,19 +14,19 @@ interface AuthenticatedRequest extends Request {
 }
 
 const IN_FLIGHT_ANALYSIS_STATUSES = [
-  'QUEUED',
-  'PROCESSING',
-  'EXTRACTING',
-  'OCRING',
-  'CLEANING',
-  'STRUCTURING',
-  'CHUNKING',
-  'EMBEDDING',
-  'SUMMARIZING',
-  'PREPROCESSING_COMPLETED',
-  'AI_QUEUED',
-  'AI_PROCESSING',
-  'AI_COMPLETED',
+  "QUEUED",
+  "PROCESSING",
+  "EXTRACTING",
+  "OCRING",
+  "CLEANING",
+  "STRUCTURING",
+  "CHUNKING",
+  "EMBEDDING",
+  "SUMMARIZING",
+  "PREPROCESSING_COMPLETED",
+  "AI_QUEUED",
+  "AI_PROCESSING",
+  "AI_COMPLETED",
 ];
 
 /**
@@ -45,7 +48,7 @@ export async function analyzeDocumentController(
 
     const userId = req.user?.userId;
     if (!userId) {
-      throw new Error('Missing authenticated userId');
+      throw new Error("Missing authenticated userId");
     }
 
     // Check if the user already has another document in-flight (excluding this one)
@@ -54,7 +57,7 @@ export async function analyzeDocumentController(
        FROM documents
        WHERE user_id = $1
          AND id != $2
-         AND analysis_status IN (${IN_FLIGHT_ANALYSIS_STATUSES.map(s => `'${s}'`).join(', ')})
+         AND analysis_status IN (${IN_FLIGHT_ANALYSIS_STATUSES.map((s) => `'${s}'`).join(", ")})
        LIMIT 1`,
       [userId, documentId],
     );
@@ -62,7 +65,7 @@ export async function analyzeDocumentController(
     if (inFlightCheck.rowCount && inFlightCheck.rowCount > 0) {
       const runningDoc = inFlightCheck.rows[0];
       res.status(409).json({
-        error: 'concurrent_analysis_not_allowed',
+        error: "concurrent_analysis_not_allowed",
         message: `You already have an analysis in progress for "${runningDoc.original_file_name}". Please wait for it to complete before starting a new one.`,
         runningDocumentId: runningDoc.id,
         runningStatus: runningDoc.analysis_status,

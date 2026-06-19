@@ -82,13 +82,16 @@ export async function startAnalysisRequest(params) {
     analysisVersion = "v1",
   } = params;
 
-  const res = await apiFetch(resolveUrl(`/analysis/documents/${documentId}/analyze`), {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
+  const res = await apiFetch(
+    resolveUrl(`/analysis/documents/${documentId}/analyze`),
+    {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({ purpose, analysisVersion }),
     },
-    body: JSON.stringify({ purpose, analysisVersion }),
-  });
+  );
 
   if (!res.ok) {
     throw new Error(await readErrorMessage(res));
@@ -108,7 +111,7 @@ export async function fetchAnalysisHistory({
   status = "all",
 } = {}) {
   const url = resolveUrl(
-    `/analysis/history?page=${page}&pageSize=${pageSize}&status=${status}`
+    `/analysis/history?page=${page}&pageSize=${pageSize}&status=${status}`,
   );
 
   const res = await apiFetch(url, { method: "GET" });
@@ -159,7 +162,7 @@ export async function openAnalysisStream(params) {
       onMessage(
         msg.event,
         parsed,
-        msg.id || `${Date.now()}-${Math.random().toString(36).slice(2)}`
+        msg.id || `${Date.now()}-${Math.random().toString(36).slice(2)}`,
       );
     },
 

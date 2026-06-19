@@ -1,10 +1,16 @@
-import type { PoolClient } from 'pg';
-import { pgPool, withTransaction } from '../db/pool';
-import { createPublisherConnection, channelForDocument } from '../redis/connection';
-import { insertPipelineEvent } from '../services/analysisRequestService';
-import { isValidTransition, type AnalysisStatus } from '../types/pipelineStatus';
-import { InvalidStateTransitionError } from '../types/errors';
-import type { PipelineEventType } from '../types/pipelineEvents';
+import type { PoolClient } from "pg";
+import { pgPool, withTransaction } from "../db/pool";
+import {
+  createPublisherConnection,
+  channelForDocument,
+} from "../redis/connection";
+import { insertPipelineEvent } from "../services/analysisRequestService";
+import {
+  isValidTransition,
+  type AnalysisStatus,
+} from "../types/pipelineStatus";
+import { InvalidStateTransitionError } from "../types/errors";
+import type { PipelineEventType } from "../types/pipelineEvents";
 
 const publisher = createPublisherConnection();
 
@@ -36,7 +42,9 @@ export async function reportStage(params: {
     );
 
     if (current.rowCount === 0) {
-      throw new Error(`Document ${params.documentId} not found while reporting stage`);
+      throw new Error(
+        `Document ${params.documentId} not found while reporting stage`,
+      );
     }
 
     const fromStatus = current.rows[0].analysis_status;
@@ -131,7 +139,8 @@ export async function reportFailure(params: {
   workerId: string;
   error: unknown;
 }): Promise<void> {
-  const message = params.error instanceof Error ? params.error.message : String(params.error);
+  const message =
+    params.error instanceof Error ? params.error.message : String(params.error);
 
   await withTransaction(async (client) => {
     await client.query(
@@ -151,8 +160,8 @@ export async function reportFailure(params: {
     const event = await insertPipelineEvent(client, {
       documentId: params.documentId,
       userId: params.userId,
-      eventType: 'failed',
-      stage: 'FAILED',
+      eventType: "failed",
+      stage: "FAILED",
       message,
       progress: null,
       payload: { error: message },
@@ -171,7 +180,9 @@ export async function reportFailure(params: {
   }
 }
 
-export async function withPgClient<T>(fn: (client: PoolClient) => Promise<T>): Promise<T> {
+export async function withPgClient<T>(
+  fn: (client: PoolClient) => Promise<T>,
+): Promise<T> {
   const client = await pgPool.connect();
   try {
     return await fn(client);

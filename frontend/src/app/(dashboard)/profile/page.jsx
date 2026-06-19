@@ -15,7 +15,10 @@ import {
 } from "lucide-react";
 import { apiFetch } from "@/lib/auth/apiFetch";
 
-const API_BASE_URL = (process.env.NEXT_PUBLIC_BACKEND_URL || "").replace(/\/$/, "");
+const API_BASE_URL = (process.env.NEXT_PUBLIC_BACKEND_URL || "").replace(
+  /\/$/,
+  "",
+);
 
 export default function ProfilePage() {
   const [isEditing, setIsEditing] = useState(false);
@@ -29,21 +32,27 @@ export default function ProfilePage() {
         setIsLoading(true);
         setError(null);
 
-        const targetUrl = API_BASE_URL ? `${API_BASE_URL}/auth/me` : "http://localhost:3001/auth/me";
+        const targetUrl = API_BASE_URL
+          ? `${API_BASE_URL}/auth/me`
+          : "http://localhost:3001/auth/me";
         const response = await apiFetch(targetUrl, {});
-        
+
         if (!response.ok) {
           throw new Error(`Server returned status code: ${response.status}`);
         }
 
         const payload = await response.json();
-        
+
         // Defensive Check: Handle both nested response layouts safely
-        const userData = payload?.user || payload; 
+        const userData = payload?.user || payload;
         setUser(userData);
       } catch (err) {
         console.error("🚨 Catch Block Caught Local Exception:", err);
-        setError(err instanceof Error ? err.message : "Failed to parse system response.");
+        setError(
+          err instanceof Error
+            ? err.message
+            : "Failed to parse system response.",
+        );
       } finally {
         setIsLoading(false);
       }
@@ -72,9 +81,13 @@ export default function ProfilePage() {
   if (error || !user) {
     return (
       <div className="mx-auto max-w-5xl p-4 md:p-8 text-center mt-12">
-        <p className="text-rose-400 font-medium">Could not load profile data.</p>
-        <p className="text-sm text-slate-500 mt-2">{error || "Reason: Empty data layout."}</p>
-        <button 
+        <p className="text-rose-400 font-medium">
+          Could not load profile data.
+        </p>
+        <p className="text-sm text-slate-500 mt-2">
+          {error || "Reason: Empty data layout."}
+        </p>
+        <button
           type="button"
           onClick={() => window.location.reload()}
           className="mt-4 rounded-xl bg-slate-800 px-4 py-2 text-xs font-semibold text-slate-300 hover:bg-slate-700 transition-colors"
@@ -95,24 +108,27 @@ export default function ProfilePage() {
   const deadlinesCount = user?.deadlinesTrackedCount || 0;
 
   // Format ISO timestamps into readable strings safely
-  const joinedDate = user?.created_at 
-    ? new Date(user.created_at).toLocaleDateString(undefined, { year: 'numeric', month: 'long', day: 'numeric' })
+  const joinedDate = user?.created_at
+    ? new Date(user.created_at).toLocaleDateString(undefined, {
+        year: "numeric",
+        month: "long",
+        day: "numeric",
+      })
     : user?.joinedDate || "Recent";
 
   // Generate dynamic initials safely from space-split names
-  const userInitials = displayName
-    .trim()
-    .split(/\s+/)
-    .map((n) => n[0])
-    .join("")
-    .toUpperCase() || "U";
+  const userInitials =
+    displayName
+      .trim()
+      .split(/\s+/)
+      .map((n) => n[0])
+      .join("")
+      .toUpperCase() || "U";
 
   return (
     <div className="mx-auto max-w-5xl p-4 md:p-8">
       <div className="mb-8">
-        <h1 className="mb-2 text-3xl font-bold text-slate-100">
-          Your Profile
-        </h1>
+        <h1 className="mb-2 text-3xl font-bold text-slate-100">Your Profile</h1>
         <p className="text-slate-400">
           Manage your personal information and ClearPath preferences.
         </p>
@@ -136,9 +152,7 @@ export default function ProfilePage() {
                   <h2 className="text-2xl font-semibold text-slate-100">
                     {displayName}
                   </h2>
-                  <p className="font-medium text-blue-400">
-                    {userRole}
-                  </p>
+                  <p className="font-medium text-blue-400">{userRole}</p>
                 </div>
               </div>
             </div>
@@ -240,7 +254,10 @@ export default function ProfilePage() {
                     days.
                   </p>
                 </div>
-                <button type="button" className="text-sm font-medium text-blue-400 hover:text-blue-300">
+                <button
+                  type="button"
+                  className="text-sm font-medium text-blue-400 hover:text-blue-300"
+                >
                   Manage
                 </button>
               </div>
@@ -254,7 +271,10 @@ export default function ProfilePage() {
                     Add an extra layer of security to your account.
                   </p>
                 </div>
-                <button type="button" className="rounded-lg bg-slate-800 px-4 py-2 text-sm font-medium text-slate-200 transition-colors hover:bg-slate-700">
+                <button
+                  type="button"
+                  className="rounded-lg bg-slate-800 px-4 py-2 text-sm font-medium text-slate-200 transition-colors hover:bg-slate-700"
+                >
                   Enable
                 </button>
               </div>
@@ -315,7 +335,10 @@ export default function ProfilePage() {
             <p className="mb-4 text-sm text-slate-400">
               Having trouble with an analysis or need help navigating ClearPath?
             </p>
-            <button type="button" className="w-full rounded-xl bg-slate-800 py-2.5 text-sm font-semibold text-slate-200 transition-colors hover:bg-slate-700">
+            <button
+              type="button"
+              className="w-full rounded-xl bg-slate-800 py-2.5 text-sm font-semibold text-slate-200 transition-colors hover:bg-slate-700"
+            >
               Contact Support
             </button>
           </motion.div>

@@ -1,26 +1,26 @@
-import { UnsupportedFileTypeError } from '../../types/errors';
+import { UnsupportedFileTypeError } from "../../types/errors";
 
 export type DetectedFileCategory =
-  | 'pdf'
-  | 'screenshot_or_scan'
-  | 'photo'
-  | 'text'
-  | 'unsupported';
+  | "pdf"
+  | "screenshot_or_scan"
+  | "photo"
+  | "text"
+  | "unsupported";
 
 const TEXT_MIME_TYPES = new Set([
-  'text/plain',
-  'text/markdown',
-  'text/csv',
-  'application/json',
+  "text/plain",
+  "text/markdown",
+  "text/csv",
+  "application/json",
 ]);
 
 const IMAGE_MIME_TYPES = new Set([
-  'image/png',
-  'image/jpeg',
-  'image/jpg',
-  'image/webp',
-  'image/tiff',
-  'image/bmp',
+  "image/png",
+  "image/jpeg",
+  "image/jpg",
+  "image/webp",
+  "image/tiff",
+  "image/bmp",
 ]);
 
 /**
@@ -32,9 +32,9 @@ const IMAGE_MIME_TYPES = new Set([
 export function detectFileCategory(mimeType: string): DetectedFileCategory {
   const mime = mimeType.toLowerCase();
 
-  if (mime === 'application/pdf') return 'pdf';
-  if (TEXT_MIME_TYPES.has(mime)) return 'text';
-  if (IMAGE_MIME_TYPES.has(mime)) return 'screenshot_or_scan';
+  if (mime === "application/pdf") return "pdf";
+  if (TEXT_MIME_TYPES.has(mime)) return "text";
+  if (IMAGE_MIME_TYPES.has(mime)) return "screenshot_or_scan";
 
   throw new UnsupportedFileTypeError(mimeType);
 }

@@ -19,9 +19,9 @@ const ALLOWED_TYPES = new Map<string, string>([
 
 const DOC_STATUS = {
   PENDING_UPLOAD: "PENDING_UPLOAD",
-  UPLOADED: "UPLOADED",            
+  UPLOADED: "UPLOADED",
   VERIFIED: "VERIFIED",
-  FAILED: "FAILED",                 
+  FAILED: "FAILED",
   STORAGE_MISSING: "STORAGE_MISSING",
   EXPIRED: "EXPIRED",
 } as const;
@@ -92,24 +92,37 @@ router.post("/sign", requireAuth, async (req: AuthRequest, res: Response) => {
     const { fileName, fileSize, mimeType } = req.body ?? {};
 
     if (typeof fileName !== "string" || !fileName.trim()) {
-      return res.status(400).json({ success: false, message: "fileName required" });
+      return res
+        .status(400)
+        .json({ success: false, message: "fileName required" });
     }
 
     if (!isValidPositiveInteger(fileSize)) {
-      return res.status(400).json({ success: false, message: "Valid fileSize required" });
+      return res
+        .status(400)
+        .json({ success: false, message: "Valid fileSize required" });
     }
 
     if (fileSize > MAX_FILE_SIZE) {
-      return res.status(400).json({ success: false, message: "File too large" });
+      return res
+        .status(400)
+        .json({ success: false, message: "File too large" });
     }
 
     if (typeof mimeType !== "string" || !ALLOWED_TYPES.has(mimeType)) {
-      return res.status(400).json({ success: false, message: "Unsupported file type" });
+      return res
+        .status(400)
+        .json({ success: false, message: "Unsupported file type" });
     }
 
     const expectedExt = getExpectedExt(fileName, mimeType);
     if (!expectedExt) {
-      return res.status(400).json({ success: false, message: "File extension does not match allowed type" });
+      return res
+        .status(400)
+        .json({
+          success: false,
+          message: "File extension does not match allowed type",
+        });
     }
 
     const documentId = crypto.randomUUID();
@@ -117,34 +130,41 @@ router.post("/sign", requireAuth, async (req: AuthRequest, res: Response) => {
     const originalFileName = sanitizeFileName(fileName);
     const storagePath = `users/${userId}/${documentId}${expectedExt}`;
 
-    const signedExpiresAt = new Date(Date.now() + SIGNED_URL_TTL_HOURS * 60 * 60 * 1000);
+    const signedExpiresAt = new Date(
+      Date.now() + SIGNED_URL_TTL_HOURS * 60 * 60 * 1000,
+    );
 
-    console.log(`[DEBUG - SIGN ROUTE] Attempting to insert document record. ID: ${documentId}`);
+    console.log(
+      `[DEBUG - SIGN ROUTE] Attempting to insert document record. ID: ${documentId}`,
+    );
 
     // 1) Create the canonical document record in Postgres first.
-    const { error: docInsertError } = await supabase
-      .from("documents")
-      .insert({
-        id: documentId,
-        user_id: userId,
-        storage_path: storagePath,
-        original_file_name: originalFileName,
-        mime_type: mimeType,
-        file_size: fileSize,
-        upload_status: DOC_STATUS.PENDING_UPLOAD, 
-        current_stage: DOC_STATUS.PENDING_UPLOAD, 
-        analysis_status: ANALYSIS_STATUS.NOT_STARTED,
-      });
+    const { error: docInsertError } = await supabase.from("documents").insert({
+      id: documentId,
+      user_id: userId,
+      storage_path: storagePath,
+      original_file_name: originalFileName,
+      mime_type: mimeType,
+      file_size: fileSize,
+      upload_status: DOC_STATUS.PENDING_UPLOAD,
+      current_stage: DOC_STATUS.PENDING_UPLOAD,
+      analysis_status: ANALYSIS_STATUS.NOT_STARTED,
+    });
 
     if (docInsertError) {
-      console.error("[DEBUG - SIGN ROUTE] Failed to insert document record into Postgres:", docInsertError);
+      console.error(
+        "[DEBUG - SIGN ROUTE] Failed to insert document record into Postgres:",
+        docInsertError,
+      );
       return res.status(500).json({
         success: false,
         message: "Failed to create document record",
       });
     }
 
-    console.log(`[DEBUG - SIGN ROUTE] Attempting to insert upload session. ID: ${uploadSessionId}`);
+    console.log(
+      `[DEBUG - SIGN ROUTE] Attempting to insert upload session. ID: ${uploadSessionId}`,
+    );
 
     // 2) Create an upload session row.
     const { error: sessionInsertError } = await supabase
@@ -160,7 +180,10 @@ router.post("/sign", requireAuth, async (req: AuthRequest, res: Response) => {
       });
 
     if (sessionInsertError) {
-      console.error("[DEBUG - SIGN ROUTE] Failed to insert upload session into Postgres:", sessionInsertError);
+      console.error(
+        "[DEBUG - SIGN ROUTE] Failed to insert upload session into Postgres:",
+        sessionInsertError,
+      );
       return res.status(500).json({
         success: false,
         message: "Failed to create upload session",
@@ -168,7 +191,9 @@ router.post("/sign", requireAuth, async (req: AuthRequest, res: Response) => {
     }
 
     // 3) Create signed upload URL.
-    console.log(`[DEBUG - SIGN ROUTE] Requesting signed upload URL from Supabase Storage for path: ${storagePath}`);
+    console.log(
+      `[DEBUG - SIGN ROUTE] Requesting signed upload URL from Supabase Storage for path: ${storagePath}`,
+    );
 
     const { data, error } = await supabase.storage
       .from("documents")
@@ -177,7 +202,12 @@ router.post("/sign", requireAuth, async (req: AuthRequest, res: Response) => {
       });
 
     if (error || !data?.token) {
-      console.error("[DEBUG - SIGN ROUTE] Supabase Storage Error:", error, "Data Token:", data?.token);
+      console.error(
+        "[DEBUG - SIGN ROUTE] Supabase Storage Error:",
+        error,
+        "Data Token:",
+        data?.token,
+      );
 
       await supabase
         .from("documents")
@@ -234,196 +264,203 @@ router.post("/sign", requireAuth, async (req: AuthRequest, res: Response) => {
  * POST /uploads/complete
  * Verifies the object exists in Storage and syncs DB state.
  */
-router.post("/complete", requireAuth, async (req: AuthRequest, res: Response) => {
-  try {
-    const userId = req.user?.userId;
-    if (!userId) {
-      return res.status(401).json({ success: false, message: "Unauthorized" });
-    }
+router.post(
+  "/complete",
+  requireAuth,
+  async (req: AuthRequest, res: Response) => {
+    try {
+      const userId = req.user?.userId;
+      if (!userId) {
+        return res
+          .status(401)
+          .json({ success: false, message: "Unauthorized" });
+      }
 
-    const { documentId, uploadSessionId } = req.body ?? {};
+      const { documentId, uploadSessionId } = req.body ?? {};
 
-    if (typeof documentId !== "string" || !documentId) {
-      return res.status(400).json({
-        success: false,
-        message: "documentId required",
-      });
-    }
-
-    const { data: doc, error: docError } = await supabase
-      .from("documents")
-      .select(
-        "id,user_id,storage_path,mime_type,file_size,upload_status,analysis_status,current_stage"
-      )
-      .eq("id", documentId)
-      .eq("user_id", userId)
-      .single();
-
-    if (docError || !doc) {
-      return res.status(404).json({
-        success: false,
-        message: "Document not found",
-      });
-    }
-
-    if (uploadSessionId) {
-      const { data: session } = await supabase
-        .from("document_upload_sessions")
-        .select("id,status")
-        .eq("id", uploadSessionId)
-        .eq("user_id", userId)
-        .eq("document_id", documentId)
-        .single();
-
-      if (!session) {
-        return res.status(404).json({
+      if (typeof documentId !== "string" || !documentId) {
+        return res.status(400).json({
           success: false,
-          message: "Upload session not found",
+          message: "documentId required",
         });
       }
-    }
 
-    const { data: objectInfo, error: infoError } = await supabase.storage
-      .from("documents")
-      .info(doc.storage_path);
+      const { data: doc, error: docError } = await supabase
+        .from("documents")
+        .select(
+          "id,user_id,storage_path,mime_type,file_size,upload_status,analysis_status,current_stage",
+        )
+        .eq("id", documentId)
+        .eq("user_id", userId)
+        .single();
 
-    if (infoError || !objectInfo) {
+      if (docError || !doc) {
+        return res.status(404).json({
+          success: false,
+          message: "Document not found",
+        });
+      }
+
+      if (uploadSessionId) {
+        const { data: session } = await supabase
+          .from("document_upload_sessions")
+          .select("id,status")
+          .eq("id", uploadSessionId)
+          .eq("user_id", userId)
+          .eq("document_id", documentId)
+          .single();
+
+        if (!session) {
+          return res.status(404).json({
+            success: false,
+            message: "Upload session not found",
+          });
+        }
+      }
+
+      const { data: objectInfo, error: infoError } = await supabase.storage
+        .from("documents")
+        .info(doc.storage_path);
+
+      if (infoError || !objectInfo) {
+        await supabase
+          .from("documents")
+          .update({
+            upload_status: DOC_STATUS.STORAGE_MISSING,
+            last_error: "File missing from storage during completion check",
+          })
+          .eq("id", documentId)
+          .eq("user_id", userId);
+
+        if (uploadSessionId) {
+          await supabase
+            .from("document_upload_sessions")
+            .update({
+              status: SESSION_STATUS.FAILED,
+              error_message:
+                "File missing from storage during completion check",
+            })
+            .eq("id", uploadSessionId)
+            .eq("user_id", userId);
+        }
+
+        return res.status(409).json({
+          success: false,
+          message: "File not found in storage",
+        });
+      }
+
+      const actualSize =
+        typeof (objectInfo as any).size === "number"
+          ? (objectInfo as any).size
+          : typeof (objectInfo as any).fileSize === "number"
+            ? (objectInfo as any).fileSize
+            : null;
+
+      const actualContentType =
+        (objectInfo as any).contentType ??
+        (objectInfo as any).content_type ??
+        (objectInfo as any).mimetype ??
+        (objectInfo as any).mimeType ??
+        null;
+
+      if (actualSize !== null && actualSize !== doc.file_size) {
+        await supabase
+          .from("documents")
+          .update({
+            upload_status: DOC_STATUS.FAILED,
+            last_error: `Size mismatch: expected ${doc.file_size}, got ${actualSize}`,
+          })
+          .eq("id", documentId)
+          .eq("user_id", userId);
+
+        if (uploadSessionId) {
+          await supabase
+            .from("document_upload_sessions")
+            .update({
+              status: SESSION_STATUS.FAILED,
+              error_message: `Size mismatch: expected ${doc.file_size}, got ${actualSize}`,
+            })
+            .eq("id", uploadSessionId)
+            .eq("user_id", userId);
+        }
+
+        return res.status(409).json({
+          success: false,
+          message: "Uploaded file size mismatch",
+        });
+      }
+
+      if (actualContentType && actualContentType !== doc.mime_type) {
+        await supabase
+          .from("documents")
+          .update({
+            upload_status: DOC_STATUS.FAILED,
+            last_error: `Content type mismatch: expected ${doc.mime_type}, got ${actualContentType}`,
+          })
+          .eq("id", documentId)
+          .eq("user_id", userId);
+
+        if (uploadSessionId) {
+          await supabase
+            .from("document_upload_sessions")
+            .update({
+              status: SESSION_STATUS.FAILED,
+              error_message: `Content type mismatch: expected ${doc.mime_type}, got ${actualContentType}`,
+            })
+            .eq("id", uploadSessionId)
+            .eq("user_id", userId);
+        }
+
+        return res.status(409).json({
+          success: false,
+          message: "Uploaded file type mismatch",
+        });
+      }
+
+      const now = new Date().toISOString();
+
       await supabase
         .from("documents")
         .update({
-          upload_status: DOC_STATUS.STORAGE_MISSING,
-          last_error: "File missing from storage during completion check",
-        })
-        .eq("id", documentId)
-        .eq("user_id", userId);
-
-      if (uploadSessionId) {
-        await supabase
-          .from("document_upload_sessions")
-          .update({
-            status: SESSION_STATUS.FAILED,
-            error_message: "File missing from storage during completion check",
-          })
-          .eq("id", uploadSessionId)
-          .eq("user_id", userId);
-      }
-
-      return res.status(409).json({
-        success: false,
-        message: "File not found in storage",
-      });
-    }
-
-    const actualSize =
-      typeof (objectInfo as any).size === "number"
-        ? (objectInfo as any).size
-        : typeof (objectInfo as any).fileSize === "number"
-          ? (objectInfo as any).fileSize
-          : null;
-
-    const actualContentType =
-      (objectInfo as any).contentType ??
-      (objectInfo as any).content_type ??
-      (objectInfo as any).mimetype ??
-      (objectInfo as any).mimeType ??
-      null;
-
-    if (actualSize !== null && actualSize !== doc.file_size) {
-      await supabase
-        .from("documents")
-        .update({
-          upload_status: DOC_STATUS.FAILED,
-          last_error: `Size mismatch: expected ${doc.file_size}, got ${actualSize}`,
-        })
-        .eq("id", documentId)
-        .eq("user_id", userId);
-
-      if (uploadSessionId) {
-        await supabase
-          .from("document_upload_sessions")
-          .update({
-            status: SESSION_STATUS.FAILED,
-            error_message: `Size mismatch: expected ${doc.file_size}, got ${actualSize}`,
-          })
-          .eq("id", uploadSessionId)
-          .eq("user_id", userId);
-      }
-
-      return res.status(409).json({
-        success: false,
-        message: "Uploaded file size mismatch",
-      });
-    }
-
-    if (actualContentType && actualContentType !== doc.mime_type) {
-      await supabase
-        .from("documents")
-        .update({
-          upload_status: DOC_STATUS.FAILED,
-          last_error: `Content type mismatch: expected ${doc.mime_type}, got ${actualContentType}`,
-        })
-        .eq("id", documentId)
-        .eq("user_id", userId);
-
-      if (uploadSessionId) {
-        await supabase
-          .from("document_upload_sessions")
-          .update({
-            status: SESSION_STATUS.FAILED,
-            error_message: `Content type mismatch: expected ${doc.mime_type}, got ${actualContentType}`,
-          })
-          .eq("id", uploadSessionId)
-          .eq("user_id", userId);
-      }
-
-      return res.status(409).json({
-        success: false,
-        message: "Uploaded file type mismatch",
-      });
-    }
-
-    const now = new Date().toISOString();
-
-    await supabase
-      .from("documents")
-      .update({
-        upload_status: DOC_STATUS.UPLOADED,
-        current_stage: DOC_STATUS.UPLOADED, 
-        uploaded_at: now,
-        verified_at: now,
-        last_error: null,
-      })
-      .eq("id", documentId)
-      .eq("user_id", userId);
-
-    if (uploadSessionId) {
-      await supabase
-        .from("document_upload_sessions")
-        .update({
-          status: SESSION_STATUS.COMPLETED,
-          completed_at: now,
+          upload_status: DOC_STATUS.UPLOADED,
+          current_stage: DOC_STATUS.UPLOADED,
           uploaded_at: now,
-          error_message: null,
+          verified_at: now,
+          last_error: null,
         })
-        .eq("id", uploadSessionId)
+        .eq("id", documentId)
         .eq("user_id", userId);
-    }
 
-    return res.json({
-      success: true,
-      documentId,
-      storagePath: doc.storage_path,
-      verified: true,
-      nextStage: "ready_for_processing",
-    });
-  } catch (error) {
-    console.error("uploads/complete error:", error);
-    return res.status(500).json({
-      success: false,
-      message: "Internal server error",
-    });
-  }
-});
+      if (uploadSessionId) {
+        await supabase
+          .from("document_upload_sessions")
+          .update({
+            status: SESSION_STATUS.COMPLETED,
+            completed_at: now,
+            uploaded_at: now,
+            error_message: null,
+          })
+          .eq("id", uploadSessionId)
+          .eq("user_id", userId);
+      }
+
+      return res.json({
+        success: true,
+        documentId,
+        storagePath: doc.storage_path,
+        verified: true,
+        nextStage: "ready_for_processing",
+      });
+    } catch (error) {
+      console.error("uploads/complete error:", error);
+      return res.status(500).json({
+        success: false,
+        message: "Internal server error",
+      });
+    }
+  },
+);
 
 /**
  * POST /uploads/fail
@@ -449,7 +486,8 @@ router.post("/fail", requireAuth, async (req: AuthRequest, res: Response) => {
       .from("documents")
       .update({
         upload_status: DOC_STATUS.FAILED,
-        last_error: typeof reason === "string" ? reason.slice(0, 500) : "Upload failed",
+        last_error:
+          typeof reason === "string" ? reason.slice(0, 500) : "Upload failed",
       })
       .eq("id", documentId)
       .eq("user_id", userId);
@@ -459,7 +497,8 @@ router.post("/fail", requireAuth, async (req: AuthRequest, res: Response) => {
         .from("document_upload_sessions")
         .update({
           status: SESSION_STATUS.FAILED,
-          error_message: typeof reason === "string" ? reason.slice(0, 500) : "Upload failed",
+          error_message:
+            typeof reason === "string" ? reason.slice(0, 500) : "Upload failed",
         })
         .eq("id", uploadSessionId)
         .eq("user_id", userId);

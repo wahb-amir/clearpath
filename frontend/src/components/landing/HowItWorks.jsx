@@ -1,6 +1,12 @@
 "use client";
 import { motion } from "framer-motion";
-import { Upload, Cpu, LayoutDashboard, CheckCircle, ArrowRight } from "lucide-react";
+import {
+  Upload,
+  Cpu,
+  LayoutDashboard,
+  CheckCircle,
+  ArrowRight,
+} from "lucide-react";
 
 const steps = [
   {
@@ -63,13 +69,21 @@ export default function HowItWorks() {
           left: "-10%",
           width: "40%",
           height: "60%",
-          background: "radial-gradient(ellipse at center, hsla(221, 83%, 53%,0.06) 0%, transparent 70%)",
+          background:
+            "radial-gradient(ellipse at center, hsla(221, 83%, 53%,0.06) 0%, transparent 70%)",
           pointerEvents: "none",
           filter: "blur(60px)",
         }}
       />
 
-      <div style={{ maxWidth: "1280px", margin: "0 auto", position: "relative", zIndex: 1 }}>
+      <div
+        style={{
+          maxWidth: "1280px",
+          margin: "0 auto",
+          position: "relative",
+          zIndex: 1,
+        }}
+      >
         {/* Section header */}
         <motion.div
           initial={{ opacity: 0, y: 24 }}
@@ -108,7 +122,8 @@ export default function HowItWorks() {
             From{" "}
             <span
               style={{
-                background: "linear-gradient(135deg, hsl(191, 100%, 50%) 0%, hsl(191, 70%, 72%) 100%)",
+                background:
+                  "linear-gradient(135deg, hsl(191, 100%, 50%) 0%, hsl(191, 70%, 72%) 100%)",
                 WebkitBackgroundClip: "text",
                 WebkitTextFillColor: "transparent",
                 backgroundClip: "text",
@@ -127,7 +142,8 @@ export default function HowItWorks() {
               lineHeight: 1.7,
             }}
           >
-            No technical skills needed. ClearPath handles the complexity so you can focus on what matters.
+            No technical skills needed. ClearPath handles the complexity so you
+            can focus on what matters.
           </p>
         </motion.div>
 
@@ -147,7 +163,11 @@ export default function HowItWorks() {
                 initial={{ opacity: 0, y: 30 }}
                 whileInView={{ opacity: 1, y: 0 }}
                 viewport={{ once: true }}
-                transition={{ duration: 0.5, delay: i * 0.1, ease: [0.22, 1, 0.36, 1] }}
+                transition={{
+                  duration: 0.5,
+                  delay: i * 0.1,
+                  ease: [0.22, 1, 0.36, 1],
+                }}
                 whileHover={{ y: -4, boxShadow: `0 20px 60px ${step.bg}` }}
                 style={{
                   padding: "1.75rem",
@@ -222,7 +242,13 @@ export default function HowItWorks() {
                 >
                   {step.title}
                 </h3>
-                <p style={{ color: "hsl(220, 8%, 55%)", fontSize: "0.875rem", lineHeight: 1.7 }}>
+                <p
+                  style={{
+                    color: "hsl(220, 8%, 55%)",
+                    fontSize: "0.875rem",
+                    lineHeight: 1.7,
+                  }}
+                >
                   {step.description}
                 </p>
 

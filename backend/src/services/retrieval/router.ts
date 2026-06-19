@@ -1,5 +1,5 @@
-import { pgPool } from '../../db/pool';
-import { embedText, toPgVectorLiteral } from '../ingestion/embeddingProvider';
+import { pgPool } from "../../db/pool";
+import { embedText, toPgVectorLiteral } from "../ingestion/embeddingProvider";
 
 /**
  * Hybrid retrieval router.
@@ -15,7 +15,7 @@ import { embedText, toPgVectorLiteral } from '../ingestion/embeddingProvider';
  * changing the downstream retrieval calls.
  */
 
-export type QueryIntent = 'broad' | 'detailed' | 'fact_lookup' | 'fallback';
+export type QueryIntent = "broad" | "detailed" | "fact_lookup" | "fallback";
 
 const FACT_LOOKUP_PATTERNS = [
   /\bwhat is (the )?(date|deadline|email|phone|amount|reference|address)\b/i,
@@ -29,12 +29,15 @@ const BROAD_QUESTION_PATTERNS = [
 ];
 
 export function classifyQueryIntent(query: string): QueryIntent {
-  if (FACT_LOOKUP_PATTERNS.some((p) => p.test(query))) return 'fact_lookup';
-  if (BROAD_QUESTION_PATTERNS.some((p) => p.test(query)) || query.split(/\s+/).length <= 6) {
-    return 'broad';
+  if (FACT_LOOKUP_PATTERNS.some((p) => p.test(query))) return "fact_lookup";
+  if (
+    BROAD_QUESTION_PATTERNS.some((p) => p.test(query)) ||
+    query.split(/\s+/).length <= 6
+  ) {
+    return "broad";
   }
-  if (query.split(/\s+/).length > 20) return 'fallback';
-  return 'detailed';
+  if (query.split(/\s+/).length > 20) return "fallback";
+  return "detailed";
 }
 
 export interface RetrievedChunk {
@@ -72,7 +75,7 @@ export async function retrieveForQuery(params: {
   const { documentId, query, topK = 8 } = params;
   const intent = classifyQueryIntent(query);
 
-  if (intent === 'fact_lookup') {
+  if (intent === "fact_lookup") {
     const facts = await keywordSearchFacts(documentId, query);
     if (facts.length > 0) {
       return { intent, chunks: [], facts };
@@ -85,22 +88,27 @@ export async function retrieveForQuery(params: {
   );
 
   const levels = levelsForIntent(intent);
-  const chunks = await vectorSearchChunks(documentId, queryEmbedding, levels, topK);
+  const chunks = await vectorSearchChunks(
+    documentId,
+    queryEmbedding,
+    levels,
+    topK,
+  );
 
   return { intent, chunks, facts: [] };
 }
 
 function levelsForIntent(intent: QueryIntent): string[] {
   switch (intent) {
-    case 'broad':
-      return ['document', 'section'];
-    case 'detailed':
-      return ['section', 'paragraph'];
-    case 'fallback':
-    case 'fact_lookup': // fact_lookup fallback when no structured facts match
-      return ['sentence', 'paragraph'];
+    case "broad":
+      return ["document", "section"];
+    case "detailed":
+      return ["section", "paragraph"];
+    case "fallback":
+    case "fact_lookup": // fact_lookup fallback when no structured facts match
+      return ["sentence", "paragraph"];
     default:
-      return ['paragraph'];
+      return ["paragraph"];
   }
 }
 
@@ -140,15 +148,18 @@ async function vectorSearchChunks(
  * phones, amounts, etc.) - uses simple ILIKE matching on fact_type
  * keywords found in the query plus a trigram/ILIKE scan over values.
  */
-async function keywordSearchFacts(documentId: string, query: string): Promise<RetrievedFact[]> {
+async function keywordSearchFacts(
+  documentId: string,
+  query: string,
+): Promise<RetrievedFact[]> {
   const typeHints: Record<string, string> = {
-    date: 'date',
-    deadline: 'deadline',
-    email: 'email',
-    phone: 'phone',
-    amount: 'amount',
-    address: 'address',
-    reference: 'reference_id',
+    date: "date",
+    deadline: "deadline",
+    email: "email",
+    phone: "phone",
+    amount: "amount",
+    address: "address",
+    reference: "reference_id",
   };
 
   const matchedTypes = Object.entries(typeHints)

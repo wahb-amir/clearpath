@@ -2,17 +2,13 @@
 
 import { useState } from "react";
 import { motion } from "framer-motion";
-import {
-  CheckCircle2,
-  Circle,
-  ListChecks,
-} from "lucide-react";
+import { CheckCircle2, Circle, ListChecks } from "lucide-react";
 
 export default function ChecklistCard({ result }) {
   const [checked, setChecked] = useState(new Set());
 
   const actions = result?.actions || [];
-  
+
   const toggle = (i) => {
     setChecked((prev) => {
       const next = new Set(prev);
@@ -161,9 +157,7 @@ export default function ChecklistCard({ result }) {
                   style={{
                     margin: 0,
                     fontSize: 14,
-                    color: isChecked
-                      ? "hsl(220,10%,50%)"
-                      : "hsl(220,12%,78%)",
+                    color: isChecked ? "hsl(220,10%,50%)" : "hsl(220,12%,78%)",
                     textDecoration: isChecked ? "line-through" : "none",
                   }}
                 >

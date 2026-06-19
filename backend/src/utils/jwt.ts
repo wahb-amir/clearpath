@@ -1,50 +1,52 @@
-import jwt from 'jsonwebtoken';
-import fs from 'fs';
-import path from 'path';
-import { env } from '../config/env';
-import crypto from 'crypto';
+import jwt from "jsonwebtoken";
+import fs from "fs";
+import path from "path";
+import { env } from "../config/env";
+import crypto from "crypto";
 
 // Load keys
-const keysDir = path.resolve(__dirname, '../../.keys');
-let privateKey = '';
-let publicKey = '';
+const keysDir = path.resolve(__dirname, "../../.keys");
+let privateKey = "";
+let publicKey = "";
 
 try {
-  privateKey = fs.readFileSync(path.join(keysDir, 'private.pem'), 'utf8');
-  publicKey = fs.readFileSync(path.join(keysDir, 'public.pem'), 'utf8');
+  privateKey = fs.readFileSync(path.join(keysDir, "private.pem"), "utf8");
+  publicKey = fs.readFileSync(path.join(keysDir, "public.pem"), "utf8");
 } catch (e) {
-  console.warn('⚠️ RS256 keys not found. Run "node scripts/generate-keys.js" first.');
+  console.warn(
+    '⚠️ RS256 keys not found. Run "node scripts/generate-keys.js" first.',
+  );
 }
 
-const KID = 'key-1'; // Key ID for rotation
+const KID = "key-1"; // Key ID for rotation
 
 export const signAccessToken = (userId: string, sessionId: string) => {
   return jwt.sign(
     { sub: userId, sid: sessionId },
     privateKey as jwt.Secret,
     {
-      algorithm: 'RS256',
+      algorithm: "RS256",
       expiresIn: env.ACCESS_TOKEN_EXPIRY,
       keyid: KID,
-    } as jwt.SignOptions
+    } as jwt.SignOptions,
   );
 };
 
 export const verifyAccessToken = (token: string) => {
-  try{
-    const result = jwt.verify(token, publicKey, { algorithms: ['RS256'] }) as jwt.JwtPayload;
-  
-    return result;
+  try {
+    const result = jwt.verify(token, publicKey, {
+      algorithms: ["RS256"],
+    }) as jwt.JwtPayload;
 
-  }
-  catch(err){
-    console.error('Token verification failed:', err);
-    throw new Error('Invalid or expired token');
+    return result;
+  } catch (err) {
+    console.error("Token verification failed:", err);
+    throw new Error("Invalid or expired token");
   }
 };
 
 export const generateRefreshToken = () => {
-  return crypto.randomBytes(40).toString('hex');
+  return crypto.randomBytes(40).toString("hex");
 };
 
 export const getJwks = () => {
@@ -54,20 +56,20 @@ export const getJwks = () => {
   return {
     keys: [
       {
-        kty: 'RSA',
-        alg: 'RS256',
-        use: 'sig',
+        kty: "RSA",
+        alg: "RS256",
+        use: "sig",
         kid: KID,
         // In a real system, you'd extract n and e from the PEM
         // For simplicity, we just provide the PEM in the x5c field
         x5c: [
           publicKey
-            .replace('-----BEGIN PUBLIC KEY-----\n', '')
-            .replace('\n-----END PUBLIC KEY-----\n', '')
-            .replace(/\n/g, '')
-        ]
-      }
-    ]
+            .replace("-----BEGIN PUBLIC KEY-----\n", "")
+            .replace("\n-----END PUBLIC KEY-----\n", "")
+            .replace(/\n/g, ""),
+        ],
+      },
+    ],
   };
 };
 

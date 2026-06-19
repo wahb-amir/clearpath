@@ -11,7 +11,7 @@ export function createGroqClient(options: GroqClientOptions = {}): Groq {
 
   if (!apiKey) {
     throw new Error(
-      "Missing GROQ_API_KEY. Set it to your Groq key (usually starting with gsk_)."
+      "Missing GROQ_API_KEY. Set it to your Groq key (usually starting with gsk_).",
     );
   }
 

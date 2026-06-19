@@ -23,7 +23,6 @@ interface TavilySearchResponse {
   results?: TavilyResult[];
 }
 
-
 function normalizeText(value: string): string {
   return value.replace(/\s+/g, " ").trim();
 }
@@ -107,7 +106,6 @@ export async function searchOfficialSources(
       "Missing TAVILY_API_KEY. Configure Tavily before enabling Stage 3 grounding.",
     );
   }
- 
 
   const count = Math.min(Math.max(options.count ?? 5, 1), 10);
   const language = options.language ?? "en";

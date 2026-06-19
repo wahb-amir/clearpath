@@ -1,5 +1,5 @@
-import { Request, Response, NextFunction } from 'express';
-import { verifyAccessToken } from '../utils/jwt';
+import { Request, Response, NextFunction } from "express";
+import { verifyAccessToken } from "../utils/jwt";
 
 export interface AuthRequest extends Request {
   user?: {
@@ -11,11 +11,11 @@ export interface AuthRequest extends Request {
 export const requireAuth = (
   req: AuthRequest,
   res: Response,
-  next: NextFunction
+  next: NextFunction,
 ): void => {
   const token = req.cookies?.accessToken;
   if (!token) {
-    res.status(401).json({ error: 'Unauthorized: No token provided' });
+    res.status(401).json({ error: "Unauthorized: No token provided" });
     return;
   }
 
@@ -28,6 +28,6 @@ export const requireAuth = (
 
     next();
   } catch {
-    res.status(401).json({ error: 'Unauthorized: Invalid or expired token' });
+    res.status(401).json({ error: "Unauthorized: Invalid or expired token" });
   }
 };

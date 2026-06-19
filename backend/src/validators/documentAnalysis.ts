@@ -1,7 +1,7 @@
-import { z } from 'zod';
+import { z } from "zod";
 
 export const documentIdParamSchema = z.object({
-  id: z.string().uuid('Invalid document id'),
+  id: z.string().uuid("Invalid document id"),
 });
 
 export type DocumentIdParam = z.infer<typeof documentIdParamSchema>;
@@ -14,7 +14,7 @@ export type DocumentIdParam = z.infer<typeof documentIdParamSchema>;
  */
 export const analyzeRequestBodySchema = z.object({
   idempotencyKey: z.string().min(8).max(255).optional(),
-  purpose: z.string().min(1).max(64).default('full_analysis'),
+  purpose: z.string().min(1).max(64).default("full_analysis"),
   analysisVersion: z.string().min(1).max(32).optional(), // defaults to env.ANALYSIS_VERSION
 });
 

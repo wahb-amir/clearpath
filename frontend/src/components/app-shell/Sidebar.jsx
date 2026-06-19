@@ -31,7 +31,6 @@ const secondaryNav = [
   { href: "#", label: "Feedback", icon: MessageSquare },
 ];
 
-
 export default function Sidebar({ collapsed, setCollapsed }) {
   const pathname = usePathname();
 
@@ -45,7 +44,10 @@ export default function Sidebar({ collapsed, setCollapsed }) {
       }}
     >
       <div className="flex items-center p-4 border-b border-slate-800 h-[72px]">
-        <Link href="/" className="flex items-center gap-2 overflow-hidden flex-shrink-0">
+        <Link
+          href="/"
+          className="flex items-center gap-2 overflow-hidden flex-shrink-0"
+        >
           <div className="w-8 h-8 rounded-lg bg-blue-600 flex items-center justify-center flex-shrink-0">
             <Zap size={18} className="text-white" />
           </div>
@@ -76,7 +78,9 @@ export default function Sidebar({ collapsed, setCollapsed }) {
               <motion.div
                 whileHover={{ backgroundColor: "rgba(30, 41, 59, 0.4)" }}
                 className={`relative flex items-center gap-3 px-3 py-2.5 rounded-lg cursor-pointer transition-colors group ${
-                  isActive ? "bg-slate-900 text-slate-100" : "text-slate-400 hover:text-slate-200"
+                  isActive
+                    ? "bg-slate-900 text-slate-100"
+                    : "text-slate-400 hover:text-slate-200"
                 }`}
                 title={collapsed ? item.label : undefined}
               >
@@ -88,9 +92,16 @@ export default function Sidebar({ collapsed, setCollapsed }) {
                     transition={{ type: "spring", stiffness: 380, damping: 30 }}
                   />
                 )}
-                
-                <Icon size={20} className={`flex-shrink-0 transition-colors ${isActive ? "text-blue-500" : "group-hover:text-slate-200"}`} />
-                {!collapsed && <span className="font-medium text-sm whitespace-nowrap">{item.label}</span>}
+
+                <Icon
+                  size={20}
+                  className={`flex-shrink-0 transition-colors ${isActive ? "text-blue-500" : "group-hover:text-slate-200"}`}
+                />
+                {!collapsed && (
+                  <span className="font-medium text-sm whitespace-nowrap">
+                    {item.label}
+                  </span>
+                )}
               </motion.div>
             </Link>
           );
@@ -103,7 +114,7 @@ export default function Sidebar({ collapsed, setCollapsed }) {
             </div>
           )}
         </div>
-        
+
         {secondaryNav.map((item, idx) => {
           const Icon = item.icon;
           return (
@@ -114,7 +125,11 @@ export default function Sidebar({ collapsed, setCollapsed }) {
                 title={collapsed ? item.label : undefined}
               >
                 <Icon size={20} className="flex-shrink-0" />
-                {!collapsed && <span className="font-medium text-sm whitespace-nowrap">{item.label}</span>}
+                {!collapsed && (
+                  <span className="font-medium text-sm whitespace-nowrap">
+                    {item.label}
+                  </span>
+                )}
               </motion.div>
             </Link>
           );

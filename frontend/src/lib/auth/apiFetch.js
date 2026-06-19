@@ -1,5 +1,5 @@
 // lib/apiFetch.ts
-const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001'; // <-- Point to your Express port
+const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:3001"; // <-- Point to your Express port
 
 let refreshPromise = null;
 
@@ -8,11 +8,11 @@ async function refreshSession() {
     // Note: Make sure your auth refresh endpoint is either on Next.js or the backend.
     // If it's on the backend, this needs to be `${API_BASE_URL}/api/auth/refresh`
     refreshPromise = fetch(`${API_BASE_URL}/auth/refresh`, {
-      method: 'POST',
-      credentials: 'include',
-      cache: 'no-store',
+      method: "POST",
+      credentials: "include",
+      cache: "no-store",
       headers: {
-        'content-type': 'application/json',
+        "content-type": "application/json",
       },
     })
       .then((res) => res.ok)
@@ -25,19 +25,19 @@ async function refreshSession() {
 }
 
 function shouldSkipRefresh(url) {
-  return url.includes('/auth/refresh') || url.includes('/login');
+  return url.includes("/auth/refresh") || url.includes("/login");
 }
 
 export async function apiFetch(input, init) {
   // 1. Ensure we construct the full backend URL if a relative path is passed
   const urlString = input.toString();
-  const fullUrl = urlString.startsWith('http') 
-    ? urlString 
-    : `${API_BASE_URL}${urlString.startsWith('/') ? '' : '/'}${urlString}`;
+  const fullUrl = urlString.startsWith("http")
+    ? urlString
+    : `${API_BASE_URL}${urlString.startsWith("/") ? "" : "/"}${urlString}`;
 
   const request = new Request(fullUrl, {
     ...init,
-    credentials: init?.credentials ?? 'include', // Needed for cookies across ports
+    credentials: init?.credentials ?? "include", // Needed for cookies across ports
   });
 
   const firstResponse = await fetch(request.clone());

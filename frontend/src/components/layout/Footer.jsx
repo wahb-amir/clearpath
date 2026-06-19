@@ -79,7 +79,9 @@ export default function Footer() {
               }}
             >
               <Shield size={14} color="hsl(142, 71%, 50%)" />
-              <span style={{ color: "hsl(142, 71%, 50%)", fontSize: "0.75rem" }}>
+              <span
+                style={{ color: "hsl(142, 71%, 50%)", fontSize: "0.75rem" }}
+              >
                 Responsible AI Design
               </span>
             </div>
@@ -99,7 +101,13 @@ export default function Footer() {
               Product
             </h4>
 
-            <div style={{ display: "flex", flexDirection: "column", gap: "0.625rem" }}>
+            <div
+              style={{
+                display: "flex",
+                flexDirection: "column",
+                gap: "0.625rem",
+              }}
+            >
               {[
                 { label: "Try Demo", href: "/app" },
                 { label: "How It Works", href: "/about" },
@@ -136,7 +144,13 @@ export default function Footer() {
               Safety & Trust
             </h4>
 
-            <div style={{ display: "flex", flexDirection: "column", gap: "0.625rem" }}>
+            <div
+              style={{
+                display: "flex",
+                flexDirection: "column",
+                gap: "0.625rem",
+              }}
+            >
               {[
                 { label: "Privacy Policy", href: "/about#privacy" },
                 { label: "AI Limitations", href: "/about#limitations" },

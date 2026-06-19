@@ -102,7 +102,9 @@ export default function SourcesCard({ result }) {
       </div>
 
       {/* Sources */}
-      <div style={{ display: "flex", flexDirection: "column", gap: "0.625rem" }}>
+      <div
+        style={{ display: "flex", flexDirection: "column", gap: "0.625rem" }}
+      >
         {result?.sources?.map((source, i) => {
           const tc = typeConfig[source?.type || "official"];
           const Icon = tc.icon;

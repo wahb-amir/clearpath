@@ -84,11 +84,11 @@ backend/
 
 ## Three Processes to Run
 
-| Process | Command | Role |
-|---|---|---|
-| API server | `npm run dev` (existing) | HTTP routes, SSE endpoint |
-| Worker | `npm run worker` | BullMQ job consumer, pipeline stages |
-| Dispatcher | `npm run dispatcher` | Outbox poller → BullMQ enqueue |
+| Process    | Command                  | Role                                 |
+| ---------- | ------------------------ | ------------------------------------ |
+| API server | `npm run dev` (existing) | HTTP routes, SSE endpoint            |
+| Worker     | `npm run worker`         | BullMQ job consumer, pipeline stages |
+| Dispatcher | `npm run dispatcher`     | Outbox poller → BullMQ enqueue       |
 
 For small single-server deployments, the dispatcher can run in the same
 process as the API server (see `src/index.ts` comments). The worker
@@ -101,6 +101,7 @@ should always be a separate process due to CPU-intensive OCR + embeddings.
 ### POST /documents/:id/analyze
 
 **Request**
+
 ```http
 POST /documents/550e8400-e29b-41d4-a716-446655440000/analyze
 Authorization: Bearer <jwt>
@@ -113,6 +114,7 @@ Content-Type: application/json
 ```
 
 **Response (new request) — 202 Accepted**
+
 ```json
 {
   "documentId": "550e8400-e29b-41d4-a716-446655440000",
@@ -129,6 +131,7 @@ Content-Type: application/json
 ```
 
 **Response (duplicate request, same file + version) — 202 Accepted**
+
 ```json
 {
   "documentId": "550e8400-e29b-41d4-a716-446655440000",
@@ -145,6 +148,7 @@ Content-Type: application/json
 ```
 
 **Error responses**
+
 ```json
 // 404 — document not found
 { "error": "Document <id> not found", "code": "DOCUMENT_NOT_FOUND" }
@@ -164,6 +168,7 @@ Content-Type: application/json
 ### GET /documents/:id/events (SSE)
 
 **Initial connection**
+
 ```http
 GET /documents/550e8400-.../events
 Authorization: Bearer <jwt>
@@ -171,6 +176,7 @@ Accept: text/event-stream
 ```
 
 **Reconnect (browser EventSource sends Last-Event-ID automatically)**
+
 ```http
 GET /documents/550e8400-.../events
 Authorization: Bearer <jwt>
@@ -243,6 +249,7 @@ x-internal-api-key: your-strong-random-internal-key
 ```
 
 **Response**
+
 ```json
 { "processed": 2, "failed": 0 }
 ```
@@ -252,11 +259,13 @@ x-internal-api-key: your-strong-random-internal-key
 ## Failure Handling
 
 ### Upload not found / file deleted from storage
+
 Worker's `downloadFromStorage()` throws → `reportFailure()` → `documents.analysis_status = FAILED`.
 Client sees `event: failed` over SSE.
 The analysis request's `error_message` stores the storage error.
 
 ### Queue push failure (dispatcher cannot reach Redis)
+
 Outbox row stays `status = 'pending'`. No DB state is inconsistent.
 Dispatcher retries every `OUTBOX_POLL_INTERVAL_MS` (default 2s) with
 exponential backoff up to `OUTBOX_MAX_RETRIES` (default 10).
@@ -264,6 +273,7 @@ After max retries the row is moved to `status = 'failed'` for
 manual inspection.
 
 ### Worker crash mid-stage
+
 BullMQ retries the job up to `ANALYSIS_JOB_ATTEMPTS` times with
 exponential backoff (5s, 10s, 20s, 40s, 80s).
 The worker re-reads `documents.analysis_status` on startup and skips
@@ -272,17 +282,20 @@ Derived records (chunks/sections/facts) are re-inserted idempotently
 via `ON CONFLICT DO NOTHING` / `DO UPDATE`.
 
 ### OCR failure for a single page
+
 `extractText.ts` catches per-page OCR errors and falls back to whatever
 sparse embedded text was available. The overall `ocrConfidence` for
 that page is recorded as 0 (reflected in `documents.ocr_confidence`
 and the quality estimate).
 
 ### Malformed / unsupported file
+
 `detectFileCategory()` throws `UnsupportedFileTypeError` (415) if the
 MIME type is not recognised. This propagates through `reportFailure()`
 so the document lands in `FAILED` state with a clear error message.
 
 ### Duplicate analyze clicks (idempotency)
+
 1. Same `(userId, documentId, purpose, analysisVersion)` → same
    `idempotencyKey` → `INSERT ... ON CONFLICT DO NOTHING` returns 0 rows
    → existing request returned. No duplicate outbox row inserted.
@@ -295,6 +308,7 @@ so the document lands in `FAILED` state with a clear error message.
    second enqueue.
 
 ### SSE client reconnects
+
 EventSource sends `Last-Event-ID` header automatically.
 `sseService.ts` reads it and replays all `document_pipeline_events`
 with `id > lastEventId` from Postgres before re-subscribing to Redis.

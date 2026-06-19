@@ -1,4 +1,3 @@
-
 import HeroSection from "@/components/landing/HeroSection";
 import HowItWorks from "@/components/landing/HowItWorks";
 import FeatureCards from "@/components/landing/FeatureCards";

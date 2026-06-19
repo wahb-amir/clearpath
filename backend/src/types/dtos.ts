@@ -3,7 +3,7 @@ import type {
   AnalysisStatus,
   DocumentQuality,
   UploadStatus,
-} from './pipelineStatus';
+} from "./pipelineStatus";
 
 export interface DocumentRow {
   id: string;

@@ -48,7 +48,8 @@ function EmptyState() {
       </h3>
 
       <p style={{ color: "hsl(220, 8%, 48%)", fontSize: "0.875rem" }}>
-        Upload a file or paste text, then click <strong>Analyze Document</strong>.
+        Upload a file or paste text, then click{" "}
+        <strong>Analyze Document</strong>.
       </p>
 
       <div style={{ padding: "0.625rem 1rem", borderRadius: "10px" }}>
@@ -59,7 +60,12 @@ function EmptyState() {
 }
 
 // Utility component for reusable skeleton bars
-function SkeletonBlock({ width, height = "12px", borderRadius = "6px", opacity = 0.2 }) {
+function SkeletonBlock({
+  width,
+  height = "12px",
+  borderRadius = "6px",
+  opacity = 0.2,
+}) {
   return (
     <div
       style={{
@@ -78,9 +84,9 @@ function SkeletonCard({ children }) {
     <motion.div
       initial={{ opacity: 0, y: 10 }}
       animate={{ opacity: [0.3, 0.7, 0.3], y: 0 }}
-      transition={{ 
-        opacity: { duration: 2, repeat: Infinity, ease: "easeInOut" }, 
-        y: { duration: 0.4 } 
+      transition={{
+        opacity: { duration: 2, repeat: Infinity, ease: "easeInOut" },
+        y: { duration: 0.4 },
       }}
       style={{
         background: "hsla(222, 35%, 12%, 0.6)",
@@ -106,20 +112,28 @@ function AnalyzingState() {
       style={{ display: "flex", flexDirection: "column", gap: "1rem" }}
     >
       {/* Visual Indicator of Progress */}
-      <div style={{ 
-        display: "flex", 
-        alignItems: "center", 
-        gap: "0.75rem", 
-        padding: "0.5rem 1rem",
-        marginBottom: "0.5rem"
-      }}>
+      <div
+        style={{
+          display: "flex",
+          alignItems: "center",
+          gap: "0.75rem",
+          padding: "0.5rem 1rem",
+          marginBottom: "0.5rem",
+        }}
+      >
         <motion.div
           animate={{ rotate: 360 }}
           transition={{ duration: 2, repeat: Infinity, ease: "linear" }}
         >
           <Loader2 size={18} color="hsl(221, 83%, 53%)" />
         </motion.div>
-        <span style={{ color: "hsl(221, 83%, 65%)", fontSize: "0.875rem", fontWeight: 600 }}>
+        <span
+          style={{
+            color: "hsl(221, 83%, 65%)",
+            fontSize: "0.875rem",
+            fontWeight: 600,
+          }}
+        >
           Extracting intelligence...
         </span>
       </div>
@@ -127,10 +141,22 @@ function AnalyzingState() {
       {/* Summary Skeleton Layout */}
       <SkeletonCard>
         <div style={{ display: "flex", gap: "1rem", alignItems: "center" }}>
-          <SkeletonBlock width="40px" height="40px" borderRadius="12px" opacity={0.15} />
+          <SkeletonBlock
+            width="40px"
+            height="40px"
+            borderRadius="12px"
+            opacity={0.15}
+          />
           <SkeletonBlock width="140px" height="16px" opacity={0.3} />
         </div>
-        <div style={{ display: "flex", flexDirection: "column", gap: "0.75rem", marginTop: "0.5rem" }}>
+        <div
+          style={{
+            display: "flex",
+            flexDirection: "column",
+            gap: "0.75rem",
+            marginTop: "0.5rem",
+          }}
+        >
           <SkeletonBlock width="100%" />
           <SkeletonBlock width="95%" />
           <SkeletonBlock width="80%" />
@@ -140,16 +166,38 @@ function AnalyzingState() {
       {/* Checklist Skeleton Layout */}
       <SkeletonCard>
         <div style={{ display: "flex", gap: "1rem", alignItems: "center" }}>
-          <SkeletonBlock width="40px" height="40px" borderRadius="12px" opacity={0.15} />
+          <SkeletonBlock
+            width="40px"
+            height="40px"
+            borderRadius="12px"
+            opacity={0.15}
+          />
           <SkeletonBlock width="120px" height="16px" opacity={0.3} />
         </div>
-        <div style={{ display: "flex", flexDirection: "column", gap: "1rem", marginTop: "0.5rem" }}>
+        <div
+          style={{
+            display: "flex",
+            flexDirection: "column",
+            gap: "1rem",
+            marginTop: "0.5rem",
+          }}
+        >
           <div style={{ display: "flex", gap: "1rem", alignItems: "center" }}>
-            <SkeletonBlock width="20px" height="20px" borderRadius="6px" opacity={0.15} />
+            <SkeletonBlock
+              width="20px"
+              height="20px"
+              borderRadius="6px"
+              opacity={0.15}
+            />
             <SkeletonBlock width="75%" />
           </div>
           <div style={{ display: "flex", gap: "1rem", alignItems: "center" }}>
-            <SkeletonBlock width="20px" height="20px" borderRadius="6px" opacity={0.15} />
+            <SkeletonBlock
+              width="20px"
+              height="20px"
+              borderRadius="6px"
+              opacity={0.15}
+            />
             <SkeletonBlock width="60%" />
           </div>
         </div>
@@ -158,10 +206,22 @@ function AnalyzingState() {
       {/* Deadlines Skeleton Layout */}
       <SkeletonCard>
         <div style={{ display: "flex", gap: "1rem", alignItems: "center" }}>
-          <SkeletonBlock width="40px" height="40px" borderRadius="12px" opacity={0.15} />
+          <SkeletonBlock
+            width="40px"
+            height="40px"
+            borderRadius="12px"
+            opacity={0.15}
+          />
           <SkeletonBlock width="160px" height="16px" opacity={0.3} />
         </div>
-        <div style={{ display: "flex", flexDirection: "column", gap: "0.75rem", marginTop: "0.5rem" }}>
+        <div
+          style={{
+            display: "flex",
+            flexDirection: "column",
+            gap: "0.75rem",
+            marginTop: "0.5rem",
+          }}
+        >
           <SkeletonBlock width="40%" />
         </div>
       </SkeletonCard>
@@ -182,38 +242,40 @@ export default function ResultsPanel({ currentDoc, analyzing, aiResult }) {
   // 2. Format the aiConfidence object into the array the ConfidenceCard expects
   const formatConfidence = (aiConfidence) => {
     if (!aiConfidence) return [];
-    
+
     // Convert object { actions: 0.8, overall: 0.8 } into array of objects
     return Object.entries(aiConfidence)
       .filter(([key, score]) => score > 0) // Hide categories with 0 confidence (like deadlines)
       .map(([key, score]) => ({
         label: key.charAt(0).toUpperCase() + key.slice(1), // Capitalize first letter
         level: getConfidenceLevel(score),
-        note: `Scored ${score * 100}% based on document analysis.`
+        note: `Scored ${score * 100}% based on document analysis.`,
       }));
   };
 
   // 3. The Data Adapter: Reshape the backend JSON for the frontend
-  const normalizedResult = rawResult ? {
-    ...rawResult,
-    // Summary already matches, but we include title if available
-    title: rawResult.title || "Document Analysis",
-    
-    // ChecklistCard expects an array of strings, backend gives array of objects
-    actions: rawResult.actionItems?.map(item => item.text) || [],
-    
-    // DeadlinesCard expects 'deadlines'
-    deadlines: rawResult.keyDeadlines || [],
-    
-    // QuestionsCard expects 'questions'
-    questions: rawResult.questionsToAsk || [],
-    
-    // SourcesCard expects 'sources'
-    sources: rawResult.trustedSources || [],
-    
-    // ConfidenceCard expects array of objects
-    confidence: formatConfidence(rawResult.aiConfidence)
-  } : null;
+  const normalizedResult = rawResult
+    ? {
+        ...rawResult,
+        // Summary already matches, but we include title if available
+        title: rawResult.title || "Document Analysis",
+
+        // ChecklistCard expects an array of strings, backend gives array of objects
+        actions: rawResult.actionItems?.map((item) => item.text) || [],
+
+        // DeadlinesCard expects 'deadlines'
+        deadlines: rawResult.keyDeadlines || [],
+
+        // QuestionsCard expects 'questions'
+        questions: rawResult.questionsToAsk || [],
+
+        // SourcesCard expects 'sources'
+        sources: rawResult.trustedSources || [],
+
+        // ConfidenceCard expects array of objects
+        confidence: formatConfidence(rawResult.aiConfidence),
+      }
+    : null;
 
   return (
     <AnimatePresence mode="wait">
@@ -226,11 +288,21 @@ export default function ResultsPanel({ currentDoc, analyzing, aiResult }) {
         >
           <SummaryCard result={normalizedResult} />
           {/* Only render cards if they actually have data to show */}
-          {normalizedResult.actions?.length > 0 && <ChecklistCard result={normalizedResult} />}
-          {normalizedResult.deadlines?.length > 0 && <DeadlinesCard result={normalizedResult} />}
-          {normalizedResult.questions?.length > 0 && <QuestionsCard result={normalizedResult} />}
-          {normalizedResult.confidence?.length > 0 && <ConfidenceCard result={normalizedResult} />}
-          {normalizedResult.sources?.length > 0 && <SourcesCard result={normalizedResult} />}
+          {normalizedResult.actions?.length > 0 && (
+            <ChecklistCard result={normalizedResult} />
+          )}
+          {normalizedResult.deadlines?.length > 0 && (
+            <DeadlinesCard result={normalizedResult} />
+          )}
+          {normalizedResult.questions?.length > 0 && (
+            <QuestionsCard result={normalizedResult} />
+          )}
+          {normalizedResult.confidence?.length > 0 && (
+            <ConfidenceCard result={normalizedResult} />
+          )}
+          {normalizedResult.sources?.length > 0 && (
+            <SourcesCard result={normalizedResult} />
+          )}
         </motion.div>
       ) : analyzing ? (
         <AnalyzingState key="analyzing" />

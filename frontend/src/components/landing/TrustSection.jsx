@@ -180,16 +180,40 @@ export default function TrustSection() {
           border: "1px solid hsla(221, 83%, 53%, 0.2)",
         }}
       >
-        <div style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: "0.5rem", marginBottom: "1rem" }}>
-            <CheckCircle size={20} color="hsl(142, 71%, 55%)" />
-            <span style={{ color: "hsl(220, 20%, 90%)", fontFamily: "Outfit, sans-serif", fontWeight: 700, fontSize: "1.25rem" }}>
-              ClearPath does NOT replace professional advice
-            </span>
-          </div>
-          <p style={{ color: "hsl(220, 8%, 55%)", fontSize: "0.9rem", maxWidth: "600px", margin: "0 auto", lineHeight: 1.75 }}>
-            Always consult with qualified professionals — school counselors, legal aid, social workers — for important decisions. ClearPath is a first step toward understanding, not a final answer.
-          </p>
-
+        <div
+          style={{
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            gap: "0.5rem",
+            marginBottom: "1rem",
+          }}
+        >
+          <CheckCircle size={20} color="hsl(142, 71%, 55%)" />
+          <span
+            style={{
+              color: "hsl(220, 20%, 90%)",
+              fontFamily: "Outfit, sans-serif",
+              fontWeight: 700,
+              fontSize: "1.25rem",
+            }}
+          >
+            ClearPath does NOT replace professional advice
+          </span>
+        </div>
+        <p
+          style={{
+            color: "hsl(220, 8%, 55%)",
+            fontSize: "0.9rem",
+            maxWidth: "600px",
+            margin: "0 auto",
+            lineHeight: 1.75,
+          }}
+        >
+          Always consult with qualified professionals — school counselors, legal
+          aid, social workers — for important decisions. ClearPath is a first
+          step toward understanding, not a final answer.
+        </p>
       </motion.div>
     </section>
   );

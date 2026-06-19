@@ -1,19 +1,19 @@
-import { execFile } from 'child_process';
-import { promisify } from 'util';
-import { writeFile, mkdtemp, rm } from 'fs/promises';
-import { tmpdir } from 'os';
-import path from 'path';
-import { env } from '../../config/env';
-import { ExtractionFailedError } from '../../types/errors';
-import { rasterizePdfPage, runTesseractOcr } from './ocrProvider';
-import type { DetectedFileCategory } from '../../workers/stages/detectFileType';
+import { execFile } from "child_process";
+import { promisify } from "util";
+import { writeFile, mkdtemp, rm } from "fs/promises";
+import { tmpdir } from "os";
+import path from "path";
+import { env } from "../../config/env";
+import { ExtractionFailedError } from "../../types/errors";
+import { rasterizePdfPage, runTesseractOcr } from "./ocrProvider";
+import type { DetectedFileCategory } from "../../workers/stages/detectFileType";
 
 const execFileAsync = promisify(execFile);
 
 export interface ExtractionResult {
   rawText: string;
   /** 'embedded' for PDFs with extractable text, 'ocr' for image/OCR-based extraction */
-  method: 'embedded' | 'ocr' | 'plain_text';
+  method: "embedded" | "ocr" | "plain_text";
   /** Mean OCR confidence if OCR was used; 1.0 for embedded/plain text */
   ocrConfidence: number;
   /** Fraction of pages/content that had usable text before any OCR fallback */
@@ -32,27 +32,27 @@ export interface ExtractionResult {
 async function extractPdfEmbeddedText(pdfBuffer: Buffer): Promise<{
   pages: string[];
 }> {
-  const dir = await mkdtemp(path.join(tmpdir(), 'pdftext-'));
-  const inputPath = path.join(dir, 'input.pdf');
+  const dir = await mkdtemp(path.join(tmpdir(), "pdftext-"));
+  const inputPath = path.join(dir, "input.pdf");
 
   try {
     await writeFile(inputPath, pdfBuffer);
     // -layout preserves columns/whitespace better for structure detection later
     const { stdout } = await execFileAsync(
-      'pdftotext',
-      ['-layout', inputPath, '-'],
-      { maxBuffer: 1024 * 1024 * 64, encoding: 'utf-8' },
+      "pdftotext",
+      ["-layout", inputPath, "-"],
+      { maxBuffer: 1024 * 1024 * 64, encoding: "utf-8" },
     );
 
     // pdftotext separates pages with form-feed characters (\f)
-    const pages = stdout.split('\f').map((p) => p.trimEnd());
+    const pages = stdout.split("\f").map((p) => p.trimEnd());
     // Remove trailing empty page often produced after the last \f
-    while (pages.length > 1 && pages[pages.length - 1].trim() === '') {
+    while (pages.length > 1 && pages[pages.length - 1].trim() === "") {
       pages.pop();
     }
     return { pages };
   } catch (err) {
-    throw new ExtractionFailedError('pdftotext extraction failed', {
+    throw new ExtractionFailedError("pdftotext extraction failed", {
       cause: err instanceof Error ? err.message : String(err),
     });
   } finally {
@@ -85,11 +85,11 @@ export async function extractText(params: {
 }): Promise<ExtractionResult> {
   const { fileBuffer, category, onPageProgress } = params;
 
-  if (category === 'text') {
-    const text = fileBuffer.toString('utf-8');
+  if (category === "text") {
+    const text = fileBuffer.toString("utf-8");
     return {
       rawText: text,
-      method: 'plain_text',
+      method: "plain_text",
       ocrConfidence: 1,
       textCoverage: 1,
       pagesProcessed: 1,
@@ -97,12 +97,12 @@ export async function extractText(params: {
     };
   }
 
-  if (category === 'screenshot_or_scan' || category === 'photo') {
+  if (category === "screenshot_or_scan" || category === "photo") {
     const ocr = await runTesseractOcr(fileBuffer);
     if (onPageProgress) await onPageProgress(1, 1);
     return {
       rawText: ocr.text,
-      method: 'ocr',
+      method: "ocr",
       ocrConfidence: ocr.confidence,
       textCoverage: ocr.text.trim().length > 0 ? 1 : 0,
       pagesProcessed: 1,
@@ -122,7 +122,7 @@ export async function extractText(params: {
   const MIN_WORDS_PER_PAGE = 10; // below this, treat as sparse -> OCR fallback
 
   for (let i = 0; i < pages.length; i++) {
-    const pageText = pages[i] ?? '';
+    const pageText = pages[i] ?? "";
     const wordCount = countWords(pageText);
 
     if (wordCount >= MIN_WORDS_PER_PAGE) {
@@ -154,8 +154,8 @@ export async function extractText(params: {
       : 1;
 
   return {
-    rawText: finalPages.join('\n\n'),
-    method: usedOcrFallback ? 'ocr' : 'embedded',
+    rawText: finalPages.join("\n\n"),
+    method: usedOcrFallback ? "ocr" : "embedded",
     ocrConfidence,
     textCoverage: pagesWithText / totalPages,
     pagesProcessed: totalPages,

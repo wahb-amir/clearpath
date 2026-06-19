@@ -1,4 +1,4 @@
-import { createHash } from 'crypto';
+import { createHash } from "crypto";
 
 /**
  * Derives a deterministic idempotency key when the client doesn't
@@ -17,7 +17,7 @@ export function deriveIdempotencyKey(params: {
 }): string {
   const { userId, documentId, purpose, analysisVersion } = params;
   const raw = `${userId}:${documentId}:${purpose}:${analysisVersion}`;
-  return createHash('sha256').update(raw).digest('hex');
+  return createHash("sha256").update(raw).digest("hex");
 }
 
 /**

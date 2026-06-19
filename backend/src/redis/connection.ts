@@ -1,5 +1,5 @@
-import { Redis, type RedisOptions } from 'ioredis';
-import { env } from '../config/env';
+import { Redis, type RedisOptions } from "ioredis";
+import { env } from "../config/env";
 
 /**
  * Redis configuration & connection factories.
@@ -49,7 +49,7 @@ export function createSubscriberConnection(): Redis {
   return new Redis(baseOptions);
 }
 
-export const PIPELINE_NOTIFY_CHANNEL_PREFIX = 'doc-pipeline:';
+export const PIPELINE_NOTIFY_CHANNEL_PREFIX = "doc-pipeline:";
 
 export function channelForDocument(documentId: string): string {
   return `${PIPELINE_NOTIFY_CHANNEL_PREFIX}${documentId}`;

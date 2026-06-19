@@ -7,7 +7,7 @@ import { runAndPersistDocumentAnalysis } from "../services/documentAnalysisOrche
 export function createDocumentAnalysisWorker(): Worker<DocumentAnalysisJobData> {
   const worker = new Worker<DocumentAnalysisJobData>(
     env.CLEARPATH_ANALYSIS_QUEUE_NAME ?? "clearpath-ai-analysis",
-    
+
     async (job: Job<DocumentAnalysisJobData>) => {
       return runAndPersistDocumentAnalysis(job.data);
     },
@@ -15,8 +15,8 @@ export function createDocumentAnalysisWorker(): Worker<DocumentAnalysisJobData> 
       connection: createWorkerConnection() as ConnectionOptions,
       concurrency: 1,
       lockDuration: 15 * 60 * 1000,
-      autorun: true
-    }
+      autorun: true,
+    },
   );
 
   worker.on("failed", (job, err) => {

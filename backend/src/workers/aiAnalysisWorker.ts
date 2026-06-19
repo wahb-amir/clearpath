@@ -5,7 +5,9 @@ import type { AiAnalysisJobData, DocumentRow } from "../types/dtos";
 import { reportStage, reportProgress, reportFailure } from "./stageReporter";
 import { runAndPersistDocumentAnalysis } from "../services/documentAnalysisOrchestrator";
 
-export async function runAiPipeline(job: Job<AiAnalysisJobData>): Promise<void> {
+export async function runAiPipeline(
+  job: Job<AiAnalysisJobData>,
+): Promise<void> {
   const { documentId, analysisRequestId, userId, analysisVersion } = job.data;
 
   const docResult = await pgPool.query<DocumentRow>(

@@ -23,7 +23,7 @@ export const supabaseAdmin: SupabaseClient = createClient(
     realtime: {
       transport: WebSocket,
     },
-  }
+  },
 );
 
 /**

@@ -1,18 +1,19 @@
 // app/api/auth/refresh/route.ts
-import { NextResponse } from 'next/server';
-import { cookies } from 'next/headers';
+import { NextResponse } from "next/server";
+import { cookies } from "next/headers";
 
-const BACKEND_URL = process.env.NEXT_PUBLIC_BACKEND_URL || 'http://localhost:3001';
+const BACKEND_URL =
+  process.env.NEXT_PUBLIC_BACKEND_URL || "http://localhost:3001";
 
 export async function POST(req) {
   try {
     const backendRes = await fetch(`${BACKEND_URL}/auth/refresh`, {
-      method: 'POST',
+      method: "POST",
       headers: {
-        cookie: req.headers.get('cookie') ?? '',
-        'content-type': 'application/json',
+        cookie: req.headers.get("cookie") ?? "",
+        "content-type": "application/json",
       },
-      cache: 'no-store',
+      cache: "no-store",
     });
 
     const body = await backendRes.json().catch(() => null);
@@ -27,9 +28,9 @@ export async function POST(req) {
 
     for (const cookieStr of setCookieHeaders) {
       // Split the cookie into name=value and its attributes
-      const parts = cookieStr.split(';');
+      const parts = cookieStr.split(";");
       const [nameValue, ...rawAttrs] = parts;
-      const [name, value] = nameValue.split('=');
+      const [name, value] = nameValue.split("=");
 
       // Parse attributes into a structured object Next.js expects
       const options = {
@@ -37,17 +38,17 @@ export async function POST(req) {
         value: value.trim(),
       };
 
-      rawAttrs.forEach(attr => {
-        const [key, val] = attr.trim().split('=');
+      rawAttrs.forEach((attr) => {
+        const [key, val] = attr.trim().split("=");
         const lowerKey = key.toLowerCase();
-        
-        if (lowerKey === 'path') options.path = val;
-        if (lowerKey === 'domain') options.domain = val;
-        if (lowerKey === 'max-age') options.maxAge = parseInt(val, 10);
-        if (lowerKey === 'expires') options.expires = new Date(val);
-        if (lowerKey === 'secure') options.secure = true;
-        if (lowerKey === 'httponly') options.httpOnly = true;
-        if (lowerKey === 'samesite') options.sameSite = val.toLowerCase();
+
+        if (lowerKey === "path") options.path = val;
+        if (lowerKey === "domain") options.domain = val;
+        if (lowerKey === "max-age") options.maxAge = parseInt(val, 10);
+        if (lowerKey === "expires") options.expires = new Date(val);
+        if (lowerKey === "secure") options.secure = true;
+        if (lowerKey === "httponly") options.httpOnly = true;
+        if (lowerKey === "samesite") options.sameSite = val.toLowerCase();
       });
 
       // Set it directly to the response session store
@@ -55,9 +56,11 @@ export async function POST(req) {
     }
 
     return res;
-
   } catch (error) {
-    console.error('Refresh route error:', error);
-    return NextResponse.json({ success: false, error: 'Internal Server Error' }, { status: 500 });
+    console.error("Refresh route error:", error);
+    return NextResponse.json(
+      { success: false, error: "Internal Server Error" },
+      { status: 500 },
+    );
   }
 }

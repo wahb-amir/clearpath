@@ -16,7 +16,8 @@ export const mockHistoryItems = [
     urgency: "high",
     confidence: "high",
     status: "action_required",
-    summary: "Your child has 5 unexcused absences. A parent-teacher meeting is required before May 20th.",
+    summary:
+      "Your child has 5 unexcused absences. A parent-teacher meeting is required before May 20th.",
     actionCount: 2,
     saved: true,
   },
@@ -28,7 +29,8 @@ export const mockHistoryItems = [
     urgency: "medium",
     confidence: "medium",
     status: "review_suggested",
-    summary: "You pre-qualify for rental assistance, but additional income verification documents are needed.",
+    summary:
+      "You pre-qualify for rental assistance, but additional income verification documents are needed.",
     actionCount: 3,
     saved: true,
   },
@@ -40,7 +42,8 @@ export const mockHistoryItems = [
     urgency: "low",
     confidence: "high",
     status: "completed",
-    summary: "Details for the 2024 Spring Arts Scholarship. Deadline is extended to June 15.",
+    summary:
+      "Details for the 2024 Spring Arts Scholarship. Deadline is extended to June 15.",
     actionCount: 1,
     saved: false,
   },
@@ -52,7 +55,8 @@ export const mockHistoryItems = [
     urgency: "low",
     confidence: "high",
     status: "completed",
-    summary: "Standard liability waiver for the summer camp. Requires signature before participation.",
+    summary:
+      "Standard liability waiver for the summer camp. Requires signature before participation.",
     actionCount: 1,
     saved: false,
   },

@@ -8,7 +8,7 @@ import { useIsMobile } from "@/lib/useIsMobile";
 
 const FloatingDocument = dynamic(
   () => import("@/components/3d/FloatingDocument"),
-  { ssr: false }
+  { ssr: false },
 );
 
 const trustBadges = [
@@ -231,6 +231,5 @@ export default function HeroSection() {
         </motion.div>
       </div>
     </section>
- 
-);
+  );
 }

@@ -1,4 +1,4 @@
-import type { DocumentSectionDraft } from './buildStructure';
+import type { DocumentSectionDraft } from "./buildStructure";
 
 /**
  * Generates a lightweight extractive document summary and title
@@ -27,27 +27,31 @@ export function generateSummary(params: {
 
   const title =
     sections.find((s) => s.title)?.title ??
-    cleanText.split('\n').find((l) => l.trim().length > 0)?.trim().slice(0, 120) ??
-    'Untitled document';
+    cleanText
+      .split("\n")
+      .find((l) => l.trim().length > 0)
+      ?.trim()
+      .slice(0, 120) ??
+    "Untitled document";
 
   const pieces: string[] = [];
 
   for (const section of sections) {
-    const text = section.textContent.trim() || section.title || '';
+    const text = section.textContent.trim() || section.title || "";
     if (!text) continue;
     const sentences = text.split(SENTENCE_SPLIT).filter((s) => s.trim());
     if (sentences.length > 0) {
       pieces.push(sentences[0].trim());
     }
-    if (pieces.join(' ').length > MAX_SUMMARY_CHARS) break;
+    if (pieces.join(" ").length > MAX_SUMMARY_CHARS) break;
   }
 
-  let summary = pieces.join(' ');
+  let summary = pieces.join(" ");
   if (summary.length === 0) {
     summary = cleanText.slice(0, MAX_SUMMARY_CHARS).trim();
   }
   if (summary.length > MAX_SUMMARY_CHARS) {
-    summary = summary.slice(0, MAX_SUMMARY_CHARS).trim() + '…';
+    summary = summary.slice(0, MAX_SUMMARY_CHARS).trim() + "…";
   }
 
   return { title, summary };

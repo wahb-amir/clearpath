@@ -1,11 +1,11 @@
-import { createHash } from 'crypto';
+import { createHash } from "crypto";
 
 // Lazy-loaded singleton pipeline - @xenova/transformers downloads/caches
 // the ONNX model on first use (set TRANSFORMERS_CACHE env var to control
 // the cache directory in production).
 type FeatureExtractionPipeline = (
   text: string,
-  options: { pooling: 'mean'; normalize: boolean },
+  options: { pooling: "mean"; normalize: boolean },
 ) => Promise<{ data: Float32Array }>;
 
 let extractorPromise: Promise<FeatureExtractionPipeline> | null = null;
@@ -13,8 +13,11 @@ let extractorPromise: Promise<FeatureExtractionPipeline> | null = null;
 async function getExtractor(): Promise<FeatureExtractionPipeline> {
   if (!extractorPromise) {
     extractorPromise = (async () => {
-      const { pipeline } = await import('@xenova/transformers');
-      const extractor = await pipeline('feature-extraction', 'Xenova/bge-small-en-v1.5');
+      const { pipeline } = await import("@xenova/transformers");
+      const extractor = await pipeline(
+        "feature-extraction",
+        "Xenova/bge-small-en-v1.5",
+      );
       return extractor as unknown as FeatureExtractionPipeline;
     })();
   }
@@ -36,7 +39,7 @@ export const EMBEDDING_DIMENSIONS = 384;
  */
 export async function embedText(text: string): Promise<number[]> {
   const extractor = await getExtractor();
-  const output = await extractor(text, { pooling: 'mean', normalize: true });
+  const output = await extractor(text, { pooling: "mean", normalize: true });
   return Array.from(output.data);
 }
 
@@ -56,10 +59,10 @@ export async function embedBatch(texts: string[]): Promise<number[][]> {
 
 /** Stable content hash used for chunk de-duplication on retry. */
 export function contentHash(text: string): string {
-  return createHash('sha256').update(text).digest('hex');
+  return createHash("sha256").update(text).digest("hex");
 }
 
 /** Formats a JS number array as a pgvector literal, e.g. '[0.1,0.2,...]' */
 export function toPgVectorLiteral(embedding: number[]): string {
-  return `[${embedding.join(',')}]`;
+  return `[${embedding.join(",")}]`;
 }

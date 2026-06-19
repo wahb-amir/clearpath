@@ -17,7 +17,13 @@ export default function AppPage() {
   };
 
   return (
-    <div style={{ minHeight: "100vh", background: "hsl(222, 47%, 5%)", paddingTop: "72px" }}>
+    <div
+      style={{
+        minHeight: "100vh",
+        background: "hsl(222, 47%, 5%)",
+        paddingTop: "72px",
+      }}
+    >
       {/* header stays the same */}
 
       <div
@@ -57,12 +63,12 @@ export default function AppPage() {
         </motion.div>
       </div>
       <style jsx>{`
-          @media (max-width: 1024px) {
-            .app-grid {
-              grid-template-columns: 1fr !important;
-            }
+        @media (max-width: 1024px) {
+          .app-grid {
+            grid-template-columns: 1fr !important;
           }
-        `}</style>
+        }
+      `}</style>
     </div>
   );
 }

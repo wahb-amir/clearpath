@@ -2,7 +2,6 @@
 import { motion } from "framer-motion";
 import { AlertTriangle, AlertCircle, CheckCircle } from "lucide-react";
 
-
 export default function UrgencyBadge({ level, size = "md", showIcon = true }) {
   const config = {
     high: {
@@ -29,15 +28,29 @@ export default function UrgencyBadge({ level, size = "md", showIcon = true }) {
   };
 
   const sizeConfig = {
-    sm: { padding: "0.2rem 0.55rem", fontSize: "0.7rem", gap: "0.3rem", iconSize: 10 },
-    md: { padding: "0.3rem 0.75rem", fontSize: "0.78rem", gap: "0.375rem", iconSize: 12 },
-    lg: { padding: "0.45rem 1rem", fontSize: "0.875rem", gap: "0.5rem", iconSize: 14 },
+    sm: {
+      padding: "0.2rem 0.55rem",
+      fontSize: "0.7rem",
+      gap: "0.3rem",
+      iconSize: 10,
+    },
+    md: {
+      padding: "0.3rem 0.75rem",
+      fontSize: "0.78rem",
+      gap: "0.375rem",
+      iconSize: 12,
+    },
+    lg: {
+      padding: "0.45rem 1rem",
+      fontSize: "0.875rem",
+      gap: "0.5rem",
+      iconSize: 14,
+    },
   };
 
-  const c = config[level] || config.low; 
-  
+  const c = config[level] || config.low;
+
   const s = sizeConfig[size] || sizeConfig.md;
-  
 
   const Icon = c?.icon || CheckCircle;
 

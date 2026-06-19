@@ -43,7 +43,8 @@ function strip(code) {
     },
 
     VariableDeclarator(p) {
-      if (p.node.id && p.node.id.typeAnnotation) p.node.id.typeAnnotation = null;
+      if (p.node.id && p.node.id.typeAnnotation)
+        p.node.id.typeAnnotation = null;
     },
 
     FunctionDeclaration(p) {

@@ -8,8 +8,10 @@ function getDaysLabel(days) {
   if (days === undefined || days === null) return null;
   if (days <= 0) return { text: "Past due", color: "hsl(0, 84%, 65%)" };
   if (days === 1) return { text: "Tomorrow!", color: "hsl(0, 84%, 65%)" };
-  if (days <= 3) return { text: `${days} days left`, color: "hsl(0, 84%, 65%)" };
-  if (days <= 7) return { text: `${days} days left`, color: "hsl(38, 92%, 55%)" };
+  if (days <= 3)
+    return { text: `${days} days left`, color: "hsl(0, 84%, 65%)" };
+  if (days <= 7)
+    return { text: `${days} days left`, color: "hsl(38, 92%, 55%)" };
   return { text: `${days} days`, color: "hsl(220, 10%, 55%)" };
 }
 
@@ -29,7 +31,9 @@ export default function DeadlinesCard({ result }) {
       }}
     >
       {/* Header */}
-      <div style={{ display: "flex", gap: "0.625rem", marginBottom: "1.25rem" }}>
+      <div
+        style={{ display: "flex", gap: "0.625rem", marginBottom: "1.25rem" }}
+      >
         <div
           style={{
             width: 36,
@@ -111,9 +115,17 @@ export default function DeadlinesCard({ result }) {
                 />
               )}
 
-              <div style={{ display: "flex", justifyContent: "space-between", gap: 12 }}>
+              <div
+                style={{
+                  display: "flex",
+                  justifyContent: "space-between",
+                  gap: 12,
+                }}
+              >
                 <div style={{ flex: 1 }}>
-                  <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                  <div
+                    style={{ display: "flex", alignItems: "center", gap: 6 }}
+                  >
                     {isUrgent && (
                       <AlertTriangle size={13} color="hsl(0, 84%, 65%)" />
                     )}
@@ -138,9 +150,16 @@ export default function DeadlinesCard({ result }) {
                       flexWrap: "wrap",
                     }}
                   >
-                    <div style={{ display: "flex", alignItems: "center", gap: 4 }}>
+                    <div
+                      style={{ display: "flex", alignItems: "center", gap: 4 }}
+                    >
                       <Calendar size={12} color="hsl(220, 10%, 50%)" />
-                      <span style={{ fontSize: "0.78rem", color: "hsl(220, 10%, 55%)" }}>
+                      <span
+                        style={{
+                          fontSize: "0.78rem",
+                          color: "hsl(220, 10%, 55%)",
+                        }}
+                      >
                         {deadline?.date}
                       </span>
                     </div>

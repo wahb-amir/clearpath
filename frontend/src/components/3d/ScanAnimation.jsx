@@ -11,9 +11,9 @@ function ScanParticles({ scanning }) {
     const count = 200;
     const positions = new Float32Array(count * 3);
     for (let i = 0; i < count; i++) {
-      positions[i * 3] = ((Math.sin(i * 123.456) * 10000) % 1 - 0.5) * 4;
-      positions[i * 3 + 1] = ((Math.cos(i * 234.567) * 10000) % 1 - 0.5) * 4;
-      positions[i * 3 + 2] = ((Math.sin(i * 345.678) * 10000) % 1 - 0.5) * 2;
+      positions[i * 3] = (((Math.sin(i * 123.456) * 10000) % 1) - 0.5) * 4;
+      positions[i * 3 + 1] = (((Math.cos(i * 234.567) * 10000) % 1) - 0.5) * 4;
+      positions[i * 3 + 2] = (((Math.sin(i * 345.678) * 10000) % 1) - 0.5) * 2;
     }
     return { positions };
   }, []);
@@ -23,25 +23,31 @@ function ScanParticles({ scanning }) {
     if (meshRef.current) {
       meshRef.current.rotation.z = t * (scanning ? 0.8 : 0.2);
       meshRef.current.rotation.y = t * (scanning ? 0.5 : 0.1);
-      const material = meshRef.current.material ;
+      const material = meshRef.current.material;
       material.opacity = scanning ? 0.8 + Math.sin(t * 4) * 0.2 : 0.3;
       material.color.set(scanning ? "#7fb08c" : "#2563eb");
     }
     if (lineRef.current && scanning) {
       lineRef.current.position.y = Math.sin(t * 2) * 1.8;
-      const mat = lineRef.current.material ;
+      const mat = lineRef.current.material;
       mat.opacity = 0.6 + Math.sin(t * 6) * 0.3;
     }
   });
 
   return (
     <>
-    <points ref={meshRef}>
-      <bufferGeometry>
-        <bufferAttribute attach="attributes-position" args={[positions, 3]} />
-      </bufferGeometry>
-      <pointsMaterial size={0.06} transparent opacity={0.3} sizeAttenuation color="#2563eb" />
-    </points>
+      <points ref={meshRef}>
+        <bufferGeometry>
+          <bufferAttribute attach="attributes-position" args={[positions, 3]} />
+        </bufferGeometry>
+        <pointsMaterial
+          size={0.06}
+          transparent
+          opacity={0.3}
+          sizeAttenuation
+          color="#2563eb"
+        />
+      </points>
 
       {scanning && (
         <mesh ref={lineRef} position={[0, 0, 0]}>
@@ -50,11 +56,10 @@ function ScanParticles({ scanning }) {
         </mesh>
       )}
     </>
-  
   );
 }
 
-function DocGrid({ scanning } ) {
+function DocGrid({ scanning }) {
   const groupRef = useRef(null);
 
   useFrame((state) => {
@@ -87,12 +92,11 @@ function DocGrid({ scanning } ) {
               opacity={scanning && row < 4 ? 0.7 : 0.2}
             />
           </mesh>
-        ))
+        )),
       )}
     </group>
   );
 }
-
 
 export default function ScanAnimation({ scanning, className }) {
   return (
@@ -103,7 +107,11 @@ export default function ScanAnimation({ scanning, className }) {
         style={{ background: "transparent" }}
       >
         <ambientLight intensity={0.5} />
-        <pointLight position={[3, 3, 3]} intensity={scanning ? 1.2 : 0.5} color={scanning ? "#7fb08c" : "#2563eb"} />
+        <pointLight
+          position={[3, 3, 3]}
+          intensity={scanning ? 1.2 : 0.5}
+          color={scanning ? "#7fb08c" : "#2563eb"}
+        />
         <ScanParticles scanning={scanning} />
         <DocGrid scanning={scanning} />
       </Canvas>

@@ -25,31 +25,37 @@
  *   pnpm run test:pipeline
  */
 
-import { createClient } from '@supabase/supabase-js';
+import { createClient } from "@supabase/supabase-js";
 
 // ─────────────────────────────────────────────────────────────────────────
 // Configuration
 // ─────────────────────────────────────────────────────────────────────────
 
-const BASE_URL = process.env.TEST_BASE_URL ?? 'http://localhost:3001';
-const ACCESS_TOKEN = process.env.ACCESS_TOKEN ?? 'eyJhbGciOiJSUzI1NiIsInR5cCI6IkpXVCIsImtpZCI6ImtleS0xIn0.eyJzdWIiOiJlZWZhZGI5Ny02NjUwLTQ2ZGUtODRlOC01ODczYzdjZmQ3MTkiLCJzaWQiOiIzNDRiNTAwZi1jZjNiLTQwYTktOGI4OS04YTM3OTRhY2M4MWYiLCJpYXQiOjE3ODE2NDg5MDYsImV4cCI6MTc4MTY0OTgwNn0.usEh1eFs5CZpHwxThZ10115FjC7Gchrl-JTL6oIpZ6i8R7Q3vVZvyNKiD76V-3yzuZ-R174NZOIJOD2XMjM1GJhN5f9BEd0MHirM22avF2qPOA3zTR72jfzRu6BlUS8XzuTf_kkmqAAk62OS3vhq3NqxLgUPw2MDjXPuwSPZIkxltGCt6W7jTGQiLCr2uuaZ40LlbCii9a0WjoxqIZC39DvaF7mqEnIF6eqBu482ShwCXY6W_FZ--2JKwB-uviyFkzA65ulbh9B0eBN_cyiTgLzQSN8F86QjYtu7xLU0Kd2P4MXQuIzoXTfQSoyWnRnjmTUHI3Q0kdgm4dTNW83MUA';
+const BASE_URL = process.env.TEST_BASE_URL ?? "http://localhost:3001";
+const ACCESS_TOKEN =
+  process.env.ACCESS_TOKEN ??
+  "eyJhbGciOiJSUzI1NiIsInR5cCI6IkpXVCIsImtpZCI6ImtleS0xIn0.eyJzdWIiOiJlZWZhZGI5Ny02NjUwLTQ2ZGUtODRlOC01ODczYzdjZmQ3MTkiLCJzaWQiOiIzNDRiNTAwZi1jZjNiLTQwYTktOGI4OS04YTM3OTRhY2M4MWYiLCJpYXQiOjE3ODE2NDg5MDYsImV4cCI6MTc4MTY0OTgwNn0.usEh1eFs5CZpHwxThZ10115FjC7Gchrl-JTL6oIpZ6i8R7Q3vVZvyNKiD76V-3yzuZ-R174NZOIJOD2XMjM1GJhN5f9BEd0MHirM22avF2qPOA3zTR72jfzRu6BlUS8XzuTf_kkmqAAk62OS3vhq3NqxLgUPw2MDjXPuwSPZIkxltGCt6W7jTGQiLCr2uuaZ40LlbCii9a0WjoxqIZC39DvaF7mqEnIF6eqBu482ShwCXY6W_FZ--2JKwB-uviyFkzA65ulbh9B0eBN_cyiTgLzQSN8F86QjYtu7xLU0Kd2P4MXQuIzoXTfQSoyWnRnjmTUHI3Q0kdgm4dTNW83MUA";
 
-const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL ?? 'https://hjwhxqrgnfgvxjonlkpp.supabase.co';
-const SUPABASE_KEY = process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY ?? 'sb_publishable_6FRq83gzHBSbIvAeStecDQ_DkUDCwtq';
+const SUPABASE_URL =
+  process.env.NEXT_PUBLIC_SUPABASE_URL ??
+  "https://hjwhxqrgnfgvxjonlkpp.supabase.co";
+const SUPABASE_KEY =
+  process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY ??
+  "sb_publishable_6FRq83gzHBSbIvAeStecDQ_DkUDCwtq";
 
 const SSE_TIMEOUT_MS = 5 * 60 * 1000; // give up waiting for completion after 5 min
 
 if (!SUPABASE_URL || !SUPABASE_KEY) {
   console.error(
-    '❌ Missing NEXT_PUBLIC_SUPABASE_URL / NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY in env.',
+    "❌ Missing NEXT_PUBLIC_SUPABASE_URL / NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY in env.",
   );
   process.exit(1);
 }
 
-if (ACCESS_TOKEN === '<PASTE_YOUR_ACCESS_TOKEN_COOKIE_HERE>') {
+if (ACCESS_TOKEN === "<PASTE_YOUR_ACCESS_TOKEN_COOKIE_HERE>") {
   console.error(
-    '❌ Set ACCESS_TOKEN env var (or edit the script) with a real accessToken cookie value.\n' +
-      '   Example: ACCESS_TOKEN=eyJ... pnpm run test:pipeline',
+    "❌ Set ACCESS_TOKEN env var (or edit the script) with a real accessToken cookie value.\n" +
+      "   Example: ACCESS_TOKEN=eyJ... pnpm run test:pipeline",
   );
   process.exit(1);
 }
@@ -74,9 +80,9 @@ function logError(label: string, ...args: unknown[]): void {
 }
 
 function section(title: string): void {
-  console.log('\n' + '─'.repeat(70));
+  console.log("\n" + "─".repeat(70));
   console.log(title);
-  console.log('─'.repeat(70));
+  console.log("─".repeat(70));
 }
 
 // ─────────────────────────────────────────────────────────────────────────
@@ -133,14 +139,14 @@ Page 1
 // ─────────────────────────────────────────────────────────────────────────
 
 async function apiRequest<T = unknown>(
-  method: 'GET' | 'POST',
+  method: "GET" | "POST",
   path: string,
   body?: unknown,
 ): Promise<{ status: number; json: T }> {
   const res = await fetch(`${BASE_URL}${path}`, {
     method,
     headers: {
-      'Content-Type': 'application/json',
+      "Content-Type": "application/json",
       Cookie: `accessToken=${ACCESS_TOKEN}`,
     },
     body: body ? JSON.stringify(body) : undefined,
@@ -170,15 +176,23 @@ interface SignResponse {
   message?: string;
 }
 
-async function signUpload(fileName: string, fileSize: number, mimeType: string) {
-  section('STEP 1: POST /uploads/sign');
-  const { status, json } = await apiRequest<SignResponse>('POST', '/uploads/sign', {
-    fileName,
-    fileSize,
-    mimeType,
-  });
+async function signUpload(
+  fileName: string,
+  fileSize: number,
+  mimeType: string,
+) {
+  section("STEP 1: POST /uploads/sign");
+  const { status, json } = await apiRequest<SignResponse>(
+    "POST",
+    "/uploads/sign",
+    {
+      fileName,
+      fileSize,
+      mimeType,
+    },
+  );
 
-  log('sign', `status=${status}`, json);
+  log("sign", `status=${status}`, json);
 
   if (status !== 200 || !json.success) {
     throw new Error(`/uploads/sign failed: ${JSON.stringify(json)}`);
@@ -191,22 +205,26 @@ async function signUpload(fileName: string, fileSize: number, mimeType: string) 
 // Step 2: upload directly to Supabase Storage using the signed token
 // ─────────────────────────────────────────────────────────────────────────
 
-async function uploadToStorage(path: string, token: string, content: string): Promise<void> {
-  section('STEP 2: Upload file to Supabase Storage (uploadToSignedUrl)');
+async function uploadToStorage(
+  path: string,
+  token: string,
+  content: string,
+): Promise<void> {
+  section("STEP 2: Upload file to Supabase Storage (uploadToSignedUrl)");
 
-  const fileBuffer = Buffer.from(content, 'utf-8');
+  const fileBuffer = Buffer.from(content, "utf-8");
 
   const { data, error } = await supabase.storage
-    .from('documents')
+    .from("documents")
     .uploadToSignedUrl(path, token, fileBuffer, {
-      contentType: 'text/plain',
+      contentType: "text/plain",
     });
 
   if (error) {
     throw new Error(`uploadToSignedUrl failed: ${error.message}`);
   }
 
-  log('upload', 'uploaded successfully', data);
+  log("upload", "uploaded successfully", data);
 }
 
 // ─────────────────────────────────────────────────────────────────────────
@@ -223,13 +241,17 @@ interface CompleteResponse {
 }
 
 async function completeUpload(documentId: string, uploadSessionId: string) {
-  section('STEP 3: POST /uploads/complete');
-  const { status, json } = await apiRequest<CompleteResponse>('POST', '/uploads/complete', {
-    documentId,
-    uploadSessionId,
-  });
+  section("STEP 3: POST /uploads/complete");
+  const { status, json } = await apiRequest<CompleteResponse>(
+    "POST",
+    "/uploads/complete",
+    {
+      documentId,
+      uploadSessionId,
+    },
+  );
 
-  log('complete', `status=${status}`, json);
+  log("complete", `status=${status}`, json);
 
   if (status !== 200 || !json.success) {
     throw new Error(`/uploads/complete failed: ${JSON.stringify(json)}`);
@@ -253,13 +275,13 @@ interface AnalyzeResponse {
 }
 
 async function triggerAnalyze(documentId: string) {
-  section('STEP 4: POST /documents/:id/analyze');
+  section("STEP 4: POST /documents/:id/analyze");
   const { status, json } = await apiRequest<AnalyzeResponse>(
-    'POST',
+    "POST",
     `/documents/${documentId}/analyze`,
   );
 
-  log('analyze', `status=${status}`, json);
+  log("analyze", `status=${status}`, json);
 
   if (status !== 202) {
     throw new Error(`/documents/:id/analyze failed: ${JSON.stringify(json)}`);
@@ -272,24 +294,33 @@ async function triggerAnalyze(documentId: string) {
 // Step 5: test idempotency - call analyze again, expect same request
 // ─────────────────────────────────────────────────────────────────────────
 
-async function testIdempotency(documentId: string, firstAnalysisRequestId: string) {
-  section('STEP 5: Idempotency check - calling /analyze again');
+async function testIdempotency(
+  documentId: string,
+  firstAnalysisRequestId: string,
+) {
+  section("STEP 5: Idempotency check - calling /analyze again");
   const { status, json } = await apiRequest<AnalyzeResponse>(
-    'POST',
+    "POST",
     `/documents/${documentId}/analyze`,
   );
 
-  log('idempotency-check', `status=${status}`, json);
+  log("idempotency-check", `status=${status}`, json);
 
   if (json.analysisRequestId !== firstAnalysisRequestId) {
     logError(
-      'idempotency-check',
+      "idempotency-check",
       `MISMATCH! First request: ${firstAnalysisRequestId}, second: ${json.analysisRequestId}`,
     );
   } else if (json.deduplication?.isNewRequest === false) {
-    log('idempotency-check', '✅ PASSED - duplicate request correctly returned same analysisRequestId');
+    log(
+      "idempotency-check",
+      "✅ PASSED - duplicate request correctly returned same analysisRequestId",
+    );
   } else {
-    logError('idempotency-check', '⚠️  Unexpected: isNewRequest was true on a repeat call');
+    logError(
+      "idempotency-check",
+      "⚠️  Unexpected: isNewRequest was true on a repeat call",
+    );
   }
 }
 
@@ -304,14 +335,14 @@ interface SseEventRecord {
 }
 
 async function streamSse(documentId: string): Promise<SseEventRecord[]> {
-  section('STEP 6: GET /documents/:id/events (SSE)');
+  section("STEP 6: GET /documents/:id/events (SSE)");
 
   const events: SseEventRecord[] = [];
 
   const res = await fetch(`${BASE_URL}/documents/${documentId}/events`, {
     headers: {
       Cookie: `accessToken=${ACCESS_TOKEN}`,
-      Accept: 'text/event-stream',
+      Accept: "text/event-stream",
     },
   });
 
@@ -319,16 +350,20 @@ async function streamSse(documentId: string): Promise<SseEventRecord[]> {
     throw new Error(`SSE connection failed: status=${res.status}`);
   }
 
-  log('sse', 'connected, streaming events...');
+  log("sse", "connected, streaming events...");
 
   const reader = res.body.getReader();
   const decoder = new TextDecoder();
-  let buffer = '';
+  let buffer = "";
 
   return new Promise<SseEventRecord[]>((resolve, reject) => {
     const timeout = setTimeout(() => {
       reader.cancel().catch(() => {});
-      reject(new Error(`SSE timed out after ${SSE_TIMEOUT_MS / 1000}s waiting for completion`));
+      reject(
+        new Error(
+          `SSE timed out after ${SSE_TIMEOUT_MS / 1000}s waiting for completion`,
+        ),
+      );
     }, SSE_TIMEOUT_MS);
 
     function finish() {
@@ -348,13 +383,13 @@ async function streamSse(documentId: string): Promise<SseEventRecord[]> {
         buffer += decoder.decode(value, { stream: true });
 
         // SSE frames are separated by a blank line
-        const frames = buffer.split('\n\n');
-        buffer = frames.pop() ?? ''; // keep incomplete trailing frame in buffer
+        const frames = buffer.split("\n\n");
+        buffer = frames.pop() ?? ""; // keep incomplete trailing frame in buffer
 
         for (const frame of frames) {
-          if (!frame.trim() || frame.startsWith(':')) {
+          if (!frame.trim() || frame.startsWith(":")) {
             // comment / heartbeat frame
-            if (frame.includes('heartbeat')) log('sse', '💓 heartbeat');
+            if (frame.includes("heartbeat")) log("sse", "💓 heartbeat");
             continue;
           }
 
@@ -362,7 +397,7 @@ async function streamSse(documentId: string): Promise<SseEventRecord[]> {
           const eventMatch = frame.match(/^event: (.+)$/m);
           const dataMatch = frame.match(/^data: (.+)$/m);
 
-          const eventType = eventMatch?.[1]?.trim() ?? 'message';
+          const eventType = eventMatch?.[1]?.trim() ?? "message";
           const id = idMatch ? Number.parseInt(idMatch[1].trim(), 10) : null;
           let data: Record<string, unknown> = {};
           if (dataMatch) {
@@ -374,9 +409,14 @@ async function streamSse(documentId: string): Promise<SseEventRecord[]> {
           }
 
           events.push({ eventType, id, data });
-          log('sse', `event=${eventType}`, `progress=${data.progress ?? '-'}`, data.message ?? '');
+          log(
+            "sse",
+            `event=${eventType}`,
+            `progress=${data.progress ?? "-"}`,
+            data.message ?? "",
+          );
 
-          if (eventType === 'analysis_completed' || eventType === 'failed') {
+          if (eventType === "analysis_completed" || eventType === "failed") {
             finish();
             return;
           }
@@ -397,14 +437,17 @@ async function streamSse(documentId: string): Promise<SseEventRecord[]> {
 // Step 7: reconnect test - verify Last-Event-ID replay works
 // ─────────────────────────────────────────────────────────────────────────
 
-async function testSseReconnect(documentId: string, lastEventId: number): Promise<void> {
-  section('STEP 7: SSE reconnect test (Last-Event-ID replay)');
+async function testSseReconnect(
+  documentId: string,
+  lastEventId: number,
+): Promise<void> {
+  section("STEP 7: SSE reconnect test (Last-Event-ID replay)");
 
   const res = await fetch(`${BASE_URL}/documents/${documentId}/events`, {
     headers: {
       Cookie: `accessToken=${ACCESS_TOKEN}`,
-      Accept: 'text/event-stream',
-      'Last-Event-ID': String(lastEventId),
+      Accept: "text/event-stream",
+      "Last-Event-ID": String(lastEventId),
     },
   });
 
@@ -414,7 +457,7 @@ async function testSseReconnect(documentId: string, lastEventId: number): Promis
 
   const reader = res.body.getReader();
   const decoder = new TextDecoder();
-  let buffer = '';
+  let buffer = "";
   let receivedSnapshot = false;
   let replayedCount = 0;
 
@@ -429,16 +472,16 @@ async function testSseReconnect(documentId: string, lastEventId: number): Promis
       if (done) break;
       buffer += decoder.decode(value, { stream: true });
 
-      const frames = buffer.split('\n\n');
-      buffer = frames.pop() ?? '';
+      const frames = buffer.split("\n\n");
+      buffer = frames.pop() ?? "";
 
       for (const frame of frames) {
-        if (!frame.trim() || frame.startsWith(':')) continue;
+        if (!frame.trim() || frame.startsWith(":")) continue;
         const eventMatch = frame.match(/^event: (.+)$/m);
-        const eventType = eventMatch?.[1]?.trim() ?? 'message';
-        if (eventType === 'snapshot') receivedSnapshot = true;
+        const eventType = eventMatch?.[1]?.trim() ?? "message";
+        if (eventType === "snapshot") receivedSnapshot = true;
         else replayedCount += 1;
-        log('sse-reconnect', `event=${eventType}`);
+        log("sse-reconnect", `event=${eventType}`);
       }
     }
   } finally {
@@ -447,8 +490,10 @@ async function testSseReconnect(documentId: string, lastEventId: number): Promis
   }
 
   log(
-    'sse-reconnect',
-    receivedSnapshot ? '✅ snapshot received on reconnect' : '⚠️  no snapshot received',
+    "sse-reconnect",
+    receivedSnapshot
+      ? "✅ snapshot received on reconnect"
+      : "⚠️  no snapshot received",
     `(${replayedCount} replayed events after lastEventId=${lastEventId}, expected 0 since analysis already completed before this point)`,
   );
 }
@@ -458,17 +503,17 @@ async function testSseReconnect(documentId: string, lastEventId: number): Promis
 // ─────────────────────────────────────────────────────────────────────────
 
 async function main() {
-  console.log('═'.repeat(70));
-  console.log('  DOCUMENT ANALYSIS PIPELINE - END TO END TEST');
+  console.log("═".repeat(70));
+  console.log("  DOCUMENT ANALYSIS PIPELINE - END TO END TEST");
   console.log(`  Target: ${BASE_URL}`);
-  console.log('═'.repeat(70));
+  console.log("═".repeat(70));
 
   const fileContent = generateMockFileContent();
   const fileName = `pipeline-test-${Date.now()}.txt`;
-  const fileSize = Buffer.byteLength(fileContent, 'utf-8');
-  const mimeType = 'text/plain';
+  const fileSize = Buffer.byteLength(fileContent, "utf-8");
+  const mimeType = "text/plain";
 
-  log('mock-file', `name=${fileName} size=${fileSize} bytes`);
+  log("mock-file", `name=${fileName} size=${fileSize} bytes`);
 
   // 1. sign
   const signResult = await signUpload(fileName, fileSize, mimeType);
@@ -489,38 +534,43 @@ async function main() {
   const events = await streamSse(signResult.documentId);
 
   // 7. reconnect test using the last event id we saw
-  const lastEventId = events.length > 0 ? events[events.length - 1].id ?? 0 : 0;
+  const lastEventId =
+    events.length > 0 ? (events[events.length - 1].id ?? 0) : 0;
   if (lastEventId > 0) {
     await testSseReconnect(signResult.documentId, lastEventId);
   }
 
   // ── Final summary ──────────────────────────────────────────────────────
-  section('FINAL SUMMARY');
+  section("FINAL SUMMARY");
 
-  const completedEvent = events.find((e) => e.eventType === 'analysis_completed');
-  const failedEvent = events.find((e) => e.eventType === 'failed');
+  const completedEvent = events.find(
+    (e) => e.eventType === "analysis_completed",
+  );
+  const failedEvent = events.find((e) => e.eventType === "failed");
 
   console.log(`Document ID:        ${signResult.documentId}`);
   console.log(`Analysis Request ID: ${analyzeResult.analysisRequestId}`);
   console.log(`Total SSE events:    ${events.length}`);
-  console.log(`Event sequence:      ${events.map((e) => e.eventType).join(' → ')}`);
+  console.log(
+    `Event sequence:      ${events.map((e) => e.eventType).join(" → ")}`,
+  );
 
   if (completedEvent) {
-    console.log('\n✅ PIPELINE COMPLETED SUCCESSFULLY\n');
-    console.log('Processing summary payload:');
+    console.log("\n✅ PIPELINE COMPLETED SUCCESSFULLY\n");
+    console.log("Processing summary payload:");
     console.log(JSON.stringify(completedEvent.data.payload, null, 2));
   } else if (failedEvent) {
-    console.log('\n❌ PIPELINE FAILED\n');
-    console.log('Failure payload:');
+    console.log("\n❌ PIPELINE FAILED\n");
+    console.log("Failure payload:");
     console.log(JSON.stringify(failedEvent.data.payload, null, 2));
     process.exitCode = 1;
   } else {
-    console.log('\n⚠️  Stream ended without a terminal event (timeout?)\n');
+    console.log("\n⚠️  Stream ended without a terminal event (timeout?)\n");
     process.exitCode = 1;
   }
 }
 
 main().catch((err) => {
-  logError('fatal', err instanceof Error ? err.message : err);
+  logError("fatal", err instanceof Error ? err.message : err);
   process.exitCode = 1;
 });

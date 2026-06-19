@@ -33,7 +33,9 @@ export default function Navbar() {
             ? "hsla(222, 47%, 5%, 0.95)"
             : "hsla(222, 47%, 5%, 0.0)",
           backdropFilter: scrolled ? "blur(24px)" : "none",
-          borderBottom: scrolled ? "1px solid hsla(222, 25%, 16%, 0.6)" : "none",
+          borderBottom: scrolled
+            ? "1px solid hsla(222, 25%, 16%, 0.6)"
+            : "none",
           transition: "all 0.4s ease",
         }}
       >
@@ -93,9 +95,16 @@ export default function Navbar() {
           </Link>
 
           {/* Desktop Links */}
-          <div className="hidden md:flex" style={{ alignItems: "center", gap: "0.25rem" }}>
+          <div
+            className="hidden md:flex"
+            style={{ alignItems: "center", gap: "0.25rem" }}
+          >
             {navLinks.map((link) => (
-              <Link key={link.href} href={link.href} style={{ textDecoration: "none" }}>
+              <Link
+                key={link.href}
+                href={link.href}
+                style={{ textDecoration: "none" }}
+              >
                 <motion.span
                   whileHover={{ color: "hsl(220, 20%, 95%)" }}
                   style={{
@@ -124,8 +133,14 @@ export default function Navbar() {
           </div>
 
           {/* CTA + Mobile toggle */}
-          <div style={{ display: "flex", alignItems: "center", gap: "0.75rem" }}>
-            <Link href="/app" style={{ textDecoration: "none" }} className="hidden md:block">
+          <div
+            style={{ display: "flex", alignItems: "center", gap: "0.75rem" }}
+          >
+            <Link
+              href="/app"
+              style={{ textDecoration: "none" }}
+              className="hidden md:block"
+            >
               <motion.button
                 whileHover={{
                   scale: 1.03,
@@ -227,8 +242,16 @@ export default function Navbar() {
                 </motion.div>
               ))}
 
-              <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: 0.2 }}>
-                <Link href="/app" onClick={() => setMobileOpen(false)} style={{ textDecoration: "none" }}>
+              <motion.div
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                transition={{ delay: 0.2 }}
+              >
+                <Link
+                  href="/app"
+                  onClick={() => setMobileOpen(false)}
+                  style={{ textDecoration: "none" }}
+                >
                   <div
                     style={{
                       padding: "0.875rem 1rem",

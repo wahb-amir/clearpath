@@ -2,8 +2,6 @@
 
 import * as React from "react";
 
-
-
 export const FloatingInput = React.forwardRef(
   ({ label, error, className = "", rightSlot, id, ...props }, ref) => {
     return (
@@ -18,7 +16,9 @@ export const FloatingInput = React.forwardRef(
             "border-white/10 outline-none transition-all duration-200",
             "placeholder-transparent",
             "focus:border-[#00D4FF]/60 focus:ring-2 focus:ring-[#00D4FF]/10",
-            error ? "border-red-400/60 focus:border-red-400/70 focus:ring-red-400/10" : "",
+            error
+              ? "border-red-400/60 focus:border-red-400/70 focus:ring-red-400/10"
+              : "",
             rightSlot ? "pr-12" : "",
             className,
           ].join(" ")}
@@ -37,13 +37,15 @@ export const FloatingInput = React.forwardRef(
         </label>
 
         {rightSlot ? (
-          <div className="absolute inset-y-0 right-3 flex items-center">{rightSlot}</div>
+          <div className="absolute inset-y-0 right-3 flex items-center">
+            {rightSlot}
+          </div>
         ) : null}
 
         {error ? <p className="mt-2 text-xs text-red-300">{error}</p> : null}
       </div>
     );
-  }
+  },
 );
 
 FloatingInput.displayName = "FloatingInput";

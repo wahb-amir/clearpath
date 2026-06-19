@@ -1,5 +1,5 @@
-import { Pool, type PoolClient, type QueryResultRow } from 'pg';
-import { env } from '../config/env';
+import { Pool, type PoolClient, type QueryResultRow } from "pg";
+import { env } from "../config/env";
 
 /**
  * Raw `pg` pool used for everything requiring transactions, row locking
@@ -14,10 +14,10 @@ export const pgPool = new Pool({
   idleTimeoutMillis: 30_000,
 });
 
-pgPool.on('error', (err : unknown) => {
+pgPool.on("error", (err: unknown) => {
   // Idle client errors should not crash the process
   // eslint-disable-next-line no-console
-  console.error('[pg pool] unexpected error on idle client', err);
+  console.error("[pg pool] unexpected error on idle client", err);
 });
 
 /**
@@ -29,13 +29,13 @@ export async function withTransaction<T>(
 ): Promise<T> {
   const client = await pgPool.connect();
   try {
-    await client.query('BEGIN');
+    await client.query("BEGIN");
     const result = await fn(client);
-    await client.query('COMMIT');
+    await client.query("COMMIT");
     return result;
   } catch (err) {
     try {
-      await client.query('ROLLBACK');
+      await client.query("ROLLBACK");
     } catch {
       // ignore rollback errors - original error is what matters
     }

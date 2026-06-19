@@ -587,7 +587,8 @@ RULES (follow strictly):
         {
           task: "Stage 1 — Document Understanding",
           document_text: sourceText,
-          instructions: "Analyze the document and return the JSON object below. Every field is required.",
+          instructions:
+            "Analyze the document and return the JSON object below. Every field is required.",
           output_shape: {
             document_type: [
               "notice",
@@ -598,7 +599,8 @@ RULES (follow strictly):
               "instruction",
               "other",
             ],
-            primary_topic: "3-6 word plain-English label (e.g. 'School meal application deadline')",
+            primary_topic:
+              "3-6 word plain-English label (e.g. 'School meal application deadline')",
             intended_audience: [
               "student",
               "parent",
@@ -607,15 +609,21 @@ RULES (follow strictly):
               "other",
               "unclear",
             ],
-            is_support_related: "boolean — true if the document concerns benefits, programs, or assistance",
-            possible_user_problem: "One plain sentence describing the main worry a reader might have (e.g. 'I might miss the deadline to keep my free lunch benefit')",
+            is_support_related:
+              "boolean — true if the document concerns benefits, programs, or assistance",
+            possible_user_problem:
+              "One plain sentence describing the main worry a reader might have (e.g. 'I might miss the deadline to keep my free lunch benefit')",
             contains_deadlines: "boolean",
             contains_actions: "boolean — true if the reader must DO something",
-            contains_risks: "boolean — true if failing to act leads to a negative outcome",
-            needs_human_review: "boolean — REQUIRED true for legal, medical, immigration, benefit-eligibility, or appeal content",
-            human_review_reason: "One sentence explaining WHY a human expert should review this, or 'Low-risk document, standard AI review is sufficient'",
+            contains_risks:
+              "boolean — true if failing to act leads to a negative outcome",
+            needs_human_review:
+              "boolean — REQUIRED true for legal, medical, immigration, benefit-eligibility, or appeal content",
+            human_review_reason:
+              "One sentence explaining WHY a human expert should review this, or 'Low-risk document, standard AI review is sufficient'",
             document_language: ["en", "es", "ur", "other", "unclear"],
-            confidence: "number 0-1 reflecting how clearly you can understand this document",
+            confidence:
+              "number 0-1 reflecting how clearly you can understand this document",
           },
         },
         null,
@@ -868,12 +876,14 @@ YOUR RULES:
           },
           verified_items: verified,
           output_shape: {
-            ai_summary: "2-4 sentences. Plain English. Start with what the document IS, then what to DO and by WHEN.",
+            ai_summary:
+              "2-4 sentences. Plain English. Start with what the document IS, then what to DO and by WHEN.",
             action_items: [
               {
                 text: "Start with a verb. One clear action per item (e.g. 'Call the school attendance office at the number on the top of this letter')",
                 priority: "high | medium | low  — high if missing causes harm",
-                supporting_evidence: "Direct quote or reference from the document that supports this action",
+                supporting_evidence:
+                  "Direct quote or reference from the document that supports this action",
               },
             ],
             key_deadlines: [
@@ -881,7 +891,8 @@ YOUR RULES:
                 text: "The deadline as stated (e.g. 'October 4, 2025' or 'within 10 days of receiving this notice')",
                 meaning: "Why this deadline matters and what happens if missed",
                 priority: "high | medium | low",
-                supporting_evidence: "The exact sentence from the document that mentions this deadline",
+                supporting_evidence:
+                  "The exact sentence from the document that mentions this deadline",
               },
             ],
             questions_to_ask: [
@@ -898,11 +909,14 @@ YOUR RULES:
               {
                 title: "Title of the official source",
                 url: "MUST come from official_source_snippets — do not invent URLs",
-                why_it_matters: "One sentence explaining how this source helps the reader",
+                why_it_matters:
+                  "One sentence explaining how this source helps the reader",
               },
             ],
-            needs_human_review: "boolean — true if ANY action item, deadline, or eligibility decision requires professional verification",
-            human_review_reason: "One sentence explaining the specific concern that requires human review",
+            needs_human_review:
+              "boolean — true if ANY action item, deadline, or eligibility decision requires professional verification",
+            human_review_reason:
+              "One sentence explaining the specific concern that requires human review",
           },
         },
         null,

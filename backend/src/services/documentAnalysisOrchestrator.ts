@@ -2,13 +2,13 @@ import { pgPool, withTransaction } from "../db/pool";
 import { getGroqModel } from "../lib/llm/groqClient";
 import type {
   DocumentAnalysisJobData,
-  NormalizedDocument
+  NormalizedDocument,
 } from "../types/documentAnalysis";
 import {
   failAnalysisResult,
   finalizeAnalysisResult,
   getOrCreatePendingAnalysisResult,
-  loadAnalysisResultByRequestId
+  loadAnalysisResultByRequestId,
 } from "./documentAnalysisResultRepository";
 import { runClearPathPipeline } from "./documentAnalysisPipeline";
 
@@ -36,24 +36,30 @@ interface DocumentRow {
 
 function buildSourceTextFromRows(
   sections: DocumentSectionRow[],
-  facts: DocumentFactRow[]
+  facts: DocumentFactRow[],
 ): string {
   const sectionsText = sections
     .sort((a, b) => a.order_index - b.order_index)
-    .map((section) => [section.title, section.text_content].filter(Boolean).join("\n"))
+    .map((section) =>
+      [section.title, section.text_content].filter(Boolean).join("\n"),
+    )
     .filter(Boolean);
 
-  const factsText = facts.map((fact) => `${fact.fact_type}: ${fact.normalized_value ?? fact.value}`);
+  const factsText = facts.map(
+    (fact) => `${fact.fact_type}: ${fact.normalized_value ?? fact.value}`,
+  );
   return [...sectionsText, ...factsText].join("\n\n").trim();
 }
 
-export async function loadNormalizedDocument(documentId: string): Promise<NormalizedDocument> {
+export async function loadNormalizedDocument(
+  documentId: string,
+): Promise<NormalizedDocument> {
   const docResult = await pgPool.query<DocumentRow>(
     `SELECT id, user_id, language, mime_type
        FROM documents
       WHERE id = $1
       LIMIT 1`,
-    [documentId]
+    [documentId],
   );
 
   if (docResult.rowCount === 0) {
@@ -67,17 +73,20 @@ export async function loadNormalizedDocument(documentId: string): Promise<Normal
        FROM document_sections
       WHERE document_id = $1
       ORDER BY order_index ASC`,
-    [documentId]
+    [documentId],
   );
 
   const factsResult = await pgPool.query<DocumentFactRow>(
     `SELECT fact_type, value, normalized_value
        FROM document_facts
       WHERE document_id = $1`,
-    [documentId]
+    [documentId],
   );
 
-  const sourceText = buildSourceTextFromRows(sectionsResult.rows, factsResult.rows);
+  const sourceText = buildSourceTextFromRows(
+    sectionsResult.rows,
+    factsResult.rows,
+  );
 
   return {
     document_id: doc.id,
@@ -90,33 +99,46 @@ export async function loadNormalizedDocument(documentId: string): Promise<Normal
       title: section.title,
       content: section.text_content ?? "",
       parent_id: section.parent_section_id,
-      order: section.order_index
+      order: section.order_index,
     })),
     entities: {
       dates: factsResult.rows
-        .filter((fact) => fact.fact_type === "date" || fact.fact_type === "deadline")
+        .filter(
+          (fact) => fact.fact_type === "date" || fact.fact_type === "deadline",
+        )
         .map((fact) => fact.normalized_value ?? fact.value),
       contacts: factsResult.rows
-        .filter((fact) => fact.fact_type === "email" || fact.fact_type === "phone")
+        .filter(
+          (fact) => fact.fact_type === "email" || fact.fact_type === "phone",
+        )
         .map((fact) => fact.normalized_value ?? fact.value),
       urls: factsResult.rows
-        .filter((fact) => fact.fact_type === "url" || fact.fact_type === "website")
+        .filter(
+          (fact) => fact.fact_type === "url" || fact.fact_type === "website",
+        )
         .map((fact) => fact.normalized_value ?? fact.value),
       names: factsResult.rows
-        .filter((fact) => fact.fact_type === "name" || fact.fact_type === "organization")
-        .map((fact) => fact.normalized_value ?? fact.value)
-    }
+        .filter(
+          (fact) =>
+            fact.fact_type === "name" || fact.fact_type === "organization",
+        )
+        .map((fact) => fact.normalized_value ?? fact.value),
+    },
   };
 }
 
-
 export async function runAndPersistDocumentAnalysis(
-  jobData: DocumentAnalysisJobData
+  jobData: DocumentAnalysisJobData,
 ) {
   const model = getGroqModel();
 
-  const existing = await loadAnalysisResultByRequestId(jobData.analysisRequestId);
-  if (existing?.status === "completed" || existing?.status === "review_required") {
+  const existing = await loadAnalysisResultByRequestId(
+    jobData.analysisRequestId,
+  );
+  if (
+    existing?.status === "completed" ||
+    existing?.status === "review_required"
+  ) {
     return existing;
   }
 
@@ -126,7 +148,7 @@ export async function runAndPersistDocumentAnalysis(
             worker_id = COALESCE(worker_id, $2),
             started_at = COALESCE(started_at, now())
       WHERE id = $1`,
-    [jobData.analysisRequestId, process.env.WORKER_ID ?? "clearpath-ai-worker"]
+    [jobData.analysisRequestId, process.env.WORKER_ID ?? "clearpath-ai-worker"],
   );
 
   await withTransaction(async (client) => {
@@ -135,7 +157,7 @@ export async function runAndPersistDocumentAnalysis(
       jobData.analysisRequestId,
       jobData.documentId,
       jobData.userId,
-      model
+      model,
     );
   });
 
@@ -143,7 +165,7 @@ export async function runAndPersistDocumentAnalysis(
 
   try {
     const result = await runClearPathPipeline(document, {
-      maxSearchResultsPerQuery: 5
+      maxSearchResultsPerQuery: 5,
     });
 
     await withTransaction(async (client) => {
@@ -152,7 +174,7 @@ export async function runAndPersistDocumentAnalysis(
         documentId: jobData.documentId,
         userId: jobData.userId,
         model,
-        result
+        result,
       });
     });
 
@@ -161,12 +183,13 @@ export async function runAndPersistDocumentAnalysis(
           SET status = 'COMPLETED',
               finished_at = now()
         WHERE id = $1`,
-      [jobData.analysisRequestId]
+      [jobData.analysisRequestId],
     );
 
     return result;
   } catch (error) {
-    const message = error instanceof Error ? error.message : "Unknown analysis failure";
+    const message =
+      error instanceof Error ? error.message : "Unknown analysis failure";
 
     await withTransaction(async (client) => {
       await failAnalysisResult(
@@ -175,7 +198,7 @@ export async function runAndPersistDocumentAnalysis(
         jobData.documentId,
         jobData.userId,
         model,
-        message
+        message,
       );
     });
 
@@ -185,11 +208,9 @@ export async function runAndPersistDocumentAnalysis(
               error_message = $2,
               finished_at = now()
         WHERE id = $1`,
-      [jobData.analysisRequestId, message]
+      [jobData.analysisRequestId, message],
     );
 
     throw error;
   }
 }
-
-

@@ -1,19 +1,19 @@
-import type { PoolClient } from 'pg';
-import { withTransaction } from '../db/pool';
-import { env } from '../config/env';
+import type { PoolClient } from "pg";
+import { withTransaction } from "../db/pool";
+import { env } from "../config/env";
 import {
   DocumentNotFoundError,
   ForbiddenDocumentAccessError,
   UploadNotCompleteError,
-} from '../types/errors';
+} from "../types/errors";
 import type {
   AnalysisRequestRow,
   AnalysisRequestedOutboxPayload,
   AnalyzeResponseDto,
   DocumentRow,
-} from '../types/dtos';
-import { deriveIdempotencyKey } from '../utils/idempotency';
-import { isInFlight, isTerminal } from '../types/pipelineStatus';
+} from "../types/dtos";
+import { deriveIdempotencyKey } from "../utils/idempotency";
+import { isInFlight, isTerminal } from "../types/pipelineStatus";
 
 interface TriggerAnalysisParams {
   documentId: string;
@@ -66,7 +66,7 @@ export async function triggerAnalysis(
     }
 
     // 3. Validate upload status
-    if (doc.upload_status !== 'UPLOADED') {
+    if (doc.upload_status !== "UPLOADED") {
       throw new UploadNotCompleteError(params.documentId, doc.upload_status);
     }
 
@@ -92,7 +92,7 @@ export async function triggerAnalysis(
       const existing = existingByKey.rows[0];
       return buildResponse(doc, existing, {
         isNewRequest: false,
-        reason: 'idempotency_key_match: returning existing analysis request',
+        reason: "idempotency_key_match: returning existing analysis request",
       });
     }
 
@@ -112,7 +112,8 @@ export async function triggerAnalysis(
       if (inFlightRequest.rows.length > 0) {
         return buildResponse(doc, inFlightRequest.rows[0], {
           isNewRequest: false,
-          reason: 'document_already_in_flight: returning active analysis request',
+          reason:
+            "document_already_in_flight: returning active analysis request",
         });
       }
     }
@@ -141,7 +142,8 @@ export async function triggerAnalysis(
       );
       return buildResponse(doc, fallback.rows[0], {
         isNewRequest: false,
-        reason: 'idempotency_key_match: returning existing analysis request (race)',
+        reason:
+          "idempotency_key_match: returning existing analysis request (race)",
       });
     }
 
@@ -186,16 +188,16 @@ export async function triggerAnalysis(
     await insertPipelineEvent(client, {
       documentId: params.documentId,
       userId: params.userId,
-      eventType: 'queued',
-      stage: 'QUEUED',
-      message: 'Analysis request queued',
+      eventType: "queued",
+      stage: "QUEUED",
+      message: "Analysis request queued",
       progress: 0,
       payload: { analysisRequestId: analysisRequest.id },
     });
 
     return buildResponse(updatedDoc.rows[0], updatedRequest.rows[0], {
       isNewRequest: true,
-      reason: 'new_analysis_request_created',
+      reason: "new_analysis_request_created",
     });
   });
 }

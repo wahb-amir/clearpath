@@ -72,7 +72,8 @@ export default function QuestionsCard({ result }) {
           lineHeight: 1.6,
         }}
       >
-        Bring these questions to your school office, counselor, or support worker:
+        Bring these questions to your school office, counselor, or support
+        worker:
       </p>
 
       <div style={{ display: "flex", flexDirection: "column", gap: "0.5rem" }}>
@@ -160,7 +161,8 @@ export default function QuestionsCard({ result }) {
             lineHeight: 1.5,
           }}
         >
-          These questions are AI-suggested to help you get clarity from a human expert.
+          These questions are AI-suggested to help you get clarity from a human
+          expert.
         </p>
       </div>
     </motion.div>

@@ -1,4 +1,4 @@
-import type { DocumentQuality } from '../../types/pipelineStatus';
+import type { DocumentQuality } from "../../types/pipelineStatus";
 
 export interface QualityEstimate {
   quality: DocumentQuality;
@@ -18,10 +18,10 @@ export function estimateQuality(params: {
   const score = ocrConfidence * 0.7 + textCoverage * 0.3;
 
   let quality: DocumentQuality;
-  if (score >= 0.85) quality = 'good';
-  else if (score >= 0.6) quality = 'medium';
-  else if (score > 0) quality = 'poor';
-  else quality = 'unknown';
+  if (score >= 0.85) quality = "good";
+  else if (score >= 0.6) quality = "medium";
+  else if (score > 0) quality = "poor";
+  else quality = "unknown";
 
   return { quality, ocrConfidence, textCoverage };
 }

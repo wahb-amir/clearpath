@@ -39,12 +39,12 @@ export function createAnalysisWorker(): Worker<AnalysisJobData> {
   );
 
   worker.on("active", (job) => {
-  console.log("[analysis-worker] ACTIVE", job.id);
-});
+    console.log("[analysis-worker] ACTIVE", job.id);
+  });
 
-worker.on("completed", (job) => {
-  console.log("[analysis-worker] COMPLETED", job.id);
-});
+  worker.on("completed", (job) => {
+    console.log("[analysis-worker] COMPLETED", job.id);
+  });
 
   worker.on("failed", (job, err) => {
     console.error("[analysis-worker] FAILED", job?.id, err);
@@ -57,7 +57,9 @@ worker.on("completed", (job) => {
   return worker;
 }
 
-export async function processAnalysisJob(job: Job<AnalysisJobData>): Promise<void> {
+export async function processAnalysisJob(
+  job: Job<AnalysisJobData>,
+): Promise<void> {
   const {
     documentId,
     analysisRequestId,
@@ -66,11 +68,7 @@ export async function processAnalysisJob(job: Job<AnalysisJobData>): Promise<voi
     mimeType,
     analysisVersion,
   } = job.data;
-  console.log(
-  "[analysis-worker] START",
-  job.id,
-  job.data.documentId,
-);
+  console.log("[analysis-worker] START", job.id, job.data.documentId);
   const workerId = env.WORKER_ID;
 
   const docResult = await pgPool.query<DocumentRow>(
