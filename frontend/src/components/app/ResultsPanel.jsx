@@ -170,23 +170,67 @@ function AnalyzingState() {
 }
 
 export default function ResultsPanel({ currentDoc, analyzing, aiResult }) {
-  const result = aiResult ?? currentDoc?.result ?? null;
+  const rawResult = aiResult ?? currentDoc?.result ?? null;
+
+  // 1. Convert decimal scores to "high", "medium", "low"
+  const getConfidenceLevel = (score) => {
+    if (score >= 0.8) return "high";
+    if (score >= 0.5) return "medium";
+    return "low";
+  };
+
+  // 2. Format the aiConfidence object into the array the ConfidenceCard expects
+  const formatConfidence = (aiConfidence) => {
+    if (!aiConfidence) return [];
+    
+    // Convert object { actions: 0.8, overall: 0.8 } into array of objects
+    return Object.entries(aiConfidence)
+      .filter(([key, score]) => score > 0) // Hide categories with 0 confidence (like deadlines)
+      .map(([key, score]) => ({
+        label: key.charAt(0).toUpperCase() + key.slice(1), // Capitalize first letter
+        level: getConfidenceLevel(score),
+        note: `Scored ${score * 100}% based on document analysis.`
+      }));
+  };
+
+  // 3. The Data Adapter: Reshape the backend JSON for the frontend
+  const normalizedResult = rawResult ? {
+    ...rawResult,
+    // Summary already matches, but we include title if available
+    title: rawResult.title || "Document Analysis",
+    
+    // ChecklistCard expects an array of strings, backend gives array of objects
+    actions: rawResult.actionItems?.map(item => item.text) || [],
+    
+    // DeadlinesCard expects 'deadlines'
+    deadlines: rawResult.keyDeadlines || [],
+    
+    // QuestionsCard expects 'questions'
+    questions: rawResult.questionsToAsk || [],
+    
+    // SourcesCard expects 'sources'
+    sources: rawResult.trustedSources || [],
+    
+    // ConfidenceCard expects array of objects
+    confidence: formatConfidence(rawResult.aiConfidence)
+  } : null;
 
   return (
     <AnimatePresence mode="wait">
-      {result ? (
+      {normalizedResult ? (
         <motion.div
           key="results"
           initial={{ opacity: 0, y: 10 }}
           animate={{ opacity: 1, y: 0 }}
           style={{ display: "flex", flexDirection: "column", gap: "1rem" }}
         >
-          <SummaryCard result={result} />
-          <ChecklistCard result={result} />
-          <DeadlinesCard result={result} />
-          <QuestionsCard result={result} />
-          <ConfidenceCard result={result} />
-          <SourcesCard result={result} />
+          <SummaryCard result={normalizedResult} />
+          {/* Only render cards if they actually have data to show */}
+          {normalizedResult.actions?.length > 0 && <ChecklistCard result={normalizedResult} />}
+          {normalizedResult.deadlines?.length > 0 && <DeadlinesCard result={normalizedResult} />}
+          {normalizedResult.questions?.length > 0 && <QuestionsCard result={normalizedResult} />}
+          {normalizedResult.confidence?.length > 0 && <ConfidenceCard result={normalizedResult} />}
+          {normalizedResult.sources?.length > 0 && <SourcesCard result={normalizedResult} />}
         </motion.div>
       ) : analyzing ? (
         <AnalyzingState key="analyzing" />

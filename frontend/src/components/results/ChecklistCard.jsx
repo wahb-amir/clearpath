@@ -12,7 +12,7 @@ export default function ChecklistCard({ result }) {
   const [checked, setChecked] = useState(new Set());
 
   const actions = result?.actions || [];
-
+  
   const toggle = (i) => {
     setChecked((prev) => {
       const next = new Set(prev);
