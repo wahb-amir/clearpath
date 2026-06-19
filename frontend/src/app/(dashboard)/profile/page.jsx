@@ -1,6 +1,7 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState } from "react";
+import useSWR from "swr"; 
 import { motion } from "framer-motion";
 import {
   User,
@@ -11,57 +12,32 @@ import {
   FileText,
   Sparkles,
   HelpCircle,
-  Edit,
 } from "lucide-react";
-import { apiFetch } from "@/lib/auth/apiFetch";
+import { apiFetch } from "@/lib/auth/apiFetch"; // ◄ Added back missing import
 
 const API_BASE_URL = (process.env.NEXT_PUBLIC_BACKEND_URL || "").replace(
   /\/$/,
   "",
 );
 
+const profileEndpoint = API_BASE_URL
+  ? `${API_BASE_URL}/auth/me`
+  : "http://localhost:3001/auth/me";
+
 export default function ProfilePage() {
   const [isEditing, setIsEditing] = useState(false);
-  const [user, setUser] = useState(null);
-  const [isLoading, setIsLoading] = useState(true);
-  const [error, setError] = useState(null);
 
-  useEffect(() => {
-    const loadUserProfile = async () => {
-      try {
-        setIsLoading(true);
-        setError(null);
+  // Unwraps the nested database structure immediately into `user`
+  const { data: user, error, isLoading } = useSWR(profileEndpoint, async (url) => {
+    const response = await apiFetch(url);
+    if (!response.ok) {
+      throw new Error(`Server returned status code: ${response.status}`);
+    }
+    const payload = await response.json();
+    return payload?.user || payload;
+  });
 
-        const targetUrl = API_BASE_URL
-          ? `${API_BASE_URL}/auth/me`
-          : "http://localhost:3001/auth/me";
-        const response = await apiFetch(targetUrl, {});
-
-        if (!response.ok) {
-          throw new Error(`Server returned status code: ${response.status}`);
-        }
-
-        const payload = await response.json();
-
-        // Defensive Check: Handle both nested response layouts safely
-        const userData = payload?.user || payload;
-        setUser(userData);
-      } catch (err) {
-        console.error("🚨 Catch Block Caught Local Exception:", err);
-        setError(
-          err instanceof Error
-            ? err.message
-            : "Failed to parse system response.",
-        );
-      } finally {
-        setIsLoading(false);
-      }
-    };
-
-    loadUserProfile();
-  }, []);
-
-  // Loading/Skeleton state
+  // Loading state (only renders on first mount)
   if (isLoading) {
     return (
       <div className="mx-auto max-w-5xl p-4 md:p-8 animate-pulse">
@@ -77,7 +53,7 @@ export default function ProfilePage() {
     );
   }
 
-  // Error fallback interface
+  // Error fallback interface checking the `user` object directly
   if (error || !user) {
     return (
       <div className="mx-auto max-w-5xl p-4 md:p-8 text-center mt-12">
@@ -85,7 +61,7 @@ export default function ProfilePage() {
           Could not load profile data.
         </p>
         <p className="text-sm text-slate-500 mt-2">
-          {error || "Reason: Empty data layout."}
+          {error?.message || "Reason: Empty data layout."}
         </p>
         <button
           type="button"
@@ -107,7 +83,6 @@ export default function ProfilePage() {
   const docsCount = user?.documentsAnalyzedCount || 0;
   const deadlinesCount = user?.deadlinesTrackedCount || 0;
 
-  // Format ISO timestamps into readable strings safely
   const joinedDate = user?.created_at
     ? new Date(user.created_at).toLocaleDateString(undefined, {
         year: "numeric",
@@ -116,7 +91,6 @@ export default function ProfilePage() {
       })
     : user?.joinedDate || "Recent";
 
-  // Generate dynamic initials safely from space-split names
   const userInitials =
     displayName
       .trim()
@@ -136,7 +110,6 @@ export default function ProfilePage() {
 
       <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
         <div className="space-y-6 lg:col-span-2">
-          {/* Profile Header Card */}
           <motion.div
             initial={{ opacity: 0, y: 10 }}
             animate={{ opacity: 1, y: 0 }}
@@ -231,7 +204,6 @@ export default function ProfilePage() {
             )}
           </motion.div>
 
-          {/* Account Settings / Privacy */}
           <motion.div
             initial={{ opacity: 0, y: 10 }}
             animate={{ opacity: 1, y: 0 }}
@@ -283,7 +255,6 @@ export default function ProfilePage() {
         </div>
 
         <div className="space-y-6">
-          {/* Stats */}
           <motion.div
             initial={{ opacity: 0, x: 10 }}
             animate={{ opacity: 1, x: 0 }}
