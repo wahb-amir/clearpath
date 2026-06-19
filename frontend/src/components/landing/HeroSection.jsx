@@ -8,7 +8,7 @@ import { useIsMobile } from "@/lib/useIsMobile";
 
 const FloatingDocument = dynamic(
   () => import("@/components/3d/FloatingDocument"),
-  { ssr: false }
+  { ssr: false },
 );
 
 const trustBadges = [
@@ -167,24 +167,18 @@ export default function HeroSection() {
               marginBottom: "2.5rem",
             }}
           >
-            <Link href="/app">
-              <motion.button
-                whileHover={{ scale: 1.04 }}
-                whileTap={{ scale: 0.97 }}
-                style={{
-                  padding: "0.875rem 1.75rem",
-                  borderRadius: "12px",
-                  background:
-                    "linear-gradient(135deg, hsl(221, 83%, 53%), hsl(221, 83%, 53%))",
-                  border: "none",
-                  color: "white",
-                  fontWeight: 700,
-                  cursor: "pointer",
-                }}
-              >
-                Try Free Demo <ArrowRight size={16} />
-              </motion.button>
-            </Link>
+            <motion.div style={{ marginTop: "2.5rem", textAlign: "center" }}>
+              <div className="flex justify-center items-center">
+                <Link href="/app">
+                  <button
+                    className="flex gap-2 bg-blue-600 hover:bg-blue-700 px-6 py-2 rounded-[10px]
+          font-semibold duration-200 transition-all cursor-pointer"
+                  >
+                    Try Free Demo <ArrowRight />
+                  </button>
+                </Link>
+              </div>
+            </motion.div>
           </motion.div>
 
           {/* TRUST BADGES FIXED */}
@@ -231,6 +225,5 @@ export default function HeroSection() {
         </motion.div>
       </div>
     </section>
- 
-);
+  );
 }
