@@ -198,21 +198,13 @@ export default function AboutPage() {
         </div>
 
         {/* CTA */}
-        <motion.div style={{ marginTop: "4rem", textAlign: "center" }}>
+<motion.div style={{ marginTop: "4rem", textAlign: "center" }}>
+          <div className="flex justify-center items-center">
           <Link href="/app">
-            <button
-              style={{
-                padding: "1rem 2rem",
-                borderRadius: "12px",
-                background: "hsl(221, 83%, 53%)",
-                color: "white",
-                fontWeight: 700,
-                border: "none",
-                cursor: "pointer",
-              }}
-            >
-              Open Dashboard <ArrowRight size={16} />
-            </button>
+          <button className="flex gap-2 bg-blue-600 hover:bg-blue-700 px-6 py-2 rounded-[10px]
+          font-semibold duration-200 transition-all cursor-pointer">
+            Open Dashboard <ArrowRight />
+          </button>
           </Link>
           </div>
         </motion.div>
