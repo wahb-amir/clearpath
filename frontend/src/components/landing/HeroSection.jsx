@@ -167,7 +167,7 @@ export default function HeroSection() {
               marginBottom: "2.5rem",
             }}
           >
-            <Link href="/analyze">
+            <Link href="/app">
               <motion.button
                 whileHover={{ scale: 1.04 }}
                 whileTap={{ scale: 0.97 }}

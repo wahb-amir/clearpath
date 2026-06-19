@@ -199,7 +199,7 @@ export default function AboutPage() {
 
         {/* CTA */}
         <motion.div style={{ marginTop: "4rem", textAlign: "center" }}>
-          <Link href="/analyze">
+          <Link href="/app">
             <button
               style={{
                 padding: "1rem 2rem",
@@ -214,6 +214,7 @@ export default function AboutPage() {
               Open Dashboard <ArrowRight size={16} />
             </button>
           </Link>
+          </div>
         </motion.div>
       </div>
     </div>
