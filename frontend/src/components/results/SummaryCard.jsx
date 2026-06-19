@@ -140,16 +140,7 @@ export default function SummaryCard({ result }) {
             border: "1px solid hsla(221, 83%, 53%, 0.12)",
           }}
         >
-          <Info size={11} color="hsl(221, 83%, 53%)" />
-          <span
-            style={{
-              color: "hsl(191, 100%, 50%)",
-              fontSize: "0.72rem",
-              fontWeight: 500,
-            }}
-          >
-            Review all items with official source
-          </span>
+          
         </div>
       </div>
     </motion.div>

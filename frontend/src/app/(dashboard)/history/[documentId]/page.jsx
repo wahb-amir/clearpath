@@ -8,7 +8,6 @@ import {
   Loader2,
   ArrowLeft,
   Terminal,
-  FileCheck,
   Info,
   AlertOctagon,
 } from "lucide-react";
@@ -21,6 +20,16 @@ import DeadlinesCard from "@/components/results/DeadlinesCard";
 import QuestionsCard from "@/components/results/QuestionsCard";
 import ConfidenceCard from "@/components/results/ConfidenceCard";
 import SourcesCard from "@/components/results/SourcesCard";
+
+// Clean modular Skeleton component for easy re-use
+function Skeleton({ className, ...props }) {
+  return (
+    <div
+      className={`animate-pulse rounded-md bg-slate-800/50 ${className}`}
+      {...props}
+    />
+  );
+}
 
 export default function RunDetailPage() {
   const { documentId } = useParams();
@@ -127,12 +136,13 @@ export default function RunDetailPage() {
     };
   }, [run?.status, documentId]);
 
-  // Scroll terminal logs on loading historical lists
+  // FIX: Concurrently track active status before focusing terminal window
+  // Keeps historical views stationary on mount while maintaining tracking parameters for active processing tasks
   useEffect(() => {
-    if (events.length > 0) {
+    if (run?.status === "running" && events.length > 0) {
       terminalEndRef.current?.scrollIntoView({ behavior: "smooth" });
     }
-  }, [events.length]);
+  }, [events.length, run?.status]);
 
   // Interactive Checklist Action State Management & Debounced Sync
   const handleToggleActionItem = (index) => {
@@ -178,7 +188,6 @@ export default function RunDetailPage() {
 
         if (!response.ok) {
           console.error(`Failed synchronization frame check for action item index ${index}`);
-          // Optional: Re-fetch details here if you want to roll back the UI state on hard system failures
         }
       } catch (err) {
         console.error("Failed synchronizing state changes out to repository layer:", err);
@@ -207,13 +216,11 @@ export default function RunDetailPage() {
   };
 
   // Convert schema layout shape to match exact expectations of subcomponent cards
-
   const getNormalizedResult = () => {
     if (!run) return null;
     return {
       ...run,
       title: run.title || run.fileName || "Document Analysis",
-    
       actions: run.actionItems?.map((item) => {
         if (typeof item === "object" && item !== null) {
           return item;
@@ -226,13 +233,31 @@ export default function RunDetailPage() {
       confidence: formatConfidence(run.aiConfidence),
     };
   };
+
   if (isLoading) {
     return (
-      <div className="flex flex-col items-center justify-center min-h-[60vh] gap-4">
-        <Loader2 className="text-blue-500 animate-spin" size={32} />
-        <p className="text-slate-400 text-sm font-mono">
-          Hydrating analytical timeline arrays...
-        </p>
+      <div className="p-4 md:p-8 max-w-7xl mx-auto space-y-6">
+        {/* HEADER SKELETON */}
+        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 border-b border-slate-800/60 pb-5">
+          <div className="space-y-2 w-full max-w-md">
+            <Skeleton className="h-4 w-32" />
+            <Skeleton className="h-8 w-full sm:w-80" />
+          </div>
+          <Skeleton className="h-6 w-24 rounded-full self-start sm:self-center" />
+        </div>
+
+        {/* MESH LAYOUT GRID SKELETON */}
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 items-start">
+          <div className="lg:col-span-2 space-y-4">
+            <Skeleton className="h-48 rounded-2xl" />
+            <Skeleton className="h-64 rounded-2xl" />
+            <Skeleton className="h-40 rounded-2xl" />
+          </div>
+          <div className="space-y-4">
+            <Skeleton className="h-44 rounded-2xl" />
+            <Skeleton className="h-[480px] rounded-2xl" />
+          </div>
+        </div>
       </div>
     );
   }
@@ -301,8 +326,11 @@ export default function RunDetailPage() {
           <AnimatePresence mode="wait">
             {run.status === "running" ? (
               <motion.div
-                initial={{ opacity: 0 }}
-                animate={{ opacity: 1 }}
+                key="running-pane"
+                initial={{ opacity: 0, y: 10 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0 }}
+                transition={{ ease: "easeIn", duration: 0.3 }}
                 className="bg-slate-900/40 border border-slate-800/80 rounded-2xl p-8 text-center space-y-4"
               >
                 <div className="w-12 h-12 rounded-full bg-amber-500/10 border border-amber-500/20 flex items-center justify-center text-amber-400 mx-auto animate-spin">
@@ -318,8 +346,11 @@ export default function RunDetailPage() {
               </motion.div>
             ) : run.status === "failed" ? (
               <motion.div
-                initial={{ opacity: 0 }}
-                animate={{ opacity: 1 }}
+                key="failed-pane"
+                initial={{ opacity: 0, y: 10 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0 }}
+                transition={{ ease: "easeIn", duration: 0.3 }}
                 className="bg-rose-950/10 border border-rose-900/30 p-6 rounded-2xl text-slate-200"
               >
                 <div className="flex gap-3 items-start">
@@ -340,11 +371,12 @@ export default function RunDetailPage() {
               </motion.div>
             ) : (
               <motion.div
-                initial={{ opacity: 0, y: 4 }}
+                key="resolved-content-pane"
+                initial={{ opacity: 0, y: 8 }}
                 animate={{ opacity: 1, y: 0 }}
+                transition={{ ease: "easeInOut", duration: 0.4 }}
                 className="space-y-4"
               >
-                {/* Unified injection matching identical ResultsPanel bindings */}
                 <SummaryCard result={normalizedResult} />
                 {normalizedResult.actions?.length > 0 && (
                   <ChecklistCard 
