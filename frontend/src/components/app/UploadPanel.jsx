@@ -1,8 +1,9 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { AnimatePresence, motion } from "framer-motion";
 import dynamic from "next/dynamic";
+import useSWR from "swr";
 import {
   Upload,
   FileStack,
@@ -34,7 +35,36 @@ const ScanAnimation = dynamic(() => import("@/components/3d/ScanAnimation"), {
   ssr: false,
 });
 
-// Clean UI Utility: Formats UPPERCASE_SNAKE_CASE to elegant Title Case
+const ACTIVE_SESSION_KEY = "document-intelligence:active-session";
+
+function safeReadSession() {
+  if (typeof window === "undefined") return null;
+  try {
+    const raw = window.localStorage.getItem(ACTIVE_SESSION_KEY);
+    return raw ? JSON.parse(raw) : null;
+  } catch {
+    return null;
+  }
+}
+
+function safeWriteSession(session) {
+  if (typeof window === "undefined") return;
+  try {
+    window.localStorage.setItem(ACTIVE_SESSION_KEY, JSON.stringify(session));
+  } catch {
+    // ignore storage failures
+  }
+}
+
+function safeClearSession() {
+  if (typeof window === "undefined") return;
+  try {
+    window.localStorage.removeItem(ACTIVE_SESSION_KEY);
+  } catch {
+    // ignore storage failures
+  }
+}
+
 function formatStageText(stage) {
   if (!stage) return "Idle";
   return stage
@@ -56,6 +86,10 @@ function formatBytes(bytes) {
   }
 
   return `${value.toFixed(value >= 10 ? 0 : 1)} ${units[unitIndex]}`;
+}
+
+function normalizeStage(stage) {
+  return stage || "IDLE";
 }
 
 async function uploadDocumentFile(file) {
@@ -140,7 +174,9 @@ function TimelineItem({ item, active }) {
       <AlertCircle size={14} />
     ) : item.stage === "COMPLETED" ? (
       <CheckCircle2 size={14} />
-    ) : item.stage === "RUNNING" || item.stage === "PROCESSING" ? (
+    ) : item.stage === "RUNNING" ||
+      item.stage === "PROCESSING" ||
+      item.stage === "CHUNKING" ? (
       <Loader2 size={14} className="animate-spin" />
     ) : (
       <Sparkles size={14} />
@@ -162,7 +198,6 @@ function TimelineItem({ item, active }) {
           : "border-white/5 bg-white/[0.02] hover:bg-white/[0.04]"
       } p-4`}
     >
-      {/* Subtle "Breathing" Background Animation for Active Step */}
       {isWorking && (
         <motion.div
           className="absolute inset-0 bg-gradient-to-r from-cyan-500/10 to-blue-500/5"
@@ -171,7 +206,6 @@ function TimelineItem({ item, active }) {
         />
       )}
 
-      {/* Active Left Border Accent */}
       {active && (
         <motion.div
           layoutId="active-accent"
@@ -205,7 +239,6 @@ function TimelineItem({ item, active }) {
           </div>
         </div>
 
-        {/* Right Aligned Metadata Panel with Strict Overflow Prevention */}
         <div className="flex shrink-0 flex-col items-end gap-1.5 pt-0.5">
           <span className="text-[11px] font-medium tracking-wider text-gray-500">
             {new Date(item.createdAt).toLocaleTimeString([], {
@@ -310,7 +343,7 @@ function StatusCard({
               </span>
             </div>
 
-            <p className="mt-1 text-xs text-gray-500 truncate">
+            <p className="mt-1 truncate text-xs text-gray-500">
               {stage === "COMPLETED"
                 ? "Analysis finished and ready to review."
                 : stage === "FAILED"
@@ -356,10 +389,7 @@ function StatusCard({
           <div className="text-[11px] uppercase tracking-wider text-gray-500">
             Stage
           </div>
-          <div
-            title={stage}
-            className="mt-1 truncate text-sm font-medium text-white"
-          >
+          <div title={stage} className="mt-1 truncate text-sm font-medium text-white">
             {formatStageText(stage)}
           </div>
         </div>
@@ -400,9 +430,7 @@ function StatusCard({
 
       <div className="mt-6 border-t border-white/5 pt-5">
         <div className="mb-4 flex items-center justify-between px-1">
-          <h4 className="text-sm font-semibold text-white">
-            Live event stream
-          </h4>
+          <h4 className="text-sm font-semibold text-white">Live event stream</h4>
           <span className="rounded-full bg-white/5 px-2 py-0.5 text-[11px] font-medium text-gray-400">
             {timeline.length} event{timeline.length === 1 ? "" : "s"}
           </span>
@@ -442,6 +470,7 @@ export default function DocumentIntelligencePanel({
   analyzing = false,
 }) {
   const [selectedFile, setSelectedFile] = useState(null);
+  const [activeSession, setActiveSession] = useState(null);
   const [isAnalyzing, setIsAnalyzing] = useState(false);
   const [isConnected, setIsConnected] = useState(false);
   const [reconnecting, setReconnecting] = useState(false);
@@ -460,10 +489,100 @@ export default function DocumentIntelligencePanel({
   const abortRef = useRef(null);
   const seenEventIdsRef = useRef(new Set());
   const lastEventIdRef = useRef(null);
+  const sessionMetaRef = useRef({
+    documentId: null,
+    fileName: null,
+    sseUrl: null,
+    analysisRequestId: null,
+    lastEventId: null,
+  });
+  const streamStateRef = useRef({
+    documentId: null,
+    sseUrl: null,
+    status: "idle", // idle | connecting | live
+  });
+  const resumeLockRef = useRef(false);
 
   const isMobile = useIsMobile();
-  const busy = analyzing || isAnalyzing;
+
+  const { data: runningCheck, mutate: refreshRunningCheck } = useSWR(
+    "/analysis/running-check",
+    async (url) => {
+      const res = await apiFetch(url);
+      if (!res.ok) return { running: false, document: null };
+      return res.json();
+    },
+    {
+      revalidateOnFocus: true,
+      revalidateOnMount: true,
+      shouldRetryOnError: false,
+    }
+  );
+
+  const serverRunning = Boolean(runningCheck?.running);
+  const serverDocument = runningCheck?.document ?? null;
+  const serverDocumentId = serverDocument?.id ?? null;
+  const serverFileName = serverDocument?.fileName ?? null;
+  const serverStage = normalizeStage(serverDocument?.analysisStatus);
+
+  const busy = Boolean(analyzing || isAnalyzing || serverRunning);
   const isFileBusy = busy && !completed && !failed;
+
+  const persistSession = useCallback((patch) => {
+    const next = {
+      ...sessionMetaRef.current,
+      ...patch,
+    };
+    sessionMetaRef.current = next;
+    setActiveSession({
+      documentId: next.documentId,
+      fileName: next.fileName,
+      sseUrl: next.sseUrl,
+      analysisRequestId: next.analysisRequestId,
+      lastEventId: next.lastEventId ?? null,
+    });
+    safeWriteSession(next);
+  }, []);
+
+  const clearRuntimeState = useCallback(({ clearFile = false } = {}) => {
+    abortRef.current?.abort();
+    streamStateRef.current = { documentId: null, sseUrl: null, status: "idle" };
+    resumeLockRef.current = false;
+
+    setError(null);
+    setFailed(false);
+    setCompleted(false);
+    setIsAnalyzing(false);
+    setIsConnected(false);
+    setReconnecting(false);
+    setStage("IDLE");
+    setMessage("Ready to analyze");
+    setProgress(0);
+    setWorkerId(null);
+    setAnalysisRequestId(null);
+    setTimeline([]);
+    setLatestEventId(null);
+    onAiResult?.(null);
+
+    seenEventIdsRef.current = new Set();
+    lastEventIdRef.current = null;
+
+    if (clearFile) setSelectedFile(null);
+  }, [onAiResult]);
+
+  const clearSession = useCallback(({ clearFile = false } = {}) => {
+    clearRuntimeState({ clearFile });
+    sessionMetaRef.current = {
+      documentId: null,
+      fileName: null,
+      sseUrl: null,
+      analysisRequestId: null,
+      lastEventId: null,
+    };
+    setActiveSession(null);
+    safeClearSession();
+  }, [clearRuntimeState]);
+
   useEffect(() => {
     return () => {
       abortRef.current?.abort();
@@ -486,141 +605,340 @@ export default function DocumentIntelligencePanel({
       ? "bg-gradient-to-r from-emerald-500 to-emerald-400"
       : "bg-gradient-to-r from-cyan-500 to-blue-500";
 
-  const clearAnalysisState = ({ clearFile = false } = {}) => {
-    abortRef.current?.abort();
+  const currentDocument = selectedFile
+    ? {
+        name: selectedFile.name,
+        size: selectedFile.size,
+        type: selectedFile.type || "Unknown type",
+      }
+    : activeSession?.fileName
+      ? {
+          name: activeSession.fileName,
+          size: null,
+          type: "Recovered session",
+        }
+      : null;
 
-    setError(null);
-    setFailed(false);
-    setCompleted(false);
-    setIsAnalyzing(false);
-    setIsConnected(false);
-    setReconnecting(false);
-    setStage("IDLE");
-    setMessage("Ready to analyze");
-    setProgress(0);
-    setWorkerId(null);
-    setAnalysisRequestId(null);
-    setTimeline([]);
-    setLatestEventId(null);
-    onAiResult?.(null);
+  const isVirtualSession = Boolean(activeSession && !selectedFile);
 
-    seenEventIdsRef.current = new Set();
-    lastEventIdRef.current = null;
+  const syncStream = useCallback(
+    async ({ reason = "resume" } = {}) => {
+      const stored = safeReadSession();
+      const session =
+        stored && stored.documentId
+          ? stored
+          : sessionMetaRef.current.documentId
+            ? sessionMetaRef.current
+            : null;
 
-    if (clearFile) {
-      setSelectedFile(null);
-      setFilePickerKey((k) => k + 1);
-    }
-  };
+      const activeDocId = serverDocumentId || session?.documentId;
+      const activeFileName = serverFileName || session?.fileName || null;
+      const activeSseUrl = session?.sseUrl || serverDocument?.sseUrl || null;
 
-  const handleFileSelect = (file) => {
-    if (!file) return;
+      if (!serverRunning && !session && !isAnalyzing) {
+        return;
+      }
 
-    if (!isAcceptedDocumentFile(file)) {
-      clearAnalysisState();
-      setError("Unsupported file type. Use PDF, DOC, DOCX, or TXT.");
-      setFailed(true);
-      return;
-    }
+      if (resumeLockRef.current && streamStateRef.current.documentId === activeDocId) {
+        return;
+      }
 
-    if (file.size > MAX_UPLOAD_BYTES) {
-      clearAnalysisState();
-      setError("File too large. Maximum size is 50MB.");
-      setFailed(true);
-      return;
-    }
+      if (!activeDocId) return;
+      if (!activeSseUrl) return;
 
-    clearAnalysisState();
-    setSelectedFile(file);
-    setMessage(`Ready to upload ${file.name}`);
-  };
+      const alreadyLive =
+        streamStateRef.current.documentId === activeDocId &&
+        streamStateRef.current.sseUrl === activeSseUrl &&
+        streamStateRef.current.status === "live";
 
-  const handleClearFile = () => {
-    if (busy) return;
-    clearAnalysisState({ clearFile: true });
-  };
+      const alreadyConnecting =
+        streamStateRef.current.documentId === activeDocId &&
+        streamStateRef.current.sseUrl === activeSseUrl &&
+        streamStateRef.current.status === "connecting";
 
-  const handleRetry = () => {
-    if (busy) return;
-    clearAnalysisState({ clearFile: true });
-  };
+      if (alreadyLive || alreadyConnecting) return;
 
-  const applyEvent = (eventName, eventId, data) => {
-    if (seenEventIdsRef.current.has(eventId)) return;
-    seenEventIdsRef.current.add(eventId);
-    lastEventIdRef.current = eventId;
+      resumeLockRef.current = true;
+      abortRef.current?.abort();
+      const controller = new AbortController();
+      abortRef.current = controller;
 
-    setStage(data.stage);
-    setMessage(data.message || "Updated");
-    setProgress(
-      typeof data.progress === "number"
-        ? data.progress
-        : stageToProgress(data.stage),
-    );
-    setIsConnected(true);
-    setReconnecting(false);
-    setLatestEventId(eventId);
+      streamStateRef.current = {
+        documentId: activeDocId,
+        sseUrl: activeSseUrl,
+        status: "connecting",
+      };
 
-    if (data.payload && typeof data.payload.workerId === "string") {
-      setWorkerId(data.payload.workerId);
-    }
+      const lastEventId = session?.lastEventId || lastEventIdRef.current || null;
 
-    if (
-      (eventName === "ai_completed" || eventName === "analysis_completed") &&
-      data.payload &&
-      typeof data.payload.summary === "string"
-    ) {
-      onAiResult?.({
-        summary: data.payload.summary,
-        actionItems: data.payload.actionItems ?? [],
-        keyDeadlines: data.payload.keyDeadlines ?? [],
-        questionsToAsk: data.payload.questionsToAsk ?? [],
-        aiConfidence: data.payload.aiConfidence ?? null,
-        trustedSources: data.payload.trustedSources ?? [],
-        humanReview: data.payload.humanReview ?? null,
-        status: data.payload.status ?? null,
-      });
-    }
-
-    if (data.stage === "COMPLETED") {
-      setCompleted(true);
-      setIsAnalyzing(false);
+      setError(null);
+      setFailed(false);
+      setCompleted(false);
+      setIsAnalyzing(true);
       setIsConnected(false);
-    }
-
-    if (data.stage === "FAILED") {
-      setFailed(true);
-      setIsAnalyzing(false);
-      setIsConnected(false);
-      setError(
-        typeof data.payload?.error === "string"
-          ? data.payload.error
-          : "Analysis failed",
+      setReconnecting(true);
+      setStage(normalizeStage(serverStage || session?.stage || "RUNNING"));
+      setMessage(
+        reason === "focus"
+          ? "Tab focused. Reconnecting live analysis..."
+          : activeSession
+            ? "Resuming live analysis..."
+            : "Restoring active analysis..."
       );
+      setProgress(stageToProgress(serverStage || session?.stage || "RUNNING"));
+      setAnalysisRequestId(session?.analysisRequestId ?? null);
+      setWorkerId(session?.workerId ?? null);
+      setActiveSession((prev) =>
+        prev && prev.documentId === activeDocId
+          ? prev
+          : {
+              documentId: activeDocId,
+              fileName: activeFileName,
+              sseUrl: activeSseUrl,
+              analysisRequestId: session?.analysisRequestId ?? null,
+              lastEventId: lastEventId,
+            }
+      );
+
+      const applyEvent = (eventName, data, eventId) => {
+        if (seenEventIdsRef.current.has(eventId)) return;
+        seenEventIdsRef.current.add(eventId);
+        lastEventIdRef.current = eventId;
+
+        const nextStage = normalizeStage(data.stage);
+        setStage(nextStage);
+        setMessage(data.message || "Updated");
+        setProgress(
+          typeof data.progress === "number"
+            ? data.progress
+            : stageToProgress(nextStage)
+        );
+        setIsConnected(true);
+        setReconnecting(false);
+        setLatestEventId(eventId);
+        streamStateRef.current = {
+          documentId: activeDocId,
+          sseUrl: activeSseUrl,
+          status: "live",
+        };
+
+        persistSession({
+          documentId: activeDocId,
+          fileName: activeFileName,
+          sseUrl: activeSseUrl,
+          analysisRequestId: session?.analysisRequestId ?? null,
+          lastEventId: eventId,
+          stage: nextStage,
+        });
+
+        if (data.payload && typeof data.payload.workerId === "string") {
+          setWorkerId(data.payload.workerId);
+        }
+
+        if (
+          (eventName === "ai_completed" || eventName === "analysis_completed") &&
+          data.payload &&
+          typeof data.payload.summary === "string"
+        ) {
+          onAiResult?.({
+            summary: data.payload.summary,
+            actionItems: data.payload.actionItems ?? [],
+            keyDeadlines: data.payload.keyDeadlines ?? [],
+            questionsToAsk: data.payload.questionsToAsk ?? [],
+            aiConfidence: data.payload.aiConfidence ?? null,
+            trustedSources: data.payload.trustedSources ?? [],
+            humanReview: data.payload.humanReview ?? null,
+            status: data.payload.status ?? null,
+          });
+        }
+
+        if (nextStage === "COMPLETED") {
+          setCompleted(true);
+          setIsAnalyzing(false);
+          setIsConnected(false);
+          setReconnecting(false);
+          safeClearSession();
+        }
+
+        if (nextStage === "FAILED") {
+          setFailed(true);
+          setIsAnalyzing(false);
+          setIsConnected(false);
+          setReconnecting(false);
+          setError(
+            typeof data.payload?.error === "string"
+              ? data.payload.error
+              : "Analysis failed"
+          );
+          safeClearSession();
+        }
+
+        setTimeline((prev) => {
+          if (prev.some((x) => x.eventId === eventId)) return prev;
+          return [
+            ...prev,
+            {
+              eventId,
+              name: eventName,
+              label: EVENT_LABELS[eventName] ?? eventName,
+              stage: nextStage,
+              message: data.message,
+              progress:
+                typeof data.progress === "number"
+                  ? data.progress
+                  : stageToProgress(nextStage),
+              payload: data.payload,
+              createdAt: data.createdAt || new Date().toISOString(),
+            },
+          ];
+        });
+      };
+
+      try {
+        await openAnalysisStream({
+          sseUrl: activeSseUrl,
+          signal: controller.signal,
+          lastEventId,
+          onMessage: (eventName, data, eventId) => {
+            applyEvent(eventName, data, eventId);
+          },
+          onError: (err) => {
+            if (controller.signal.aborted) return;
+            setIsConnected(false);
+            setReconnecting(true);
+            setError(err instanceof Error ? err.message : "Connection interrupted");
+          },
+        });
+      } catch (err) {
+        if (controller.signal.aborted) return;
+        setIsConnected(false);
+        setReconnecting(true);
+        setError(err instanceof Error ? err.message : "Connection error");
+      } finally {
+        resumeLockRef.current = false;
+      }
+    },
+    [
+      activeSession,
+      isAnalyzing,
+      onAiResult,
+      persistSession,
+      serverDocument?.sseUrl,
+      serverDocumentId,
+      serverFileName,
+      serverRunning,
+      serverStage,
+    ]
+  );
+
+  useEffect(() => {
+    if (!runningCheck) return;
+
+    if (runningCheck.running) {
+      void syncStream({ reason: "mount-or-refresh" });
+      return;
     }
 
-    setTimeline((prev) => {
-      if (prev.some((x) => x.eventId === eventId)) return prev;
-      return [
-        ...prev,
-        {
-          eventId,
-          name: eventName,
-          label: EVENT_LABELS[eventName] ?? eventName,
-          stage: data.stage,
-          message: data.message,
-          progress:
-            typeof data.progress === "number"
-              ? data.progress
-              : stageToProgress(data.stage),
-          payload: data.payload,
-          createdAt: data.createdAt || new Date().toISOString(),
-        },
-      ];
-    });
-  };
+    // If the server says nothing is running and we only have a stale resume snapshot,
+    // clear it after a short grace so a fresh upload can proceed normally.
+    if (!busy && activeSession && !selectedFile) {
+      safeClearSession();
+      setActiveSession(null);
+      sessionMetaRef.current = {
+        documentId: null,
+        fileName: null,
+        sseUrl: null,
+        analysisRequestId: null,
+        lastEventId: null,
+      };
+      streamStateRef.current = { documentId: null, sseUrl: null, status: "idle" };
+    }
+  }, [activeSession, busy, runningCheck, selectedFile, syncStream]);
 
-  const handleAnalyze = async () => {
+  useEffect(() => {
+    const handleWake = () => {
+      void refreshRunningCheck();
+      if (document.visibilityState === "visible") {
+        void syncStream({ reason: "focus" });
+      }
+    };
+
+    window.addEventListener("focus", handleWake);
+    document.addEventListener("visibilitychange", handleWake);
+
+    return () => {
+      window.removeEventListener("focus", handleWake);
+      document.removeEventListener("visibilitychange", handleWake);
+    };
+  }, [refreshRunningCheck, syncStream]);
+
+  const clearAnalysisState = useCallback(
+    ({ clearFile = false } = {}) => {
+      abortRef.current?.abort();
+      streamStateRef.current = { documentId: null, sseUrl: null, status: "idle" };
+      resumeLockRef.current = false;
+
+      setError(null);
+      setFailed(false);
+      setCompleted(false);
+      setIsAnalyzing(false);
+      setIsConnected(false);
+      setReconnecting(false);
+      setStage("IDLE");
+      setMessage("Ready to analyze");
+      setProgress(0);
+      setWorkerId(null);
+      setAnalysisRequestId(null);
+      setTimeline([]);
+      setLatestEventId(null);
+      onAiResult?.(null);
+
+      seenEventIdsRef.current = new Set();
+      lastEventIdRef.current = null;
+
+      if (clearFile) setSelectedFile(null);
+    },
+    [onAiResult]
+  );
+
+  const handleFileSelect = useCallback(
+    (file) => {
+      if (!file) return;
+
+      if (!isAcceptedDocumentFile(file)) {
+        clearAnalysisState();
+        setError("Unsupported file type. Use PDF, DOC, DOCX, or TXT.");
+        setFailed(true);
+        return;
+      }
+
+      if (file.size > MAX_UPLOAD_BYTES) {
+        clearAnalysisState();
+        setError("File too large. Maximum size is 50MB.");
+        setFailed(true);
+        return;
+      }
+
+      clearSession({ clearFile: false });
+      setSelectedFile(file);
+      setMessage(`Ready to upload ${file.name}`);
+    },
+    [clearAnalysisState, clearSession]
+  );
+
+  const handleClearFile = useCallback(() => {
+    if (busy) return;
+    clearSession({ clearFile: true });
+    clearAnalysisState({ clearFile: true });
+  }, [busy, clearAnalysisState, clearSession]);
+
+  const handleRetry = useCallback(() => {
+    if (busy) return;
+    clearSession({ clearFile: true });
+    clearAnalysisState({ clearFile: true });
+  }, [busy, clearAnalysisState, clearSession]);
+
+  const handleAnalyze = useCallback(async () => {
     if (!selectedFile) {
       setError("Choose a file first.");
       setFailed(true);
@@ -667,30 +985,126 @@ export default function DocumentIntelligencePanel({
 
       setAnalysisRequestId(response.analysisRequestId);
       setWorkerId(response.workerId);
-      setStage(response.currentStatus);
+      setStage(normalizeStage(response.currentStatus));
       setMessage(
         response.deduplication?.isNewRequest
           ? "Analysis request created"
-          : "Existing analysis request resumed",
+          : "Existing analysis request resumed"
       );
       setProgress(stageToProgress(response.currentStatus));
+
+      const sseUrl = response.sseUrl || sessionMetaRef.current.sseUrl || null;
+      persistSession({
+        documentId,
+        fileName: selectedFile.name,
+        sseUrl,
+        analysisRequestId: response.analysisRequestId ?? null,
+        lastEventId: null,
+      });
 
       onAnalyze?.(response);
 
       void openAnalysisStream({
-        sseUrl: response.sseUrl,
+        sseUrl,
         signal: controller.signal,
-        lastEventId: lastEventIdRef.current,
+        lastEventId: null,
         onMessage: (eventName, data, eventId) => {
-          applyEvent(eventName, eventId, data);
+          if (seenEventIdsRef.current.has(eventId)) return;
+          seenEventIdsRef.current.add(eventId);
+          lastEventIdRef.current = eventId;
+
+          const nextStage = normalizeStage(data.stage);
+          setStage(nextStage);
+          setMessage(data.message || "Updated");
+          setProgress(
+            typeof data.progress === "number"
+              ? data.progress
+              : stageToProgress(nextStage)
+          );
+          setIsConnected(true);
+          setReconnecting(false);
+          setLatestEventId(eventId);
+          streamStateRef.current = {
+            documentId,
+            sseUrl,
+            status: "live",
+          };
+          persistSession({
+            documentId,
+            fileName: selectedFile.name,
+            sseUrl,
+            analysisRequestId: response.analysisRequestId ?? null,
+            lastEventId: eventId,
+            stage: nextStage,
+          });
+
+          if (data.payload && typeof data.payload.workerId === "string") {
+            setWorkerId(data.payload.workerId);
+          }
+
+          if (
+            (eventName === "ai_completed" || eventName === "analysis_completed") &&
+            data.payload &&
+            typeof data.payload.summary === "string"
+          ) {
+            onAiResult?.({
+              summary: data.payload.summary,
+              actionItems: data.payload.actionItems ?? [],
+              keyDeadlines: data.payload.keyDeadlines ?? [],
+              questionsToAsk: data.payload.questionsToAsk ?? [],
+              aiConfidence: data.payload.aiConfidence ?? null,
+              trustedSources: data.payload.trustedSources ?? [],
+              humanReview: data.payload.humanReview ?? null,
+              status: data.payload.status ?? null,
+            });
+          }
+
+          if (nextStage === "COMPLETED") {
+            setCompleted(true);
+            setIsAnalyzing(false);
+            setIsConnected(false);
+            setReconnecting(false);
+            safeClearSession();
+          }
+
+          if (nextStage === "FAILED") {
+            setFailed(true);
+            setIsAnalyzing(false);
+            setIsConnected(false);
+            setReconnecting(false);
+            setError(
+              typeof data.payload?.error === "string"
+                ? data.payload.error
+                : "Analysis failed"
+            );
+            safeClearSession();
+          }
+
+          setTimeline((prev) => {
+            if (prev.some((x) => x.eventId === eventId)) return prev;
+            return [
+              ...prev,
+              {
+                eventId,
+                name: eventName,
+                label: EVENT_LABELS[eventName] ?? eventName,
+                stage: nextStage,
+                message: data.message,
+                progress:
+                  typeof data.progress === "number"
+                    ? data.progress
+                    : stageToProgress(nextStage),
+                payload: data.payload,
+                createdAt: data.createdAt || new Date().toISOString(),
+              },
+            ];
+          });
         },
         onError: (err) => {
           if (controller.signal.aborted) return;
           setIsConnected(false);
           setReconnecting(true);
-          setError(
-            err instanceof Error ? err.message : "Connection interrupted",
-          );
+          setError(err instanceof Error ? err.message : "Connection interrupted");
         },
       }).catch((err) => {
         if (controller.signal.aborted) return;
@@ -705,9 +1119,10 @@ export default function DocumentIntelligencePanel({
       setFailed(true);
       setError(err instanceof Error ? err.message : "Failed to start analysis");
     }
-  };
+  }, [onAiResult, onAnalyze, persistSession, selectedFile]);
 
-  const hasFile = Boolean(selectedFile);
+  const hasFile = Boolean(selectedFile || activeSession);
+  const resumeHint = activeSession && !selectedFile;
 
   return (
     <div
@@ -757,7 +1172,7 @@ export default function DocumentIntelligencePanel({
               </motion.div>
             ) : (
               <motion.div
-                key={`file-${selectedFile.name}-${selectedFile.size}`}
+                key={`file-${selectedFile?.name || activeSession?.fileName || "recovered"}`}
                 initial={{ opacity: 0, y: 14, scale: 0.98 }}
                 animate={{ opacity: 1, y: 0, scale: 1 }}
                 exit={{ opacity: 0, y: -12, scale: 0.98 }}
@@ -804,25 +1219,33 @@ export default function DocumentIntelligencePanel({
                     <div className="min-w-0">
                       <div className="flex flex-wrap items-center gap-2">
                         <h3 className="truncate text-base font-semibold text-white">
-                          {selectedFile.name}
+                          {currentDocument?.name || "Recovered analysis"}
                         </h3>
                         <span className="rounded-full border border-white/10 bg-white/5 px-2 py-0.5 text-[11px] font-medium text-gray-300">
-                          {formatBytes(selectedFile.size)}
+                          {currentDocument?.size
+                            ? formatBytes(currentDocument.size)
+                            : resumeHint
+                              ? "Session restored"
+                              : "—"}
                         </span>
                       </div>
 
                       <p className="mt-1 text-sm text-gray-400">
-                        {busy
-                          ? "Your file is uploading and being analyzed."
-                          : "File ready. Start analysis when you are ready."}
+                        {resumeHint
+                          ? "An active analysis was restored from the server and local session cache."
+                          : busy
+                            ? "Your file is uploading and being analyzed."
+                            : "File ready. Start analysis when you are ready."}
                       </p>
 
                       <div className="mt-3 flex flex-wrap items-center gap-2 text-[11px] text-gray-500">
                         <span className="rounded-full border border-white/8 bg-white/[0.03] px-2.5 py-1">
-                          {selectedFile.type || "Unknown type"}
+                          {currentDocument?.type || "Unknown type"}
                         </span>
                         <span className="rounded-full border border-white/8 bg-white/[0.03] px-2.5 py-1">
-                          Drag-drop replaced with a smooth file card
+                          {resumeHint
+                            ? "Resuming SSE after refresh or focus"
+                            : "Drag-drop replaced with a smooth file card"}
                         </span>
                       </div>
                     </div>
@@ -842,9 +1265,9 @@ export default function DocumentIntelligencePanel({
                     <button
                       type="button"
                       onClick={handleAnalyze}
-                      disabled={busy}
+                      disabled={busy || !selectedFile}
                       className={`inline-flex items-center gap-2 rounded-xl px-4 py-2 text-sm font-semibold transition ${
-                        busy
+                        busy || !selectedFile
                           ? "cursor-not-allowed border border-cyan-500/15 bg-cyan-500/10 text-cyan-200/70"
                           : "border border-cyan-500/20 bg-cyan-500/15 text-cyan-100 hover:bg-cyan-500/20"
                       }`}
@@ -854,7 +1277,11 @@ export default function DocumentIntelligencePanel({
                       ) : (
                         <Sparkles size={16} />
                       )}
-                      {isFileBusy ? "Analyzing..." : "Analyze file"}
+                      {resumeHint
+                        ? "Stream restored"
+                        : isFileBusy
+                          ? "Analyzing..."
+                          : "Analyze file"}
                     </button>
                   </div>
                 </div>

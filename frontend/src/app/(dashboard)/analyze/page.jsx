@@ -1,19 +1,48 @@
 "use client";
 
-import { useState } from "react";
 import { motion } from "framer-motion";
+import useSWR from "swr";
 import UploadPanel from "@/components/app/UploadPanel";
 import ResultsPanel from "@/components/app/ResultsPanel";
-import { Zap } from "lucide-react";
+import { apiFetch } from "@/lib/auth/apiFetch";
 
 export default function AppPage() {
-  const [currentDoc, setCurrentDoc] = useState(null);
-  const [analyzing, setAnalyzing] = useState(false);
-  const [aiResult, setAiResult] = useState(null);
+  // 1. Fetch exactly ONCE on load, and ONCE when the user focuses the tab.
+  // NO refreshInterval. We don't spam the server.
+  const { data: statusData, mutate } = useSWR(
+    "/analysis/running-check",
+    async (url) => {
+      const res = await apiFetch(url);
+      if (!res.ok) return { running: false, document: null };
+      return res.json();
+    },
+    {
+      revalidateOnFocus: true, // Syncs state if they opened a run on their phone/another tab
+      revalidateOnMount: true,
+    }
+  );
 
-  const handleAnalyze = (doc) => {
-    setAnalyzing(true);
-    setCurrentDoc(doc);
+  const analyzing = !!statusData?.running;
+  
+  const currentDoc = statusData?.document
+    ? { id: statusData.document.id, name: statusData.document.fileName }
+    : null;
+
+  // 2. When a user uploads a file, instantly force SWR into the "running" state locally.
+  const handleAnalyze = async (doc) => {
+    mutate(
+      {
+        running: true,
+        document: { id: doc.id, fileName: doc.name, analysisStatus: "running" },
+      },
+      { revalidate: false } // false = don't immediately re-fetch from the server, trust our local state
+    );
+  };
+
+  // 3. This will be triggered by ResultsPanel when the SSE stream officially finishes.
+  const handleAnalysisComplete = () => {
+    // Clear out active tracking blocks, resetting the UI
+    mutate({ running: false, document: null }, { revalidate: true });
   };
 
   return (
@@ -24,8 +53,6 @@ export default function AppPage() {
         paddingTop: "72px",
       }}
     >
-      {/* header stays the same */}
-
       <div
         style={{
           maxWidth: "1280px",
@@ -45,7 +72,6 @@ export default function AppPage() {
         >
           <UploadPanel
             onAnalyze={handleAnalyze}
-            onAiResult={setAiResult}
             analyzing={analyzing}
           />
         </motion.div>
@@ -58,7 +84,8 @@ export default function AppPage() {
           <ResultsPanel
             currentDoc={currentDoc}
             analyzing={analyzing}
-            aiResult={aiResult}
+            aiResult={statusData?.document}
+            onComplete={handleAnalysisComplete} // ◄ Pass completion callback down to the panel
           />
         </motion.div>
       </div>
