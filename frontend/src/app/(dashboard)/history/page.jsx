@@ -49,7 +49,7 @@ export default function HistoryPage() {
         });
 
         const response = await apiFetch(
-          `/api/analysis/history?${queryParams.toString()}`,
+          `/analysis/history?${queryParams.toString()}`,
           {},
         );
 

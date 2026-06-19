@@ -664,7 +664,6 @@ export default function DocumentIntelligencePanel({
         purpose: "full_analysis",
         analysisVersion: "v1",
       });
-      console.log(response);
 
       setAnalysisRequestId(response.analysisRequestId);
       setWorkerId(response.workerId);
