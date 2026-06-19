@@ -3,6 +3,7 @@ import { Router, Request, Response } from "express";
 import argon2 from "argon2";
 import { z } from "zod";
 import { supabase } from "../lib/supabase";
+import { pgPool } from "../db/pool";
 import { signAccessToken, generateRefreshToken, getJwks } from "../utils/jwt";
 import {
   createSession,
@@ -224,7 +225,7 @@ router.get("/.well-known/jwks.json", (_req: Request, res: Response) => {
 
 router.get("/me", requireAuth, async (req: AuthRequest, res: Response) => {
   try {
-    const userId = req.user?.sid;
+    const userId = req.user?.userId;
 
     if (!userId) {
       return res.status(401).json({
@@ -232,11 +233,32 @@ router.get("/me", requireAuth, async (req: AuthRequest, res: Response) => {
       });
     }
 
-    const { data: user, error } = await supabase
-      .from("users")
-      .select("full_name, email, created_at")
-      .eq("id", req.user?.userId)
-      .single();
+    // Run user fetch and activity counts in parallel
+    const [userResult, activityResult] = await Promise.all([
+      supabase
+        .from("users")
+        .select("full_name, email, created_at")
+        .eq("id", userId)
+        .single(),
+      pgPool.query<{ documents_analyzed: string; deadlines_tracked: string }>(
+        `SELECT
+           (
+             SELECT COUNT(*)
+             FROM document_analysis_results
+             WHERE user_id = $1
+               AND status IN ('completed', 'review_required')
+           ) AS documents_analyzed,
+           (
+             SELECT COALESCE(SUM(jsonb_array_length(key_deadlines)), 0)
+             FROM document_analysis_results
+             WHERE user_id = $1
+               AND jsonb_array_length(key_deadlines) > 0
+           ) AS deadlines_tracked`,
+        [userId],
+      ),
+    ]);
+
+    const { data: user, error } = userResult;
 
     if (error) {
       console.error("Supabase error:", error);
@@ -252,9 +274,15 @@ router.get("/me", requireAuth, async (req: AuthRequest, res: Response) => {
       });
     }
 
+    const activityRow = activityResult.rows[0];
+
     return res.json({
       message: "You are authenticated!",
-      user,
+      user: {
+        ...user,
+        documentsAnalyzedCount: parseInt(activityRow?.documents_analyzed ?? "0", 10),
+        deadlinesTrackedCount: parseInt(activityRow?.deadlines_tracked ?? "0", 10),
+      },
     });
   } catch (err) {
     console.error("Unexpected error:", err);
