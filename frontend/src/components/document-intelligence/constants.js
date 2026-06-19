@@ -10,6 +10,21 @@ export const EVENT_LABELS = {
   chunking_completed: "Chunking completed",
   embedding_completed: "Embedding completed",
   summary_created: "Summary created",
+  extraction_awaiting_verification: "Awaiting your review",
+  extraction_verified: "Extraction verified",
+  preprocessing_completed: "Preprocessing completed",
+  ai_analysis_queued: "AI analysis queued",
+  ai_analysis_started: "AI analysis started",
+  ai_understanding_started: "AI understanding started",
+  ai_understanding_completed: "AI understanding completed",
+  ai_extraction_started: "AI extraction started",
+  ai_extraction_completed: "AI extraction completed",
+  ai_verification_started: "AI verification started",
+  ai_verification_completed: "AI verification completed",
+  ai_synthesis_started: "AI synthesis started",
+  ai_summary_delta: "AI summary delta",
+  ai_human_review_required: "Human review required",
+  ai_completed: "AI analysis complete",
   analysis_completed: "Analysis completed",
   failed: "Failed",
   heartbeat: "Heartbeat",
@@ -42,6 +57,12 @@ export function stageToProgress(stage) {
       return 80;
     case "SUMMARIZING":
       return 90;
+    case "AWAITING_VERIFICATION":
+      return 95;
+    case "PREPROCESSING_COMPLETED":
+      return 96;
+    case "AI_QUEUED":
+      return 97;
     case "COMPLETED":
       return 100;
     case "FAILED":

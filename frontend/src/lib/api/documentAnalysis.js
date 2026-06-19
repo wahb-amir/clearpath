@@ -101,6 +101,45 @@ export async function startAnalysisRequest(params) {
 }
 
 /**
+ * POST /analysis/documents/:id/confirm-extraction
+ * Confirms (and optionally updates) the extracted content, resuming the AI pipeline.
+ * @param {{ documentId: string, extractedContent?: object }} params
+ */
+export async function confirmExtraction({ documentId, extractedContent }) {
+  const res = await apiFetch(
+    resolveUrl(`/analysis/documents/${documentId}/confirm-extraction`),
+    {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ extractedContent }),
+    },
+  );
+
+  if (!res.ok) {
+    throw new Error(await readErrorMessage(res));
+  }
+
+  return res.json();
+}
+
+/**
+ * GET /analysis/documents/:id/extracted-content
+ * Fetches the stored extracted content for review.
+ */
+export async function fetchExtractedContent(documentId) {
+  const res = await apiFetch(
+    resolveUrl(`/analysis/documents/${documentId}/extracted-content`),
+    { method: "GET" },
+  );
+
+  if (!res.ok) {
+    throw new Error(await readErrorMessage(res));
+  }
+
+  return res.json();
+}
+
+/**
  * GET /analysis/history
  * Returns paginated analysis history for the authenticated user.
  * @param {{ page?: number, pageSize?: number, status?: string }} params
