@@ -71,7 +71,7 @@ export default function HistoryPage() {
     status: statusFilter,
   });
 
-  const { data, error, isLoading } = useSWR(
+  const { data, error, isLoading, mutate } = useSWR(
     `/analysis/history?${queryParams.toString()}`,
     async (url) => {
       const response = await apiFetch(url);
@@ -317,9 +317,34 @@ export default function HistoryPage() {
 
                     <div className="flex items-center gap-2">
                       <button
-                        onClick={(e) => {
+                        onClick={async (e) => {
                           e.preventDefault();
-                          // Handle bookmark logic
+                          const docId = item.documentId || item.id;
+                          // Optimistic update: flip saved flag immediately in local cache
+                          mutate(
+                            (prev) => {
+                              if (!prev) return prev;
+                              return {
+                                ...prev,
+                                items: prev.items.map((i) =>
+                                  (i.documentId || i.id) === docId
+                                    ? { ...i, saved: !i.saved }
+                                    : i
+                                ),
+                              };
+                            },
+                            { revalidate: false }
+                          );
+                          try {
+                            await apiFetch(
+                              `/analysis/documents/${docId}/toggle-save`,
+                              { method: "POST" }
+                            );
+                          } catch (err) {
+                            console.error("Failed to toggle save:", err);
+                            // Revert on failure by revalidating
+                            mutate();
+                          }
                         }}
                         className={`p-2 rounded-lg transition-colors ${
                           item.saved

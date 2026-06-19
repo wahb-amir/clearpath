@@ -109,7 +109,8 @@ export async function getAnalysisHistoryController(
           d.file_size,
           d.language,
           d.analysis_status           AS doc_analysis_status,
-          d.current_stage
+          d.current_stage,
+          d.saved
         FROM documents d
         LEFT JOIN document_analysis_requests dar_req
           ON dar_req.document_id = d.id
@@ -154,7 +155,8 @@ export async function getAnalysisHistoryController(
             d.file_size,
             d.language,
             d.analysis_status AS doc_analysis_status,
-            d.current_stage
+            d.current_stage,
+            d.saved
           FROM document_analysis_results dar
           LEFT JOIN documents d ON d.id = dar.document_id
           WHERE dar.user_id = $1
@@ -182,7 +184,8 @@ export async function getAnalysisHistoryController(
             d.file_size,
             d.language,
             d.analysis_status           AS doc_analysis_status,
-            d.current_stage
+            d.current_stage,
+            d.saved
           FROM documents d
           LEFT JOIN document_analysis_requests dar_req
             ON dar_req.document_id = d.id
@@ -222,7 +225,8 @@ export async function getAnalysisHistoryController(
           d.file_size,
           d.language,
           d.analysis_status AS doc_analysis_status,
-          d.current_stage
+          d.current_stage,
+          d.saved
         FROM document_analysis_results dar
         LEFT JOIN documents d ON d.id = dar.document_id
         WHERE dar.user_id = $1 ${statusClause}
@@ -256,6 +260,7 @@ export async function getAnalysisHistoryController(
       updatedAt: row.updated_at,
       docAnalysisStatus: row.doc_analysis_status ?? null,
       currentStage: row.current_stage ?? null,
+      saved: row.saved ?? false,
       document: {
         fileName: row.original_file_name ?? null,
         mimeType: row.mime_type ?? null,
@@ -432,6 +437,125 @@ export async function getUserRunningAnalysisController(
 }
 
 import { updateActionItemCompletion } from "../services/documentAnalysisResultRepository"; // Adjust path
+
+/**
+ * GET /analysis/saved
+ *
+ * Returns all saved/bookmarked documents for the authenticated user.
+ */
+export async function getSavedDocumentsController(
+  req: AuthenticatedRequest,
+  res: Response,
+  next: NextFunction,
+): Promise<void> {
+  try {
+    const userId = req.user?.userId;
+    if (!userId) {
+      res.status(401).json({ error: "Unauthorized" });
+      return;
+    }
+
+    // Fetch all saved documents, joining the latest analysis result if available
+    const result = await pgPool.query(
+      `SELECT
+        d.id                  AS document_id,
+        d.original_file_name,
+        d.mime_type,
+        d.file_size,
+        d.language,
+        d.analysis_status     AS doc_analysis_status,
+        d.current_stage,
+        d.saved,
+        d.created_at,
+        d.updated_at,
+        dar.id                AS result_id,
+        dar.status,
+        dar.summary,
+        dar.action_items,
+        dar.key_deadlines,
+        dar.questions_to_ask,
+        dar.ai_confidence,
+        dar.trusted_sources,
+        dar.analysis_request_id
+      FROM documents d
+      LEFT JOIN document_analysis_results dar ON dar.document_id = d.id
+      WHERE d.user_id = $1 AND d.saved = true
+      ORDER BY d.updated_at DESC`,
+      [userId],
+    );
+
+    const items = result.rows.map((row) => ({
+      id: row.result_id ?? row.document_id,
+      documentId: row.document_id,
+      analysisRequestId: row.analysis_request_id ?? null,
+      status: row.status ?? "running",
+      summary: row.summary ?? null,
+      actionItems: row.action_items ?? [],
+      keyDeadlines: row.key_deadlines ?? [],
+      questionsToAsk: row.questions_to_ask ?? [],
+      aiConfidence: row.ai_confidence ?? null,
+      trustedSources: row.trusted_sources ?? [],
+      saved: true,
+      createdAt: row.created_at,
+      updatedAt: row.updated_at,
+      docAnalysisStatus: row.doc_analysis_status ?? null,
+      currentStage: row.current_stage ?? null,
+      document: {
+        fileName: row.original_file_name ?? null,
+        mimeType: row.mime_type ?? null,
+        fileSizeBytes: row.file_size ?? null,
+        language: row.language ?? null,
+      },
+    }));
+
+    res.json({ items, total: items.length });
+  } catch (err) {
+    next(err);
+  }
+}
+
+/**
+ * POST /analysis/documents/:id/toggle-save
+ *
+ * Toggles the saved/bookmark flag on a document.
+ * Returns { saved: boolean } with the new value.
+ */
+export async function toggleSaveDocumentController(
+  req: AuthenticatedRequest,
+  res: Response,
+  next: NextFunction,
+): Promise<void> {
+  try {
+    const userId = req.user?.userId;
+    if (!userId) {
+      res.status(401).json({ error: "Unauthorized" });
+      return;
+    }
+
+    const { id } = req.params;
+    if (!id) {
+      res.status(400).json({ error: "Document id is required" });
+      return;
+    }
+
+    const result = await pgPool.query<{ saved: boolean }>(
+      `UPDATE documents
+         SET saved = NOT saved, updated_at = now()
+       WHERE id = $1 AND user_id = $2
+       RETURNING saved`,
+      [id, userId],
+    );
+
+    if (result.rowCount === 0) {
+      res.status(404).json({ error: "Document not found" });
+      return;
+    }
+
+    res.json({ saved: result.rows[0].saved });
+  } catch (err) {
+    next(err);
+  }
+}
 
 /**
  * PATCH /analysis/:analysisRequestId/action-items/:index/toggle

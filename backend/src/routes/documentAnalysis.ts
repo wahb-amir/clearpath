@@ -9,6 +9,8 @@ import {
   getAnalysisRunDetailController,
   getUserRunningAnalysisController,
   toggleActionItemController,
+  getSavedDocumentsController,
+  toggleSaveDocumentController,
 } from "../controllers/analysisHistoryController";
 import { confirmExtractionController } from "../controllers/confirmExtractionController";
 import { saveExtractionDraftController } from "../controllers/saveExtractionDraftController";
@@ -83,6 +85,16 @@ router.get("/runs/:documentId", requireAuth, getAnalysisRunDetailController);
 
 // GET /analysis/running-check — check if user has in-flight analysis
 router.get("/running-check", requireAuth, getUserRunningAnalysisController);
+
+// GET /analysis/saved — list all bookmarked documents for the current user
+router.get("/saved", requireAuth, getSavedDocumentsController);
+
+// POST /analysis/documents/:id/toggle-save — toggle bookmark status
+router.post(
+  "/documents/:id/toggle-save",
+  requireAuth,
+  toggleSaveDocumentController,
+);
 // Patch
 router.patch(
   "/:analysisRequestId/action-items/:index/toggle",
