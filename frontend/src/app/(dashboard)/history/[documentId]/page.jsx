@@ -211,7 +211,7 @@ export default function RunDetailPage() {
       .map(([key, score]) => ({
         label: key.charAt(0).toUpperCase() + key.slice(1),
         level: getConfidenceLevel(score),
-        note: `Scored ${(score * 100).toFixed(0)}% based on mathematical density arrays.`,
+        note: `${(score * 100).toFixed(0)}% confident`,
       }));
   };
 
