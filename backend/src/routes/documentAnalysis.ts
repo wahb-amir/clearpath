@@ -8,7 +8,7 @@ import {
   getAnalysisHistoryController,
   getAnalysisRunDetailController,
   getUserRunningAnalysisController,
-  toggleActionItemController
+  toggleActionItemController,
 } from "../controllers/analysisHistoryController";
 import { confirmExtractionController } from "../controllers/confirmExtractionController";
 
@@ -38,7 +38,10 @@ router.get(
   async (req, res, next) => {
     try {
       const userId = (req as any).user?.userId;
-      if (!userId) { res.status(401).json({ error: "Unauthorized" }); return; }
+      if (!userId) {
+        res.status(401).json({ error: "Unauthorized" });
+        return;
+      }
       const { pgPool } = await import("../db/pool");
       const result = await pgPool.query(
         `SELECT extracted_content, analysis_status, storage_path, mime_type, original_file_name
@@ -46,9 +49,14 @@ router.get(
           WHERE id = $1 AND user_id = $2`,
         [req.params.id, userId],
       );
-      if (result.rowCount === 0) { res.status(404).json({ error: "Not found" }); return; }
+      if (result.rowCount === 0) {
+        res.status(404).json({ error: "Not found" });
+        return;
+      }
       res.json(result.rows[0]);
-    } catch (err) { next(err); }
+    } catch (err) {
+      next(err);
+    }
   },
 );
 
@@ -67,7 +75,11 @@ router.get("/runs/:documentId", requireAuth, getAnalysisRunDetailController);
 
 // GET /analysis/running-check — check if user has in-flight analysis
 router.get("/running-check", requireAuth, getUserRunningAnalysisController);
-// Patch 
-router.patch("/:analysisRequestId/action-items/:index/toggle",requireAuth, toggleActionItemController);
+// Patch
+router.patch(
+  "/:analysisRequestId/action-items/:index/toggle",
+  requireAuth,
+  toggleActionItemController,
+);
 
 export default router;

@@ -65,7 +65,7 @@ export async function updateActionItemCompletion(
   analysisRequestId: string,
   userId: string,
   itemIndex: number,
-  isCompleted: boolean
+  isCompleted: boolean,
 ): Promise<boolean> {
   // We construct the JSON path like '{0,completed}' to reach inside the array index
   const jsonPath = `{${itemIndex},completed}`;
@@ -77,7 +77,7 @@ export async function updateActionItemCompletion(
       WHERE analysis_request_id = $3 
         AND user_id = $4
       RETURNING id`,
-    [jsonPath, isCompleted, analysisRequestId, userId]
+    [jsonPath, isCompleted, analysisRequestId, userId],
   );
 
   return (result.rowCount ?? 0) > 0;

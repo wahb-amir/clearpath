@@ -117,12 +117,10 @@ router.post("/sign", requireAuth, async (req: AuthRequest, res: Response) => {
 
     const expectedExt = getExpectedExt(fileName, mimeType);
     if (!expectedExt) {
-      return res
-        .status(400)
-        .json({
-          success: false,
-          message: "File extension does not match allowed type",
-        });
+      return res.status(400).json({
+        success: false,
+        message: "File extension does not match allowed type",
+      });
     }
 
     const documentId = crypto.randomUUID();

@@ -4,16 +4,14 @@ import { useState, useEffect, useRef } from "react";
 import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
 import { motion, AnimatePresence } from "framer-motion";
-import {
-  Loader2,
-  ArrowLeft,
-  Terminal,
-  Info,
-  AlertOctagon,
-} from "lucide-react";
+import { Loader2, ArrowLeft, Terminal, Info, AlertOctagon } from "lucide-react";
 import { apiFetch } from "@/lib/auth/apiFetch";
 import ExtractionVerificationPanel from "@/components/document-intelligence/ExtractionVerificationPanel";
-import { fetchExtractedContent, confirmExtraction, openAnalysisStream } from "@/lib/api/documentAnalysis";
+import {
+  fetchExtractedContent,
+  confirmExtraction,
+  openAnalysisStream,
+} from "@/lib/api/documentAnalysis";
 
 // Direct imports of modular layout cards for pixel-perfect ResultsPanel parity
 import SummaryCard from "@/components/results/SummaryCard";
@@ -43,10 +41,11 @@ export default function RunDetailPage() {
   const [error, setError] = useState(null);
 
   const [extractedContent, setExtractedContent] = useState(null);
-  const [fetchingExtractedContent, setFetchingExtractedContent] = useState(false);
+  const [fetchingExtractedContent, setFetchingExtractedContent] =
+    useState(false);
 
   const terminalEndRef = useRef(null);
-  
+
   // Anti-spam tracker registry holding active debounce timeouts for each item index
   const debounceTimersRef = useRef({});
 
@@ -158,7 +157,10 @@ export default function RunDetailPage() {
           }
         })
         .catch((err) =>
-          console.error("Failed to fetch extracted content on history page:", err)
+          console.error(
+            "Failed to fetch extracted content on history page:",
+            err,
+          ),
         )
         .finally(() => setFetchingExtractedContent(false));
     }
@@ -168,7 +170,6 @@ export default function RunDetailPage() {
     fetchingExtractedContent,
     documentId,
   ]);
-
 
   // FIX: Concurrently track active status before focusing terminal window
   // Keeps historical views stationary on mount while maintaining tracking parameters for active processing tasks
@@ -196,7 +197,12 @@ export default function RunDetailPage() {
     } else {
       itemText = targetItem;
       currentCompletedState = true;
-      updatedItems[index] = { text: targetItem, completed: currentCompletedState, priority: "medium", supporting_evidence: "" };
+      updatedItems[index] = {
+        text: targetItem,
+        completed: currentCompletedState,
+        priority: "medium",
+        supporting_evidence: "",
+      };
     }
 
     // 1. Optimistic UI update: instantly commit to local state for flawless responsiveness
@@ -217,14 +223,19 @@ export default function RunDetailPage() {
             method: "PATCH",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({ completed: currentCompletedState }),
-          }
+          },
         );
 
         if (!response.ok) {
-          console.error(`Failed synchronization frame check for action item index ${index}`);
+          console.error(
+            `Failed synchronization frame check for action item index ${index}`,
+          );
         }
       } catch (err) {
-        console.error("Failed synchronizing state changes out to repository layer:", err);
+        console.error(
+          "Failed synchronizing state changes out to repository layer:",
+          err,
+        );
       } finally {
         delete debounceTimersRef.current[index];
       }
@@ -255,12 +266,18 @@ export default function RunDetailPage() {
     return {
       ...run,
       title: run.title || run.fileName || "Document Analysis",
-      actions: run.actionItems?.map((item) => {
-        if (typeof item === "object" && item !== null) {
-          return item;
-        }
-        return { text: item, completed: false, priority: "medium", supporting_evidence: "" };
-      }) || [],
+      actions:
+        run.actionItems?.map((item) => {
+          if (typeof item === "object" && item !== null) {
+            return item;
+          }
+          return {
+            text: item,
+            completed: false,
+            priority: "medium",
+            supporting_evidence: "",
+          };
+        }) || [],
       deadlines: run.keyDeadlines || [],
       questions: run.questionsToAsk || [],
       sources: run.trustedSources || [],
@@ -386,8 +403,13 @@ export default function RunDetailPage() {
                     exit={{ opacity: 0 }}
                     className="bg-slate-900/40 border border-slate-800/80 rounded-2xl p-8 text-center"
                   >
-                    <Loader2 className="animate-spin text-cyan-500 mx-auto mb-3" size={28} />
-                    <p className="text-sm text-slate-400">Loading extracted content for review...</p>
+                    <Loader2
+                      className="animate-spin text-cyan-500 mx-auto mb-3"
+                      size={28}
+                    />
+                    <p className="text-sm text-slate-400">
+                      Loading extracted content for review...
+                    </p>
                   </motion.div>
                 )
               ) : (
@@ -446,9 +468,9 @@ export default function RunDetailPage() {
               >
                 <SummaryCard result={normalizedResult} />
                 {normalizedResult.actions?.length > 0 && (
-                  <ChecklistCard 
-                    result={normalizedResult} 
-                    onToggleAction={handleToggleActionItem} 
+                  <ChecklistCard
+                    result={normalizedResult}
+                    onToggleAction={handleToggleActionItem}
                   />
                 )}
                 {normalizedResult.deadlines?.length > 0 && (

@@ -8,7 +8,8 @@ export default function ChecklistCard({ result, onToggleAction }) {
 
   // Derive completed counts directly from the backend object state parameters
   const completedCount = actions.filter((a) => a.completed).length;
-  const progress = actions.length > 0 ? (completedCount / actions.length) * 100 : 0;
+  const progress =
+    actions.length > 0 ? (completedCount / actions.length) * 100 : 0;
 
   return (
     <motion.div
@@ -135,14 +136,23 @@ export default function ChecklistCard({ result, onToggleAction }) {
                 )}
               </div>
 
-              <div style={{ display: "flex", gap: 8, width: "100%", flexDirection: "column" }}>
-                <div style={{ display: "flex", gap: 8, alignItems: "flex-start" }}>
+              <div
+                style={{
+                  display: "flex",
+                  gap: 8,
+                  width: "100%",
+                  flexDirection: "column",
+                }}
+              >
+                <div
+                  style={{ display: "flex", gap: 8, alignItems: "flex-start" }}
+                >
                   <span
                     style={{
                       fontSize: 12,
                       fontWeight: 700,
                       color: "hsl(191,100%,50%)",
-                      marginTop: "1px"
+                      marginTop: "1px",
                     }}
                   >
                     {i + 1}
@@ -153,9 +163,11 @@ export default function ChecklistCard({ result, onToggleAction }) {
                     style={{
                       margin: 0,
                       fontSize: 14,
-                      color: isChecked ? "hsl(220,10%,50%)" : "hsl(220,12%,78%)",
+                      color: isChecked
+                        ? "hsl(220,10%,50%)"
+                        : "hsl(220,12%,78%)",
                       textDecoration: isChecked ? "line-through" : "none",
-                      lineHeight: "1.4"
+                      lineHeight: "1.4",
                     }}
                   >
                     {action?.text || ""}
@@ -164,7 +176,15 @@ export default function ChecklistCard({ result, onToggleAction }) {
 
                 {/* ADDITIONAL SPEC INTERACTION META DETAILS */}
                 {(action?.supporting_evidence || action?.priority) && (
-                  <div style={{ display: "flex", gap: 8, alignItems: "center", paddingLeft: 20, flexWrap: "wrap" }}>
+                  <div
+                    style={{
+                      display: "flex",
+                      gap: 8,
+                      alignItems: "center",
+                      paddingLeft: 20,
+                      flexWrap: "wrap",
+                    }}
+                  >
                     {action?.priority && (
                       <span
                         style={{
@@ -174,15 +194,24 @@ export default function ChecklistCard({ result, onToggleAction }) {
                           padding: "1px 6px",
                           borderRadius: "4px",
                           fontFamily: "monospace",
-                          background: action.priority === "high" ? "hsla(350, 70%, 50%, 0.15)" : "hsla(222, 25%, 20%, 0.6)",
-                          color: action.priority === "high" ? "hsl(350, 80%, 65%)" : "hsl(220, 10%, 60%)",
-                          border: action.priority === "high" ? "1px solid hsla(350, 70%, 50%, 0.25)" : "1px solid hsla(222, 25%, 25%, 0.4)"
+                          background:
+                            action.priority === "high"
+                              ? "hsla(350, 70%, 50%, 0.15)"
+                              : "hsla(222, 25%, 20%, 0.6)",
+                          color:
+                            action.priority === "high"
+                              ? "hsl(350, 80%, 65%)"
+                              : "hsl(220, 10%, 60%)",
+                          border:
+                            action.priority === "high"
+                              ? "1px solid hsla(350, 70%, 50%, 0.25)"
+                              : "1px solid hsla(222, 25%, 25%, 0.4)",
                         }}
                       >
                         {action.priority}
                       </span>
                     )}
-                    
+
                     {action?.supporting_evidence && (
                       <span
                         style={{
@@ -192,7 +221,7 @@ export default function ChecklistCard({ result, onToggleAction }) {
                           overflow: "hidden",
                           textOverflow: "ellipsis",
                           whiteSpace: "nowrap",
-                          maxWidth: "100%"
+                          maxWidth: "100%",
                         }}
                         title={action.supporting_evidence}
                       >

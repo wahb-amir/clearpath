@@ -139,9 +139,7 @@ export default function SummaryCard({ result }) {
             background: "hsla(221, 83%, 53%, 0.07)",
             border: "1px solid hsla(221, 83%, 53%, 0.12)",
           }}
-        >
-          
-        </div>
+        ></div>
       </div>
     </motion.div>
   );

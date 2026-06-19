@@ -248,8 +248,12 @@ export async function processAnalysisJob(
           index: i,
           title: s.title ?? `Section ${i + 1}`,
           content: s.children?.length
-            ? s.children.map((c) => ("content" in c ? c.content : "")).join("\n\n")
-            : ("content" in s ? s.content : ""),
+            ? s.children
+                .map((c) => ("content" in c ? c.content : ""))
+                .join("\n\n")
+            : "content" in s
+              ? s.content
+              : "",
         })),
         dates: facts
           .filter((f) => f.factType === "date" || f.factType === "deadline")
@@ -303,14 +307,16 @@ export async function processAnalysisJob(
           [analysisRequestId],
         );
 
-        const { insertPipelineEvent } = await import("../services/analysisRequestService");
+        const { insertPipelineEvent } =
+          await import("../services/analysisRequestService");
 
         await insertPipelineEvent(client, {
           documentId,
           userId,
           eventType: "extraction_awaiting_verification" as any,
           stage: "AWAITING_VERIFICATION",
-          message: "Extraction complete — please verify and confirm the extracted content",
+          message:
+            "Extraction complete — please verify and confirm the extracted content",
           progress: 40,
           payload: {
             extractedContent,
@@ -321,7 +327,8 @@ export async function processAnalysisJob(
       });
 
       try {
-        const { createPublisherConnection, channelForDocument } = await import("../redis/connection");
+        const { createPublisherConnection, channelForDocument } =
+          await import("../redis/connection");
         const pub = createPublisherConnection();
         await pub.publish(
           channelForDocument(documentId),
@@ -340,7 +347,7 @@ export async function processAnalysisJob(
         ocrConfidence: content.ocrConfidence ?? doc.ocr_confidence ?? 1,
         textCoverage: content.textCoverage ?? 1,
       };
-      
+
       facts = [];
       const addFact = (arr: any[], defaultType?: string) => {
         if (!arr) return;
@@ -350,7 +357,7 @@ export async function processAnalysisJob(
             value: item.value,
             normalizedValue: item.normalizedValue,
             context: item.context,
-            confidence: item.confidence
+            confidence: item.confidence,
           });
         }
       };
@@ -365,7 +372,7 @@ export async function processAnalysisJob(
         sectionType: "section",
         textContent: s.content,
         orderIndex: s.index,
-        children: []
+        children: [],
       }));
     }
 

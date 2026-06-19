@@ -1,6 +1,6 @@
-import Sidebar from '@/components/app-shell/Sidebar';
-import React from 'react';
-import FeedBack from './app/FeedBack';
+import Sidebar from "@/components/app-shell/Sidebar";
+import React from "react";
+import FeedBack from "./app/FeedBack";
 
 const HelpCenterLayout = () => {
   return (

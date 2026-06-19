@@ -1,5 +1,8 @@
 {
   "name": "clearpath",
   "private": true,
-  "workspaces": ["frontend", "backend"]
+  "workspaces": [
+    "frontend",
+    "backend"
+  ]
 }

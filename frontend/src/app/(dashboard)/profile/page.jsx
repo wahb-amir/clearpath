@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import useSWR from "swr"; 
+import useSWR from "swr";
 import { motion } from "framer-motion";
 import {
   User,
@@ -28,7 +28,11 @@ export default function ProfilePage() {
   const [isEditing, setIsEditing] = useState(false);
 
   // Unwraps the nested database structure immediately into `user`
-  const { data: user, error, isLoading } = useSWR(profileEndpoint, async (url) => {
+  const {
+    data: user,
+    error,
+    isLoading,
+  } = useSWR(profileEndpoint, async (url) => {
     const response = await apiFetch(url);
     if (!response.ok) {
       throw new Error(`Server returned status code: ${response.status}`);

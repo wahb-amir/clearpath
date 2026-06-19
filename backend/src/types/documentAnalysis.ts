@@ -29,7 +29,7 @@ export interface ActionItem {
   text: string;
   priority: "high" | "medium" | "low";
   supporting_evidence: string;
-  completed: boolean; 
+  completed: boolean;
 }
 
 export interface KeyDeadline {

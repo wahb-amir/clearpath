@@ -431,8 +431,6 @@ export async function getUserRunningAnalysisController(
   }
 }
 
-
-
 import { updateActionItemCompletion } from "../services/documentAnalysisResultRepository"; // Adjust path
 
 /**
@@ -442,7 +440,7 @@ import { updateActionItemCompletion } from "../services/documentAnalysisResultRe
 export async function toggleActionItemController(
   req: AuthenticatedRequest,
   res: Response,
-  next: NextFunction
+  next: NextFunction,
 ): Promise<void> {
   try {
     const userId = req.user?.userId;
@@ -455,7 +453,9 @@ export async function toggleActionItemController(
     const { completed } = req.body;
 
     if (typeof completed !== "boolean") {
-      res.status(400).json({ error: "completed field must be a boolean value" });
+      res
+        .status(400)
+        .json({ error: "completed field must be a boolean value" });
       return;
     }
 
@@ -478,7 +478,7 @@ export async function toggleActionItemController(
       analysisRequestIdParam,
       userId,
       itemIndex,
-      completed
+      completed,
     );
 
     if (!updated) {
@@ -486,7 +486,10 @@ export async function toggleActionItemController(
       return;
     }
 
-    res.json({ success: true, message: `Action item marked as ${completed ? 'done' : 'undone'}` });
+    res.json({
+      success: true,
+      message: `Action item marked as ${completed ? "done" : "undone"}`,
+    });
   } catch (err) {
     next(err);
   }

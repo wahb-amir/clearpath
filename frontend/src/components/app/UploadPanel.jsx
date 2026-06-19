@@ -392,7 +392,10 @@ function StatusCard({
           <div className="text-[11px] uppercase tracking-wider text-gray-500">
             Stage
           </div>
-          <div title={stage} className="mt-1 truncate text-sm font-medium text-white">
+          <div
+            title={stage}
+            className="mt-1 truncate text-sm font-medium text-white"
+          >
             {formatStageText(stage)}
           </div>
         </div>
@@ -433,7 +436,9 @@ function StatusCard({
 
       <div className="mt-6 border-t border-white/5 pt-5">
         <div className="mb-4 flex items-center justify-between px-1">
-          <h4 className="text-sm font-semibold text-white">Live event stream</h4>
+          <h4 className="text-sm font-semibold text-white">
+            Live event stream
+          </h4>
           <span className="rounded-full bg-white/5 px-2 py-0.5 text-[11px] font-medium text-gray-400">
             {timeline.length} event{timeline.length === 1 ? "" : "s"}
           </span>
@@ -520,7 +525,7 @@ export default function DocumentIntelligencePanel({
       revalidateOnFocus: true,
       revalidateOnMount: true,
       shouldRetryOnError: false,
-    }
+    },
   );
 
   const serverRunning = Boolean(runningCheck?.running);
@@ -530,14 +535,22 @@ export default function DocumentIntelligencePanel({
   const serverStage = normalizeStage(serverDocument?.analysisStatus);
 
   useEffect(() => {
-    if (stage === "AWAITING_VERIFICATION" && !extractedContent && (activeSession?.documentId || serverDocumentId)) {
+    if (
+      stage === "AWAITING_VERIFICATION" &&
+      !extractedContent &&
+      (activeSession?.documentId || serverDocumentId)
+    ) {
       const docId = activeSession?.documentId || serverDocumentId;
       if (docId) {
-        fetchExtractedContent(docId).then(data => {
-          if (data && data.extracted_content) {
-            setExtractedContent(data.extracted_content);
-          }
-        }).catch(err => console.error("Failed to fetch extracted content", err));
+        fetchExtractedContent(docId)
+          .then((data) => {
+            if (data && data.extracted_content) {
+              setExtractedContent(data.extracted_content);
+            }
+          })
+          .catch((err) =>
+            console.error("Failed to fetch extracted content", err),
+          );
       }
     }
   }, [stage, extractedContent, activeSession?.documentId, serverDocumentId]);
@@ -561,44 +574,54 @@ export default function DocumentIntelligencePanel({
     safeWriteSession(next);
   }, []);
 
-  const clearRuntimeState = useCallback(({ clearFile = false } = {}) => {
-    abortRef.current?.abort();
-    streamStateRef.current = { documentId: null, sseUrl: null, status: "idle" };
-    resumeLockRef.current = false;
+  const clearRuntimeState = useCallback(
+    ({ clearFile = false } = {}) => {
+      abortRef.current?.abort();
+      streamStateRef.current = {
+        documentId: null,
+        sseUrl: null,
+        status: "idle",
+      };
+      resumeLockRef.current = false;
 
-    setError(null);
-    setFailed(false);
-    setCompleted(false);
-    setIsAnalyzing(false);
-    setIsConnected(false);
-    setReconnecting(false);
-    setStage("IDLE");
-    setMessage("Ready to analyze");
-    setProgress(0);
-    setWorkerId(null);
-    setAnalysisRequestId(null);
-    setTimeline([]);
-    setLatestEventId(null);
-    onAiResult?.(null);
+      setError(null);
+      setFailed(false);
+      setCompleted(false);
+      setIsAnalyzing(false);
+      setIsConnected(false);
+      setReconnecting(false);
+      setStage("IDLE");
+      setMessage("Ready to analyze");
+      setProgress(0);
+      setWorkerId(null);
+      setAnalysisRequestId(null);
+      setTimeline([]);
+      setLatestEventId(null);
+      onAiResult?.(null);
 
-    seenEventIdsRef.current = new Set();
-    lastEventIdRef.current = null;
+      seenEventIdsRef.current = new Set();
+      lastEventIdRef.current = null;
 
-    if (clearFile) setSelectedFile(null);
-  }, [onAiResult]);
+      if (clearFile) setSelectedFile(null);
+    },
+    [onAiResult],
+  );
 
-  const clearSession = useCallback(({ clearFile = false } = {}) => {
-    clearRuntimeState({ clearFile });
-    sessionMetaRef.current = {
-      documentId: null,
-      fileName: null,
-      sseUrl: null,
-      analysisRequestId: null,
-      lastEventId: null,
-    };
-    setActiveSession(null);
-    safeClearSession();
-  }, [clearRuntimeState]);
+  const clearSession = useCallback(
+    ({ clearFile = false } = {}) => {
+      clearRuntimeState({ clearFile });
+      sessionMetaRef.current = {
+        documentId: null,
+        fileName: null,
+        sseUrl: null,
+        analysisRequestId: null,
+        lastEventId: null,
+      };
+      setActiveSession(null);
+      safeClearSession();
+    },
+    [clearRuntimeState],
+  );
 
   useEffect(() => {
     return () => {
@@ -656,7 +679,10 @@ export default function DocumentIntelligencePanel({
         return;
       }
 
-      if (resumeLockRef.current && streamStateRef.current.documentId === activeDocId) {
+      if (
+        resumeLockRef.current &&
+        streamStateRef.current.documentId === activeDocId
+      ) {
         return;
       }
 
@@ -686,7 +712,8 @@ export default function DocumentIntelligencePanel({
         status: "connecting",
       };
 
-      const lastEventId = session?.lastEventId || lastEventIdRef.current || null;
+      const lastEventId =
+        session?.lastEventId || lastEventIdRef.current || null;
 
       setError(null);
       setFailed(false);
@@ -700,7 +727,7 @@ export default function DocumentIntelligencePanel({
           ? "Tab focused. Reconnecting live analysis..."
           : activeSession
             ? "Resuming live analysis..."
-            : "Restoring active analysis..."
+            : "Restoring active analysis...",
       );
       setProgress(stageToProgress(serverStage || session?.stage || "RUNNING"));
       setAnalysisRequestId(session?.analysisRequestId ?? null);
@@ -714,7 +741,7 @@ export default function DocumentIntelligencePanel({
               sseUrl: activeSseUrl,
               analysisRequestId: session?.analysisRequestId ?? null,
               lastEventId: lastEventId,
-            }
+            },
       );
 
       const applyEvent = (eventName, data, eventId) => {
@@ -728,7 +755,7 @@ export default function DocumentIntelligencePanel({
         setProgress(
           typeof data.progress === "number"
             ? data.progress
-            : stageToProgress(nextStage)
+            : stageToProgress(nextStage),
         );
         setIsConnected(true);
         setReconnecting(false);
@@ -753,7 +780,8 @@ export default function DocumentIntelligencePanel({
         }
 
         if (
-          (eventName === "ai_completed" || eventName === "analysis_completed") &&
+          (eventName === "ai_completed" ||
+            eventName === "analysis_completed") &&
           data.payload &&
           typeof data.payload.summary === "string"
         ) {
@@ -785,7 +813,7 @@ export default function DocumentIntelligencePanel({
           setError(
             typeof data.payload?.error === "string"
               ? data.payload.error
-              : "Analysis failed"
+              : "Analysis failed",
           );
           safeClearSession();
         }
@@ -823,7 +851,9 @@ export default function DocumentIntelligencePanel({
             if (controller.signal.aborted) return;
             setIsConnected(false);
             setReconnecting(true);
-            setError(err instanceof Error ? err.message : "Connection interrupted");
+            setError(
+              err instanceof Error ? err.message : "Connection interrupted",
+            );
           },
         });
       } catch (err) {
@@ -845,7 +875,7 @@ export default function DocumentIntelligencePanel({
       serverFileName,
       serverRunning,
       serverStage,
-    ]
+    ],
   );
 
   useEffect(() => {
@@ -868,7 +898,11 @@ export default function DocumentIntelligencePanel({
         analysisRequestId: null,
         lastEventId: null,
       };
-      streamStateRef.current = { documentId: null, sseUrl: null, status: "idle" };
+      streamStateRef.current = {
+        documentId: null,
+        sseUrl: null,
+        status: "idle",
+      };
     }
   }, [activeSession, busy, runningCheck, selectedFile, syncStream]);
 
@@ -892,7 +926,11 @@ export default function DocumentIntelligencePanel({
   const clearAnalysisState = useCallback(
     ({ clearFile = false } = {}) => {
       abortRef.current?.abort();
-      streamStateRef.current = { documentId: null, sseUrl: null, status: "idle" };
+      streamStateRef.current = {
+        documentId: null,
+        sseUrl: null,
+        status: "idle",
+      };
       resumeLockRef.current = false;
 
       setError(null);
@@ -915,7 +953,7 @@ export default function DocumentIntelligencePanel({
 
       if (clearFile) setSelectedFile(null);
     },
-    [onAiResult]
+    [onAiResult],
   );
 
   const handleFileSelect = useCallback(
@@ -940,7 +978,7 @@ export default function DocumentIntelligencePanel({
       setSelectedFile(file);
       setMessage(`Ready to upload ${file.name}`);
     },
-    [clearAnalysisState, clearSession]
+    [clearAnalysisState, clearSession],
   );
 
   const handleClearFile = useCallback(() => {
@@ -1006,7 +1044,7 @@ export default function DocumentIntelligencePanel({
       setMessage(
         response.deduplication?.isNewRequest
           ? "Analysis request created"
-          : "Existing analysis request resumed"
+          : "Existing analysis request resumed",
       );
       setProgress(stageToProgress(response.currentStatus));
 
@@ -1036,7 +1074,7 @@ export default function DocumentIntelligencePanel({
           setProgress(
             typeof data.progress === "number"
               ? data.progress
-              : stageToProgress(nextStage)
+              : stageToProgress(nextStage),
           );
           setIsConnected(true);
           setReconnecting(false);
@@ -1059,12 +1097,16 @@ export default function DocumentIntelligencePanel({
             setWorkerId(data.payload.workerId);
           }
 
-          if (nextStage === "AWAITING_VERIFICATION" && data.payload?.extractedContent) {
+          if (
+            nextStage === "AWAITING_VERIFICATION" &&
+            data.payload?.extractedContent
+          ) {
             setExtractedContent(data.payload.extractedContent);
           }
 
           if (
-            (eventName === "ai_completed" || eventName === "analysis_completed") &&
+            (eventName === "ai_completed" ||
+              eventName === "analysis_completed") &&
             data.payload &&
             typeof data.payload.summary === "string"
           ) {
@@ -1096,7 +1138,7 @@ export default function DocumentIntelligencePanel({
             setError(
               typeof data.payload?.error === "string"
                 ? data.payload.error
-                : "Analysis failed"
+                : "Analysis failed",
             );
             safeClearSession();
           }
@@ -1125,7 +1167,9 @@ export default function DocumentIntelligencePanel({
           if (controller.signal.aborted) return;
           setIsConnected(false);
           setReconnecting(true);
-          setError(err instanceof Error ? err.message : "Connection interrupted");
+          setError(
+            err instanceof Error ? err.message : "Connection interrupted",
+          );
         },
       }).catch((err) => {
         if (controller.signal.aborted) return;

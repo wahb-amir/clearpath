@@ -6,11 +6,27 @@ import UrgencyBadge from "@/components/ui/UrgencyBadge";
 
 function getDaysLabel(days) {
   if (days === undefined || days === null) return null;
-  if (days <= 0) return { text: "Past due", color: "text-red-400", bg: "bg-red-500/10" };
-  if (days === 1) return { text: "Tomorrow", color: "text-red-400", bg: "bg-red-500/10" };
-  if (days <= 3) return { text: `${days} days left`, color: "text-red-400", bg: "bg-red-500/10" };
-  if (days <= 7) return { text: `${days} days left`, color: "text-amber-400", bg: "bg-amber-500/10" };
-  return { text: `${days} days left`, color: "text-slate-400", bg: "bg-white/5" };
+  if (days <= 0)
+    return { text: "Past due", color: "text-red-400", bg: "bg-red-500/10" };
+  if (days === 1)
+    return { text: "Tomorrow", color: "text-red-400", bg: "bg-red-500/10" };
+  if (days <= 3)
+    return {
+      text: `${days} days left`,
+      color: "text-red-400",
+      bg: "bg-red-500/10",
+    };
+  if (days <= 7)
+    return {
+      text: `${days} days left`,
+      color: "text-amber-400",
+      bg: "bg-amber-500/10",
+    };
+  return {
+    text: `${days} days left`,
+    color: "text-slate-400",
+    bg: "bg-white/5",
+  };
 }
 
 function getUrgencyStyles(level = "low") {
@@ -77,7 +93,11 @@ export default function DeadlinesCard({ result }) {
       {/* List */}
       <div className="space-y-3">
         {deadlines.map((deadline, i) => {
-          const urgency = (deadline?.urgency || deadline?.priority || "low").toLowerCase();
+          const urgency = (
+            deadline?.urgency ||
+            deadline?.priority ||
+            "low"
+          ).toLowerCase();
           const urgencyStyle = getUrgencyStyles(urgency);
           const daysInfo = getDaysLabel(deadline?.text);
 
@@ -144,7 +164,9 @@ export default function DeadlinesCard({ result }) {
 
                     <div className="flex items-center gap-2 sm:shrink-0">
                       <span className="inline-flex items-center gap-1 rounded-full border border-slate-700 bg-slate-900 px-2.5 py-1 text-[0.72rem] font-medium text-slate-300">
-                        <span className={`h-1.5 w-1.5 rounded-full ${urgencyStyle.dot}`} />
+                        <span
+                          className={`h-1.5 w-1.5 rounded-full ${urgencyStyle.dot}`}
+                        />
                         {urgencyStyle.label}
                       </span>
 

@@ -1,47 +1,64 @@
 "use client";
 
-import { ShieldCheck, Lock, Eye, FileCheck, AlertTriangle, CheckCircle, Server, KeyRound, RefreshCw, Users } from "lucide-react";
+import {
+  ShieldCheck,
+  Lock,
+  Eye,
+  FileCheck,
+  AlertTriangle,
+  CheckCircle,
+  Server,
+  KeyRound,
+  RefreshCw,
+  Users,
+} from "lucide-react";
 
 const trustPillars = [
   {
     icon: Lock,
     title: "End-to-end encryption",
-    description: "Every document you upload is encrypted in transit and at rest using AES-256. Your files are never readable by anyone except you.",
+    description:
+      "Every document you upload is encrypted in transit and at rest using AES-256. Your files are never readable by anyone except you.",
     badge: "Active",
     badgeColor: "emerald",
   },
   {
     icon: Eye,
     title: "Zero data retention",
-    description: "We never store your document content after analysis is complete. Once results are returned, your file is permanently deleted from our servers.",
+    description:
+      "We never store your document content after analysis is complete. Once results are returned, your file is permanently deleted from our servers.",
     badge: "Enforced",
     badgeColor: "blue",
   },
   {
     icon: FileCheck,
     title: "Secure file processing",
-    description: "Uploaded PDFs, DOCX, and TXT files are processed in isolated sandboxes. No file ever touches shared infrastructure or other user sessions.",
+    description:
+      "Uploaded PDFs, DOCX, and TXT files are processed in isolated sandboxes. No file ever touches shared infrastructure or other user sessions.",
     badge: "Isolated",
     badgeColor: "violet",
   },
   {
     icon: Server,
     title: "SOC 2 compliant infrastructure",
-    description: "Our processing infrastructure is hosted on SOC 2 Type II certified cloud providers with continuous monitoring and threat detection.",
+    description:
+      "Our processing infrastructure is hosted on SOC 2 Type II certified cloud providers with continuous monitoring and threat detection.",
     badge: "Certified",
     badgeColor: "emerald",
   },
   {
     icon: KeyRound,
     title: "Access control",
-    description: "Your history, saved items, and profile data are scoped strictly to your account. No team member or support agent can access your documents without your explicit consent.",
+    description:
+      "Your history, saved items, and profile data are scoped strictly to your account. No team member or support agent can access your documents without your explicit consent.",
     badge: "Enforced",
     badgeColor: "blue",
   },
   {
     icon: RefreshCw,
     title: "Regular security audits",
-    description: "We commission independent penetration tests and vulnerability assessments every quarter. Results inform our security roadmap and patching schedule.",
+    description:
+      "We commission independent penetration tests and vulnerability assessments every quarter. Results inform our security roadmap and patching schedule.",
     badge: "Quarterly",
     badgeColor: "amber",
   },
@@ -76,19 +93,22 @@ const badgeStyles = {
 export default function SafetyTrust() {
   return (
     <div className="min-h-screen bg-slate-950 text-slate-100 px-6 py-10 max-w-4xl mx-auto">
-
       <div className="mb-10">
         <div className="flex items-center gap-3 mb-4">
           <div className="w-10 h-10 rounded-xl bg-blue-600/20 border border-blue-500/30 flex items-center justify-center">
             <ShieldCheck size={20} className="text-blue-400" />
           </div>
-          <span className="text-xs font-semibold text-slate-500 uppercase tracking-widest">Safety & Trust</span>
+          <span className="text-xs font-semibold text-slate-500 uppercase tracking-widest">
+            Safety & Trust
+          </span>
         </div>
         <h1 className="text-3xl font-bold text-slate-100 mb-3 leading-tight">
           Your documents stay yours
         </h1>
         <p className="text-slate-400 text-base leading-relaxed max-w-2xl">
-          ClearPath is built on a simple principle: we process your files to help you, then get out of the way. Here is exactly how we protect your data at every step.
+          ClearPath is built on a simple principle: we process your files to
+          help you, then get out of the way. Here is exactly how we protect your
+          data at every step.
         </p>
       </div>
 
@@ -106,16 +126,24 @@ export default function SafetyTrust() {
                   <div className="w-9 h-9 rounded-lg bg-slate-800 flex items-center justify-center flex-shrink-0">
                     <Icon size={18} className="text-blue-400" />
                   </div>
-                  <p className="font-semibold text-slate-100 text-sm leading-snug">{pillar.title}</p>
+                  <p className="font-semibold text-slate-100 text-sm leading-snug">
+                    {pillar.title}
+                  </p>
                 </div>
                 <span
                   className="text-xs font-semibold px-2.5 py-1 rounded-full flex-shrink-0 border"
-                  style={{ background: badge.bg, color: badge.text, borderColor: badge.border }}
+                  style={{
+                    background: badge.bg,
+                    color: badge.text,
+                    borderColor: badge.border,
+                  }}
                 >
                   {pillar.badge}
                 </span>
               </div>
-              <p className="text-slate-400 text-sm leading-relaxed">{pillar.description}</p>
+              <p className="text-slate-400 text-sm leading-relaxed">
+                {pillar.description}
+              </p>
             </div>
           );
         })}
@@ -124,9 +152,13 @@ export default function SafetyTrust() {
       <div className="rounded-xl border border-slate-800 bg-slate-900 p-6 mb-12">
         <div className="flex items-center gap-2 mb-1">
           <AlertTriangle size={16} className="text-amber-400" />
-          <h2 className="text-sm font-semibold text-slate-200 uppercase tracking-wider">What we never do</h2>
+          <h2 className="text-sm font-semibold text-slate-200 uppercase tracking-wider">
+            What we never do
+          </h2>
         </div>
-        <p className="text-slate-500 text-xs mb-5">These are unconditional, not subject to change by plan or upgrade.</p>
+        <p className="text-slate-500 text-xs mb-5">
+          These are unconditional, not subject to change by plan or upgrade.
+        </p>
         <ul className="space-y-3">
           {[
             "Sell or share your document content with third parties",
@@ -135,8 +167,14 @@ export default function SafetyTrust() {
             "Allow any employee to read your files without a court order",
             "Run ads targeted at your document content",
           ].map((item, i) => (
-            <li key={i} className="flex items-start gap-3 text-sm text-slate-300">
-              <CheckCircle size={16} className="text-emerald-500 mt-0.5 flex-shrink-0" />
+            <li
+              key={i}
+              className="flex items-start gap-3 text-sm text-slate-300"
+            >
+              <CheckCircle
+                size={16}
+                className="text-emerald-500 mt-0.5 flex-shrink-0"
+              />
               {item}
             </li>
           ))}
@@ -144,12 +182,21 @@ export default function SafetyTrust() {
       </div>
 
       <div className="mb-12">
-        <h2 className="text-lg font-semibold text-slate-100 mb-1">Common questions</h2>
-        <p className="text-slate-500 text-sm mb-6">Straight answers, no marketing language.</p>
+        <h2 className="text-lg font-semibold text-slate-100 mb-1">
+          Common questions
+        </h2>
+        <p className="text-slate-500 text-sm mb-6">
+          Straight answers, no marketing language.
+        </p>
         <div className="space-y-3">
           {faqItems.map((item, i) => (
-            <div key={i} className="rounded-xl border border-slate-800 bg-slate-900 p-5">
-              <p className="font-semibold text-slate-100 text-sm mb-2">{item.q}</p>
+            <div
+              key={i}
+              className="rounded-xl border border-slate-800 bg-slate-900 p-5"
+            >
+              <p className="font-semibold text-slate-100 text-sm mb-2">
+                {item.q}
+              </p>
               <p className="text-slate-400 text-sm leading-relaxed">{item.a}</p>
             </div>
           ))}
@@ -160,9 +207,14 @@ export default function SafetyTrust() {
         <div className="flex-1">
           <div className="flex items-center gap-2 mb-1">
             <Users size={16} className="text-blue-400" />
-            <p className="text-sm font-semibold text-slate-200">Still have questions?</p>
+            <p className="text-sm font-semibold text-slate-200">
+              Still have questions?
+            </p>
           </div>
-          <p className="text-slate-400 text-sm">Our team responds to security and privacy questions within one business day.</p>
+          <p className="text-slate-400 text-sm">
+            Our team responds to security and privacy questions within one
+            business day.
+          </p>
         </div>
         <a
           href="/help-center"
@@ -171,7 +223,6 @@ export default function SafetyTrust() {
           Contact support
         </a>
       </div>
-
     </div>
   );
 }

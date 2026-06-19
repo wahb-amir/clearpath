@@ -12,8 +12,10 @@ const HelpCenterLayout = () => {
     <div className="flex min-h-screen bg-slate-950">
       {/* 2. Pass the state and setter as props down to Sidebar */}
       <Sidebar collapsed={collapsed} setCollapsed={setCollapsed} />
-      
-      <main className={`flex-1 min-w-0 overflow-y-auto transition-all duration-300`}>
+
+      <main
+        className={`flex-1 min-w-0 overflow-y-auto transition-all duration-300`}
+      >
         <HelpCenter />
       </main>
     </div>

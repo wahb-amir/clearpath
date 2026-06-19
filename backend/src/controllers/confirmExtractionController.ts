@@ -57,7 +57,9 @@ export async function confirmExtractionController(
       );
 
       if (docResult.rowCount === 0) {
-        throw Object.assign(new Error("Document not found"), { statusCode: 404 });
+        throw Object.assign(new Error("Document not found"), {
+          statusCode: 404,
+        });
       }
 
       const doc = docResult.rows[0];
@@ -158,8 +160,7 @@ export async function confirmExtractionController(
       message: "Extraction confirmed. AI analysis queued.",
     });
   } catch (err: unknown) {
-    const statusCode =
-      (err as { statusCode?: number }).statusCode ?? undefined;
+    const statusCode = (err as { statusCode?: number }).statusCode ?? undefined;
     if (statusCode) {
       res.status(statusCode).json({ error: (err as Error).message });
       return;

@@ -1,7 +1,16 @@
 "use client";
 
 import { useState } from "react";
-import { MessageSquare, ThumbsUp, ThumbsDown, Bug, Lightbulb, Star, Send, CheckCircle } from "lucide-react";
+import {
+  MessageSquare,
+  ThumbsUp,
+  ThumbsDown,
+  Bug,
+  Lightbulb,
+  Star,
+  Send,
+  CheckCircle,
+} from "lucide-react";
 
 const categories = [
   { label: "General feedback", icon: MessageSquare, value: "general" },
@@ -70,9 +79,12 @@ export default function FeedBack() {
           <div className="w-16 h-16 rounded-full bg-emerald-600/20 border border-emerald-500/30 flex items-center justify-center mx-auto mb-6">
             <CheckCircle size={28} className="text-emerald-400" />
           </div>
-          <h2 className="text-2xl font-bold text-slate-100 mb-3">Thanks for sharing</h2>
+          <h2 className="text-2xl font-bold text-slate-100 mb-3">
+            Thanks for sharing
+          </h2>
           <p className="text-slate-400 text-sm leading-relaxed mb-8">
-            Your feedback goes directly to the team. We read every submission and use it to make ClearPath better.
+            Your feedback goes directly to the team. We read every submission
+            and use it to make ClearPath better.
           </p>
           <button
             onClick={handleReset}
@@ -87,24 +99,29 @@ export default function FeedBack() {
 
   return (
     <div className="min-h-screen bg-slate-950 text-slate-100 px-6 py-10 max-w-4xl mx-auto">
-
       <div className="mb-10">
         <div className="flex items-center gap-3 mb-4">
           <div className="w-10 h-10 rounded-xl bg-blue-600/20 border border-blue-500/30 flex items-center justify-center">
             <MessageSquare size={20} className="text-blue-400" />
           </div>
-          <span className="text-xs font-semibold text-slate-500 uppercase tracking-widest">Feedback</span>
+          <span className="text-xs font-semibold text-slate-500 uppercase tracking-widest">
+            Feedback
+          </span>
         </div>
         <h1 className="text-3xl font-bold text-slate-100 mb-3 leading-tight">
           Tell us what you think
         </h1>
         <p className="text-slate-400 text-base leading-relaxed max-w-2xl">
-          Every piece of feedback is read by the team. Whether it is a bug, an idea, or just how you are feeling about ClearPath — we want to hear it.
+          Every piece of feedback is read by the team. Whether it is a bug, an
+          idea, or just how you are feeling about ClearPath — we want to hear
+          it.
         </p>
       </div>
 
       <div className="mb-8">
-        <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-3">What kind of feedback is this?</p>
+        <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-3">
+          What kind of feedback is this?
+        </p>
         <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
           {categories.map((cat) => {
             const Icon = cat.icon;
@@ -119,7 +136,10 @@ export default function FeedBack() {
                     : "bg-slate-900 border-slate-800 text-slate-400 hover:border-slate-700 hover:text-slate-200"
                 }`}
               >
-                <Icon size={20} className={isActive ? "text-blue-400" : "text-slate-500"} />
+                <Icon
+                  size={20}
+                  className={isActive ? "text-blue-400" : "text-slate-500"}
+                />
                 {cat.label}
               </button>
             );
@@ -128,7 +148,9 @@ export default function FeedBack() {
       </div>
 
       <div className="mb-8">
-        <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-3">How has your experience been?</p>
+        <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-3">
+          How has your experience been?
+        </p>
         <div className="flex gap-3">
           {experienceOptions.map((opt) => {
             const Icon = opt.icon;
@@ -145,7 +167,10 @@ export default function FeedBack() {
                   color: isActive ? c.text : "#94a3b8",
                 }}
               >
-                <Icon size={17} style={{ color: isActive ? c.text : "#64748b" }} />
+                <Icon
+                  size={17}
+                  style={{ color: isActive ? c.text : "#64748b" }}
+                />
                 {opt.label}
               </button>
             );
@@ -154,7 +179,9 @@ export default function FeedBack() {
       </div>
 
       <div className="mb-8">
-        <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-3">Rate your overall experience</p>
+        <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-3">
+          Rate your overall experience
+        </p>
         <div className="flex items-center gap-2">
           {[1, 2, 3, 4, 5].map((star) => {
             const filled = star <= (hoverRating || rating);
@@ -185,8 +212,12 @@ export default function FeedBack() {
 
       <div className="mb-8">
         <div className="flex items-center justify-between mb-3">
-          <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider">Your message</p>
-          <span className="text-xs text-slate-600">{message.length} / 1000</span>
+          <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider">
+            Your message
+          </p>
+          <span className="text-xs text-slate-600">
+            {message.length} / 1000
+          </span>
         </div>
         <textarea
           value={message}
@@ -196,27 +227,50 @@ export default function FeedBack() {
             category === "bug"
               ? "Describe what happened, what you expected, and any steps to reproduce it..."
               : category === "feature"
-              ? "Describe the feature you have in mind and the problem it would solve..."
-              : category === "rating"
-              ? "Share anything specific that shaped your experience..."
-              : "Share your thoughts — anything is welcome..."
+                ? "Describe the feature you have in mind and the problem it would solve..."
+                : category === "rating"
+                  ? "Share anything specific that shaped your experience..."
+                  : "Share your thoughts — anything is welcome..."
           }
           className="w-full bg-slate-900 border border-slate-800 rounded-xl px-4 py-3.5 text-sm text-slate-200 placeholder-slate-600 focus:outline-none focus:border-blue-500/50 focus:ring-1 focus:ring-blue-500/30 resize-none transition-colors leading-relaxed"
         />
       </div>
 
       <div className="rounded-xl border border-slate-800 bg-slate-900 p-5 mb-8">
-        <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-3">Submission summary</p>
+        <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-3">
+          Submission summary
+        </p>
         <div className="space-y-2.5">
           {[
-            { label: "Category", value: categories.find((c) => c.value === category)?.label },
-            { label: "Experience", value: experience ? experienceOptions.find((o) => o.value === experience)?.label : "Not selected" },
-            { label: "Rating", value: rating > 0 ? `${starLabels[rating - 1]} (${rating}/5)` : "Not rated" },
-            { label: "Message length", value: message.trim() ? `${message.trim().split(/\s+/).length} words` : "Empty" },
+            {
+              label: "Category",
+              value: categories.find((c) => c.value === category)?.label,
+            },
+            {
+              label: "Experience",
+              value: experience
+                ? experienceOptions.find((o) => o.value === experience)?.label
+                : "Not selected",
+            },
+            {
+              label: "Rating",
+              value:
+                rating > 0
+                  ? `${starLabels[rating - 1]} (${rating}/5)`
+                  : "Not rated",
+            },
+            {
+              label: "Message length",
+              value: message.trim()
+                ? `${message.trim().split(/\s+/).length} words`
+                : "Empty",
+            },
           ].map((row, i) => (
             <div key={i} className="flex items-center justify-between text-sm">
               <span className="text-slate-500">{row.label}</span>
-              <span className={`font-medium ${row.value === "Not selected" || row.value === "Not rated" || row.value === "Empty" ? "text-slate-600" : "text-slate-300"}`}>
+              <span
+                className={`font-medium ${row.value === "Not selected" || row.value === "Not rated" || row.value === "Empty" ? "text-slate-600" : "text-slate-300"}`}
+              >
                 {row.value}
               </span>
             </div>
@@ -237,9 +291,11 @@ export default function FeedBack() {
           <Send size={15} />
           Send feedback
         </button>
-        <p className="text-xs text-slate-600">Your feedback is anonymous unless you include personal details in your message.</p>
+        <p className="text-xs text-slate-600">
+          Your feedback is anonymous unless you include personal details in your
+          message.
+        </p>
       </div>
-
     </div>
   );
 }

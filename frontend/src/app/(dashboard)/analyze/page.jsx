@@ -19,11 +19,11 @@ export default function AppPage() {
     {
       revalidateOnFocus: true, // Syncs state if they opened a run on their phone/another tab
       revalidateOnMount: true,
-    }
+    },
   );
 
   const analyzing = !!statusData?.running;
-  
+
   const currentDoc = statusData?.document
     ? { id: statusData.document.id, name: statusData.document.fileName }
     : null;
@@ -35,7 +35,7 @@ export default function AppPage() {
         running: true,
         document: { id: doc.id, fileName: doc.name, analysisStatus: "running" },
       },
-      { revalidate: false } // false = don't immediately re-fetch from the server, trust our local state
+      { revalidate: false }, // false = don't immediately re-fetch from the server, trust our local state
     );
   };
 
@@ -65,16 +65,17 @@ export default function AppPage() {
         }}
         className="app-grid"
       >
-        <div id="verification-panel-portal" style={{ gridColumn: "1 / -1" }} className="empty:hidden"></div>
+        <div
+          id="verification-panel-portal"
+          style={{ gridColumn: "1 / -1" }}
+          className="empty:hidden"
+        ></div>
         <motion.div
           initial={{ opacity: 0, x: -20 }}
           animate={{ opacity: 1, x: 0 }}
           transition={{ duration: 0.5, ease: [0.22, 1, 0.36, 1] }}
         >
-          <UploadPanel
-            onAnalyze={handleAnalyze}
-            analyzing={analyzing}
-          />
+          <UploadPanel onAnalyze={handleAnalyze} analyzing={analyzing} />
         </motion.div>
 
         <motion.div

@@ -1,6 +1,6 @@
-import Sidebar from '@/components/app-shell/Sidebar';
-import React from 'react';
-import SafetyTrust from './app/SafetyTrust';
+import Sidebar from "@/components/app-shell/Sidebar";
+import React from "react";
+import SafetyTrust from "./app/SafetyTrust";
 
 const HelpCenterLayout = () => {
   return (
