@@ -37,3 +37,8 @@ yarn-error.log*
 
 # typescript
 *.tsbuildinfo
+.mcp_backups/
+
+# ignore backups file made by my Custom MCP
+.bak
+.mcp_backups/
