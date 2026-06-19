@@ -10,6 +10,7 @@ import {
   getUserRunningAnalysisController,
   toggleActionItemController
 } from "../controllers/analysisHistoryController";
+import { confirmExtractionController } from "../controllers/confirmExtractionController";
 
 const router = Router();
 
@@ -21,6 +22,34 @@ router.get(
   "/documents/:id/events",
   requireAuth,
   streamDocumentEventsController,
+);
+
+// POST /analysis/documents/:id/confirm-extraction
+router.post(
+  "/documents/:id/confirm-extraction",
+  requireAuth,
+  confirmExtractionController,
+);
+
+// GET /analysis/documents/:id/extracted-content  — fetch stored extracted content for review
+router.get(
+  "/documents/:id/extracted-content",
+  requireAuth,
+  async (req, res, next) => {
+    try {
+      const userId = (req as any).user?.userId;
+      if (!userId) { res.status(401).json({ error: "Unauthorized" }); return; }
+      const { pgPool } = await import("../db/pool");
+      const result = await pgPool.query(
+        `SELECT extracted_content, analysis_status, storage_path, mime_type, original_file_name
+           FROM documents
+          WHERE id = $1 AND user_id = $2`,
+        [req.params.id, userId],
+      );
+      if (result.rowCount === 0) { res.status(404).json({ error: "Not found" }); return; }
+      res.json(result.rows[0]);
+    } catch (err) { next(err); }
+  },
 );
 
 // POST /analysis/internal/outbox/dispatch
