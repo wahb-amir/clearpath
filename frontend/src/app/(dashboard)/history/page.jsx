@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from "react";
 import { motion } from "framer-motion";
+import Link from "next/link";
 import {
   Search,
   Filter,
@@ -18,6 +19,7 @@ import {
   XCircle,
 } from "lucide-react";
 import { apiFetch } from "@/lib/auth/apiFetch";
+
 export default function HistoryPage() {
   // Search state (handled client-side)
   const [searchQuery, setSearchQuery] = useState("");
@@ -46,7 +48,7 @@ export default function HistoryPage() {
           status: statusFilter,
         });
 
-        const response = await apiFetch(`/analysis/history?${queryParams.toString()}`, {});
+        const response = await apiFetch(`/api/analysis/history?${queryParams.toString()}`, {});
         
         if (!response.ok) {
           throw new Error("Failed to load document history.");
@@ -74,21 +76,20 @@ export default function HistoryPage() {
 
   // Filter items locally matching the search query
   const filteredItems = (items || []).filter((item) => {
-  const itemTitle = item?.title ?? '';
-  const search = searchQuery ?? '';
-  
-  return itemTitle.toLowerCase().includes(search.toLowerCase());
-});
+    const itemTitle = item?.title || item?.document?.fileName || '';
+    const search = searchQuery ?? '';
+    return itemTitle.toLowerCase().includes(search.toLowerCase());
+  });
 
   return (
-    <div className="p-4 md:p-8">
+    <div className="p-4 md:p-8 max-w-7xl mx-auto">
       {/* HEADER */}
-      <div className="mb-8">
-        <h1 className="text-3xl font-display font-bold text-slate-100 mb-2">
-          Document History
+      <div className="mb-8 border-b border-slate-800/60 pb-6">
+        <h1 className="text-3xl font-display font-bold text-slate-100 mb-2 tracking-tight">
+          Document Analysis History
         </h1>
-        <p className="text-slate-400">
-          View and manage all your previously analyzed documents.
+        <p className="text-slate-400 text-sm">
+          Monitor, view details, and manage your live-running and historical engine pipelines.
         </p>
       </div>
 
@@ -97,14 +98,14 @@ export default function HistoryPage() {
         <div className="relative flex-1">
           <Search
             size={18}
-            className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-500"
+            className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-500"
           />
           <input
             type="text"
-            placeholder="Search fetched documents by title..."
+            placeholder="Search documents by filename or title..."
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
-            className="w-full bg-slate-900 border border-slate-800 rounded-xl py-2.5 pl-10 pr-4 text-sm text-slate-200 focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500 transition-all placeholder:text-slate-500"
+            className="w-full bg-slate-900 border border-slate-800 rounded-xl py-3 pl-12 pr-4 text-sm text-slate-200 focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500 transition-all placeholder:text-slate-500"
           />
         </div>
 
@@ -112,9 +113,10 @@ export default function HistoryPage() {
           <select
             value={statusFilter}
             onChange={(e) => handleStatusChange(e.target.value)}
-            className="bg-slate-900 border border-slate-800 rounded-xl py-2.5 px-4 text-sm text-slate-200 focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500"
+            className="bg-slate-900 border border-slate-800 rounded-xl py-2.5 px-4 text-sm text-slate-200 focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500 cursor-pointer"
           >
             <option value="all">All Statuses</option>
+            <option value="running">In Progress (Running)</option>
             <option value="completed">Completed</option>
             <option value="review_required">Review Required</option>
             <option value="failed">Failed</option>
@@ -152,109 +154,153 @@ export default function HistoryPage() {
               No documents found
             </h3>
             <p className="text-slate-500 text-sm">
-              Try adjusting your search or status filters.
+              Try adjusting your search query or status filters.
             </p>
           </div>
         ) : (
           /* LIST RENDERING */
           filteredItems.map((item, index) => (
-            <motion.div
-              key={item.id}
-              initial={{ opacity: 0, y: 10 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ delay: index * 0.03 }}
-              className="bg-slate-900 border border-slate-800 hover:border-slate-700 rounded-2xl p-5 transition-colors group"
+            <Link 
+              key={item.id} 
+              href={`/history/${item.documentId || item.id}`}
+              className="block group"
             >
-              <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
-                
-                {/* LEFT SIDE */}
-                <div className="flex items-start gap-4 flex-1">
-                  <div className="w-10 h-10 rounded-full bg-blue-900/30 border border-blue-800/50 flex items-center justify-center flex-shrink-0 mt-1">
-                    <FileText size={20} className="text-blue-400" />
-                  </div>
-
-                  <div className="flex-1">
-                    <h3 className="text-lg font-semibold text-slate-200 mb-1 group-hover:text-blue-400 transition-colors">
-                      {item.title}
-                    </h3>
-
-                    <div className="flex flex-wrap items-center gap-3 text-xs text-slate-500 mb-3">
-                      <span className="flex items-center gap-1">
-                        <FileText size={12} /> {item.type}
-                      </span>
-                      <span className="w-1 h-1 rounded-full bg-slate-700" />
-                      <span className="flex items-center gap-1">
-                        <Clock size={12} />
-                        {new Date(item.date).toLocaleDateString()}
-                      </span>
+              <motion.div
+                initial={{ opacity: 0, y: 10 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ delay: index * 0.02 }}
+                className="bg-slate-900 border border-slate-800 group-hover:border-slate-700 rounded-2xl p-5 transition-colors"
+              >
+                <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+                  
+                  {/* LEFT SIDE */}
+                  <div className="flex items-start gap-4 flex-1 min-w-0">
+                    <div className={`w-10 h-10 rounded-full border flex items-center justify-center flex-shrink-0 mt-1 ${
+                      item.status === 'running' 
+                        ? 'bg-amber-500/10 border-amber-500/20 text-amber-400 animate-pulse' 
+                        : 'bg-blue-900/30 border-blue-800/50 text-blue-400'
+                    }`}>
+                      {item.status === 'running' ? (
+                        <Loader2 size={20} className="animate-spin" />
+                      ) : (
+                        <FileText size={20} />
+                      )}
                     </div>
 
-                    <p className="text-sm text-slate-400 line-clamp-2 leading-relaxed max-w-2xl">
-                      {item.summary}
-                    </p>
+                    <div className="flex-1 min-w-0">
+                      <h3 className="text-lg font-semibold text-slate-200 mb-1 group-hover:text-blue-400 transition-colors truncate">
+                        {item.title || item.document?.fileName || "Unnamed Document"}
+                      </h3>
+
+                      <div className="flex flex-wrap items-center gap-3 text-xs text-slate-500 mb-2">
+                        <span className="flex items-center gap-1">
+                          <FileText size={12} /> {item.type || item.document?.mimeType?.split('/')[1]?.toUpperCase() || 'DOCUMENT'}
+                        </span>
+                        <span className="w-1 h-1 rounded-full bg-slate-700" />
+                        <span className="flex items-center gap-1">
+                          <Clock size={12} />
+                          {new Date(item.date || item.createdAt).toLocaleDateString()}
+                        </span>
+                      </div>
+
+                      {/* CONDITIONAL SKELETON LOADING BAR IF JOB IS ACTIVE */}
+                      {item.status === "running" ? (
+                        <div className="mt-3 max-w-md bg-slate-950/60 p-3 rounded-xl border border-slate-800/40">
+                          <div className="flex justify-between items-center text-[11px] font-mono mb-1.5">
+                            <span className="text-amber-400 font-bold">STAGE: {item.currentStage || "QUEUED"}</span>
+                            <span className="text-slate-400 animate-pulse">{item.docAnalysisStatus?.toLowerCase()}</span>
+                          </div>
+                          <div className="w-full h-1.5 bg-slate-800 rounded-full overflow-hidden">
+                            <motion.div 
+                              className="h-full bg-gradient-to-r from-amber-500 to-orange-400 rounded-full"
+                              animate={{ x: ["-100%", "100%"] }}
+                              transition={{ repeat: Infinity, duration: 1.8, ease: "linear" }}
+                              style={{ width: "40%" }}
+                            />
+                          </div>
+                        </div>
+                      ) : (
+                        <p className="text-sm text-slate-400 line-clamp-2 leading-relaxed max-w-2xl">
+                          {item.summary || "No executive summary parsed for this pipeline container entry."}
+                        </p>
+                      )}
+                    </div>
                   </div>
+
+                  {/* RIGHT SIDE */}
+                  <div className="flex md:flex-col items-center md:items-end justify-between gap-3 min-w-[140px] border-t md:border-t-0 border-slate-800/40 pt-3 md:pt-0">
+                    <div className="flex gap-2 flex-wrap">
+                      {item.urgency === "high" && (
+                        <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-md text-xs font-medium bg-rose-500/10 text-rose-400 border border-rose-500/20">
+                          <AlertTriangle size={12} /> High
+                        </span>
+                      )}
+
+                      {item.urgency === "medium" && (
+                        <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-md text-xs font-medium bg-amber-500/10 text-amber-400 border border-amber-500/20">
+                          Medium
+                        </span>
+                      )}
+
+                      {item.status === "completed" && (
+                        <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-md text-xs font-medium bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">
+                          <CheckCircle size={12} /> Done
+                        </span>
+                      )}
+
+                      {item.status === "review_required" && (
+                        <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-md text-xs font-medium bg-blue-500/10 text-blue-400 border border-blue-500/20">
+                          <AlertTriangle size={12} /> Review
+                        </span>
+                      )}
+
+                      {item.status === "failed" && (
+                        <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-md text-xs font-medium bg-rose-500/10 text-rose-400 border border-rose-500/20">
+                          <XCircle size={12} /> Failed
+                        </span>
+                      )}
+
+                      {item.status === "running" && (
+                        <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-md text-xs font-medium bg-amber-500/10 text-amber-400 border border-amber-500/20 animate-pulse">
+                          <Loader2 size={12} className="animate-spin" /> In Flight
+                        </span>
+                      )}
+                    </div>
+
+                    <div className="flex items-center gap-2">
+                      <button
+                        onClick={(e) => {
+                          e.preventDefault();
+                          // Handle bookmark logic
+                        }}
+                        className={`p-2 rounded-lg transition-colors ${
+                          item.saved
+                            ? "text-blue-400 bg-blue-900/20"
+                            : "text-slate-500 hover:text-slate-300 hover:bg-slate-800"
+                        }`}
+                      >
+                        <Bookmark
+                          size={18}
+                          fill={item.saved ? "currentColor" : "none"}
+                        />
+                      </button>
+
+                      <div className="p-2 rounded-lg text-slate-500 group-hover:text-slate-300 group-hover:bg-slate-800 transition-colors">
+                        <ExternalLink size={18} />
+                      </div>
+
+                      <button 
+                        onClick={(e) => e.preventDefault()} 
+                        className="p-2 rounded-lg text-slate-500 hover:text-slate-300 hover:bg-slate-800 transition-colors"
+                      >
+                        <MoreHorizontal size={18} />
+                      </button>
+                    </div>
+                  </div>
+
                 </div>
-
-                {/* RIGHT SIDE */}
-                <div className="flex md:flex-col items-center md:items-end justify-between gap-3 min-w-[140px]">
-                  <div className="flex gap-2 flex-wrap">
-                    {item.urgency === "high" && (
-                      <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-md text-xs font-medium bg-rose-500/10 text-rose-400 border border-rose-500/20">
-                        <AlertTriangle size={12} /> High
-                      </span>
-                    )}
-
-                    {item.urgency === "medium" && (
-                      <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-md text-xs font-medium bg-amber-500/10 text-amber-400 border border-amber-500/20">
-                        Medium
-                      </span>
-                    )}
-
-                    {item.status === "completed" && (
-                      <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-md text-xs font-medium bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">
-                        <CheckCircle size={12} /> Done
-                      </span>
-                    )}
-
-                    {item.status === "review_required" && (
-                      <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-md text-xs font-medium bg-amber-500/10 text-amber-400 border border-amber-500/20">
-                        <AlertTriangle size={12} /> Review
-                      </span>
-                    )}
-
-                    {item.status === "failed" && (
-                      <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-md text-xs font-medium bg-rose-500/10 text-rose-400 border border-rose-500/20">
-                        <XCircle size={12} /> Failed
-                      </span>
-                    )}
-                  </div>
-
-                  <div className="flex items-center gap-2">
-                    <button
-                      className={`p-2 rounded-lg transition-colors ${
-                        item.saved
-                          ? "text-blue-400 bg-blue-900/20"
-                          : "text-slate-500 hover:text-slate-300 hover:bg-slate-800"
-                      }`}
-                    >
-                      <Bookmark
-                        size={18}
-                        fill={item.saved ? "currentColor" : "none"}
-                      />
-                    </button>
-
-                    <button className="p-2 rounded-lg text-slate-500 hover:text-slate-300 hover:bg-slate-800 transition-colors">
-                      <ExternalLink size={18} />
-                    </button>
-
-                    <button className="p-2 rounded-lg text-slate-500 hover:text-slate-300 hover:bg-slate-800 transition-colors">
-                      <MoreHorizontal size={18} />
-                    </button>
-                  </div>
-                </div>
-
-              </div>
-            </motion.div>
+              </motion.div>
+            </Link>
           ))
         )}
       </div>
