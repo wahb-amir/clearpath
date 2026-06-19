@@ -21,6 +21,9 @@ export const PIPELINE_EVENT_TYPES = [
 
   "preprocessing_completed",
 
+  "extraction_awaiting_verification",
+  "extraction_verified",
+
   "ai_analysis_queued",
   "ai_analysis_started",
 

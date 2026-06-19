@@ -18,6 +18,7 @@ export interface DocumentRow {
   language: string | null;
   ocr_confidence: number | null;
   quality: DocumentQuality;
+  extracted_content?: any;
   worker_id: string | null;
   created_at: string;
   updated_at: string;
