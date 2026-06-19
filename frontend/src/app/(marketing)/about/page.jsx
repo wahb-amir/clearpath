@@ -23,8 +23,7 @@ export default function AboutPage() {
       content: (
         <>
           <p>
-            ClearPath was built for the USAII 2024 Hackathon (AI for Social Good
-            track). Our mission is to bridge the "clarity gap" between
+            Our mission is to bridge the "clarity gap" between
             bureaucratic institutions and the families they serve.
           </p>
 
@@ -111,37 +110,7 @@ export default function AboutPage() {
           </div>
         </>
       ),
-    },
-
-    {
-      id: "privacy",
-      title: "Privacy & Data Security",
-      icon: Lock,
-      color: "hsl(221, 83%, 53%)",
-      content: (
-        <>
-          <p>
-            ClearPath handles sensitive documents, so privacy is a top priority.
-          </p>
-
-          <p>In this prototype:</p>
-
-          <ul
-            style={{
-              paddingLeft: "1.2rem",
-              display: "flex",
-              flexDirection: "column",
-              gap: "0.5rem",
-            }}
-          >
-            <li>No user accounts are required.</li>
-            <li>No documents are stored in a database.</li>
-            <li>Processing happens locally in the session.</li>
-            <li>No tracking or data selling occurs.</li>
-          </ul>
-        </>
-      ),
-    },
+    }
   ];
 
   return (
