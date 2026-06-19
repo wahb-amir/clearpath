@@ -107,6 +107,10 @@ export default function RunDetailPage() {
             return [...prev, newEvent];
           });
 
+          if (eventName === "extraction_draft_updated" && data.payload?.extractedContent) {
+            setExtractedContent(data.payload.extractedContent);
+          }
+
           // Update local run stages
           setRun((prev) => {
             if (!prev) return prev;

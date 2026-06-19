@@ -22,6 +22,7 @@ export const PIPELINE_EVENT_TYPES = [
   "preprocessing_completed",
 
   "extraction_awaiting_verification",
+  "extraction_draft_updated",
   "extraction_verified",
 
   "ai_analysis_queued",
@@ -71,5 +72,7 @@ export interface PipelineEventRecord {
 /** Lightweight notification published over Redis pub/sub. */
 export interface PipelineNotification {
   documentId: string;
-  eventId: number;
+  eventId?: number;
+  ephemeral?: boolean;
+  eventRecord?: PipelineEventRecord;
 }

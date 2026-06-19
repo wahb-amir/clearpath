@@ -139,6 +139,13 @@ export async function streamDocumentEvents(params: {
     try {
       const notification: PipelineNotification = JSON.parse(message);
       if (notification.documentId !== documentId) return;
+
+      if (notification.ephemeral && notification.eventRecord) {
+        // Forward ephemeral updates directly without hitting DB
+        writeSseEvent(res, notification.eventRecord);
+        return;
+      }
+
       void replayEvents();
     } catch {
       // ignore malformed notifications

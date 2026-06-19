@@ -11,6 +11,7 @@ import {
   toggleActionItemController,
 } from "../controllers/analysisHistoryController";
 import { confirmExtractionController } from "../controllers/confirmExtractionController";
+import { saveExtractionDraftController } from "../controllers/saveExtractionDraftController";
 
 const router = Router();
 
@@ -29,6 +30,13 @@ router.post(
   "/documents/:id/confirm-extraction",
   requireAuth,
   confirmExtractionController,
+);
+
+// PATCH /analysis/documents/:id/extracted-content
+router.patch(
+  "/documents/:id/extracted-content",
+  requireAuth,
+  saveExtractionDraftController,
 );
 
 // GET /analysis/documents/:id/extracted-content  — fetch stored extracted content for review

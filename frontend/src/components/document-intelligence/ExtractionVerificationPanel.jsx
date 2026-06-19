@@ -2,6 +2,7 @@
 
 import { useState, useCallback, useRef, useEffect } from "react";
 import { createPortal } from "react-dom";
+import { apiFetch } from "@/lib/auth/apiFetch";
 import { motion, AnimatePresence } from "framer-motion";
 import {
   CheckCircle2,
@@ -819,9 +820,51 @@ export default function ExtractionVerificationPanel({
   const [mounted, setMounted] = useState(false);
   const [isConfirmedLocal, setIsConfirmedLocal] = useState(false);
 
+  const lastSavedContentRef = useRef(initialContent ?? {});
+  const debounceTimerRef = useRef(null);
+
   useEffect(() => {
     setMounted(true);
   }, []);
+
+  // Sync incoming draft changes from SSE
+  useEffect(() => {
+    if (!initialContent) return;
+    const currentJson = JSON.stringify(content);
+    const newJson = JSON.stringify(initialContent);
+    // If incoming is different from what we have, AND it's different from our last saved (meaning it's from someone else)
+    if (newJson !== currentJson && newJson !== JSON.stringify(lastSavedContentRef.current)) {
+      setContent(initialContent);
+      lastSavedContentRef.current = initialContent;
+    }
+  }, [initialContent]);
+
+  // Auto-save debounce effect
+  useEffect(() => {
+    const currentJson = JSON.stringify(content);
+    if (currentJson === JSON.stringify(lastSavedContentRef.current)) {
+      return; // No changes
+    }
+
+    if (debounceTimerRef.current) clearTimeout(debounceTimerRef.current);
+    
+    debounceTimerRef.current = setTimeout(async () => {
+      try {
+        const response = await apiFetch(`/analysis/documents/${documentId}/extracted-content`, {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ extractedContent: content }),
+        });
+        if (response.ok) {
+          lastSavedContentRef.current = content;
+        }
+      } catch (err) {
+        console.error("Auto-save failed", err);
+      }
+    }, 800);
+
+    return () => clearTimeout(debounceTimerRef.current);
+  }, [content, documentId]);
 
   const handleConfirm = async () => {
     if (confirming) return;
