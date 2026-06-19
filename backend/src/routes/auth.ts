@@ -3,7 +3,6 @@ import { Router, Request, Response } from "express";
 import argon2 from "argon2";
 import { z } from "zod";
 import { supabase } from "../lib/supabase";
-import { pgPool } from "../db/pool";
 import { signAccessToken, generateRefreshToken, getJwks } from "../utils/jwt";
 import {
   createSession,
@@ -233,36 +232,18 @@ router.get("/me", requireAuth, async (req: AuthRequest, res: Response) => {
       });
     }
 
-    // Run user fetch and activity counts in parallel
-    const [userResult, activityResult] = await Promise.all([
-      supabase
-        .from("users")
-        .select("full_name, email, created_at")
-        .eq("id", userId)
-        .single(),
-      pgPool.query<{ documents_analyzed: string; deadlines_tracked: string }>(
-        `SELECT
-           (
-             SELECT COUNT(*)
-             FROM document_analysis_results
-             WHERE user_id = $1
-               AND status IN ('completed', 'review_required')
-           ) AS documents_analyzed,
-           (
-             SELECT COALESCE(SUM(jsonb_array_length(key_deadlines)), 0)
-             FROM document_analysis_results
-             WHERE user_id = $1
-               AND jsonb_array_length(key_deadlines) > 0
-           ) AS deadlines_tracked`,
-        [userId],
-      ),
-    ]);
-
-    const { data: user, error } = userResult;
+    // Single PK lookup — counter columns are maintained by a Postgres
+    // trigger so no aggregate queries are needed here.
+    const { data: user, error } = await supabase
+      .from("users")
+      .select(
+        "full_name, email, created_at, documents_analyzed_count, deadlines_tracked_count",
+      )
+      .eq("id", userId)
+      .single();
 
     if (error) {
       console.error("Supabase error:", error);
-
       return res.status(500).json({
         error: "Failed to fetch user",
       });
@@ -274,19 +255,18 @@ router.get("/me", requireAuth, async (req: AuthRequest, res: Response) => {
       });
     }
 
-    const activityRow = activityResult.rows[0];
-
     return res.json({
       message: "You are authenticated!",
       user: {
-        ...user,
-        documentsAnalyzedCount: parseInt(activityRow?.documents_analyzed ?? "0", 10),
-        deadlinesTrackedCount: parseInt(activityRow?.deadlines_tracked ?? "0", 10),
+        full_name: user.full_name,
+        email: user.email,
+        created_at: user.created_at,
+        documentsAnalyzedCount: user.documents_analyzed_count ?? 0,
+        deadlinesTrackedCount: user.deadlines_tracked_count ?? 0,
       },
     });
   } catch (err) {
     console.error("Unexpected error:", err);
-
     return res.status(500).json({
       error: "Internal server error",
     });
