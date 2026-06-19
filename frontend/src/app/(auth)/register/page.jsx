@@ -55,7 +55,7 @@ export default function RegisterPage() {
       const payload = await response.json().catch(() => ({}));
       if (!response.ok) throw new Error(payload.error || "Registration failed");
 
-      window.location.href = "/app";
+      window.location.href = "/analyze";
     } catch (error) {
       setSubmitError(
         error instanceof Error ? error.message : "Something went wrong",

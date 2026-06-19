@@ -18,7 +18,7 @@ import {
 } from "lucide-react";
 
 const primaryNav = [
-  { href: "/app", label: "Analyze Document", icon: FileSearch },
+  { href: "/analyze", label: "Analyze Document", icon: FileSearch },
   { href: "/history", label: "History", icon: History },
   { href: "/saved", label: "Saved Items", icon: Bookmark },
   { href: "/profile", label: "Profile", icon: User },

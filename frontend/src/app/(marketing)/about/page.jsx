@@ -199,7 +199,7 @@ export default function AboutPage() {
 
         {/* CTA */}
         <motion.div style={{ marginTop: "4rem", textAlign: "center" }}>
-          <Link href="/app">
+          <Link href="/analyze">
             <button
               style={{
                 padding: "1rem 2rem",

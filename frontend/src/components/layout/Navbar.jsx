@@ -17,7 +17,7 @@ export default function Navbar() {
 
   const navLinks = [
     { href: "/", label: "Home" },
-    { href: "/app", label: "Try ClearPath" },
+    { href: "/analyze", label: "Try ClearPath" },
     { href: "/about", label: "How It Works" },
   ];
 
@@ -137,7 +137,7 @@ export default function Navbar() {
             style={{ display: "flex", alignItems: "center", gap: "0.75rem" }}
           >
             <Link
-              href="/app"
+              href="/analyze"
               style={{ textDecoration: "none" }}
               className="hidden md:block"
             >
@@ -248,7 +248,7 @@ export default function Navbar() {
                 transition={{ delay: 0.2 }}
               >
                 <Link
-                  href="/app"
+                  href="/analyze"
                   onClick={() => setMobileOpen(false)}
                   style={{ textDecoration: "none" }}
                 >

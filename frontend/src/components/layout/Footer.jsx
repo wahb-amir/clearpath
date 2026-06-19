@@ -109,9 +109,9 @@ export default function Footer() {
               }}
             >
               {[
-                { label: "Try Demo", href: "/app" },
+                { label: "Try Demo", href: "/analyze" },
                 { label: "How It Works", href: "/about" },
-                { label: "Sample Documents", href: "/app#samples" },
+                { label: "Sample Documents", href: "/analyze#samples" },
               ].map((link) => (
                 <Link key={link.href} href={link.href}>
                   <motion.span

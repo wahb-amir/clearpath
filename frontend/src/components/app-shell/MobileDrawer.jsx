@@ -14,8 +14,8 @@ import {
 } from "lucide-react";
 
 const navLinks = [
-  { href: "/app", label: "Dashboard", icon: LayoutDashboard },
-  { href: "/app", label: "Analyze", icon: FileSearch },
+  { href: "/analyze", label: "Dashboard", icon: LayoutDashboard },
+  { href: "/analyze", label: "Analyze", icon: FileSearch },
   { href: "/history", label: "History", icon: History },
   { href: "/saved", label: "Saved Items", icon: Bookmark },
   { href: "/profile", label: "Profile", icon: User },

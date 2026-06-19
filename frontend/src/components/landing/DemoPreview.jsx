@@ -291,7 +291,7 @@ export default function DemoPreview() {
           transition={{ delay: 0.5 }}
           style={{ textAlign: "center", marginTop: "2.5rem" }}
         >
-          <Link href="/app" style={{ textDecoration: "none" }}>
+          <Link href="/analyze" style={{ textDecoration: "none" }}>
             <motion.button
               whileHover={{
                 scale: 1.04,
