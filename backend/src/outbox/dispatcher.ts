@@ -168,6 +168,25 @@ export class OutboxDispatcher {
         );
         break;
       }
+      case "document.extraction.verified": {
+        // User confirmed extracted content — fire the AI analysis job
+        const payload = row.payload as {
+          documentId: string;
+          userId: string;
+          analysisRequestId: string;
+          analysisVersion: string;
+        };
+
+        await enqueueAiAnalysisJob(`ai:${payload.analysisRequestId}`, payload);
+
+        await pgPool.query(
+          `UPDATE public.document_pipeline_outbox
+             SET status = 'sent', processed_at = now()
+           WHERE id = $1`,
+          [row.id],
+        );
+        break;
+      }
       default:
         // Unknown event type - mark failed immediately, don't retry forever
         await pgPool.query(
