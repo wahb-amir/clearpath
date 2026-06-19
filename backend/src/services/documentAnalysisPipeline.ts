@@ -131,6 +131,7 @@ const Stage4Schema = z.object({
       text: z.string().min(1),
       priority: z.enum(["high", "medium", "low"]),
       supporting_evidence: z.string().min(1),
+      completed: z.boolean(),
     }),
   ),
   key_deadlines: z.array(

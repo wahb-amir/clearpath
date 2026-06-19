@@ -429,3 +429,64 @@ export async function getUserRunningAnalysisController(
     next(err);
   }
 }
+
+
+
+import { updateActionItemCompletion } from "../services/documentAnalysisResultRepository"; // Adjust path
+
+/**
+ * PATCH /analysis/:analysisRequestId/action-items/:index/toggle
+ * Body: { completed: boolean }
+ */
+export async function toggleActionItemController(
+  req: AuthenticatedRequest,
+  res: Response,
+  next: NextFunction
+): Promise<void> {
+  try {
+    const userId = req.user?.userId;
+    if (!userId) {
+      res.status(401).json({ error: "Unauthorized" });
+      return;
+    }
+
+    const { analysisRequestId, index } = req.params;
+    const { completed } = req.body;
+
+    if (typeof completed !== "boolean") {
+      res.status(400).json({ error: "completed field must be a boolean value" });
+      return;
+    }
+
+    const analysisRequestIdParam = Array.isArray(analysisRequestId)
+      ? analysisRequestId[0]
+      : analysisRequestId;
+    if (!analysisRequestIdParam) {
+      res.status(400).json({ error: "Invalid analysisRequestId" });
+      return;
+    }
+
+    const indexParam = Array.isArray(index) ? index[0] : index;
+    const itemIndex = parseInt(indexParam, 10);
+    if (isNaN(itemIndex) || itemIndex < 0) {
+      res.status(400).json({ error: "Invalid action item index" });
+      return;
+    }
+
+    const updated = await updateActionItemCompletion(
+      analysisRequestIdParam,
+      userId,
+      itemIndex,
+      completed
+    );
+
+    if (!updated) {
+      res.status(404).json({ error: "Analysis record not found" });
+      return;
+    }
+
+    res.json({ success: true, message: `Action item marked as ${completed ? 'done' : 'undone'}` });
+  } catch (err) {
+    next(err);
+  }
+}

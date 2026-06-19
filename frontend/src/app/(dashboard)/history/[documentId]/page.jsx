@@ -33,6 +33,9 @@ export default function RunDetailPage() {
 
   const eventSourceRef = useRef(null);
   const terminalEndRef = useRef(null);
+  
+  // Anti-spam tracker registry holding active debounce timeouts for each item index
+  const debounceTimersRef = useRef({});
 
   // Modular execution query fetcher
   const fetchRunDetail = async (showLoading = true) => {
@@ -64,6 +67,8 @@ export default function RunDetailPage() {
       if (eventSourceRef.current) {
         eventSourceRef.current.close();
       }
+      // Clear any pending debounce micro-tasks on unmount to safeguard against memory leaks
+      Object.values(debounceTimersRef.current).forEach(clearTimeout);
     };
   }, [documentId]);
 
@@ -129,6 +134,60 @@ export default function RunDetailPage() {
     }
   }, [events.length]);
 
+  // Interactive Checklist Action State Management & Debounced Sync
+  const handleToggleActionItem = (index) => {
+    if (!run || !run.actionItems) return;
+
+    const updatedItems = [...run.actionItems];
+    const targetItem = updatedItems[index];
+
+    // Read current values and cleanly invert the completion flag state
+    let itemText = "";
+    let currentCompletedState = false;
+
+    if (typeof targetItem === "object" && targetItem !== null) {
+      itemText = targetItem.text;
+      currentCompletedState = !targetItem.completed;
+      updatedItems[index] = { ...targetItem, completed: currentCompletedState };
+    } else {
+      itemText = targetItem;
+      currentCompletedState = true;
+      updatedItems[index] = { text: targetItem, completed: currentCompletedState, priority: "medium", supporting_evidence: "" };
+    }
+
+    // 1. Optimistic UI update: instantly commit to local state for flawless responsiveness
+    setRun((prev) => ({ ...prev, actionItems: updatedItems }));
+
+    // 2. Anti-Spam Buffer System: Clear existing pending synchronization timers for this index
+    if (debounceTimersRef.current[index]) {
+      clearTimeout(debounceTimersRef.current[index]);
+    }
+
+    // 3. Queue network transmission payload after a short cooldown (e.g., 600ms)
+    debounceTimersRef.current[index] = setTimeout(async () => {
+      try {
+        const targetRequestId = run.analysisRequestId || run.id;
+        const response = await apiFetch(
+          `/analysis/${targetRequestId}/action-items/${index}/toggle`,
+          {
+            method: "PATCH",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ completed: currentCompletedState }),
+          }
+        );
+
+        if (!response.ok) {
+          console.error(`Failed synchronization frame check for action item index ${index}`);
+          // Optional: Re-fetch details here if you want to roll back the UI state on hard system failures
+        }
+      } catch (err) {
+        console.error("Failed synchronizing state changes out to repository layer:", err);
+      } finally {
+        delete debounceTimersRef.current[index];
+      }
+    }, 600); // 600ms user interaction silence delay barrier
+  };
+
   // Confidence Level adapter matching ResultsPanel logic
   const getConfidenceLevel = (score) => {
     if (score >= 0.8) return "high";
@@ -148,22 +207,25 @@ export default function RunDetailPage() {
   };
 
   // Convert schema layout shape to match exact expectations of subcomponent cards
+
   const getNormalizedResult = () => {
     if (!run) return null;
     return {
       ...run,
       title: run.title || run.fileName || "Document Analysis",
-      actions:
-        run.actionItems?.map((item) =>
-          typeof item === "object" ? item.text : item,
-        ) || [],
+    
+      actions: run.actionItems?.map((item) => {
+        if (typeof item === "object" && item !== null) {
+          return item;
+        }
+        return { text: item, completed: false, priority: "medium", supporting_evidence: "" };
+      }) || [],
       deadlines: run.keyDeadlines || [],
       questions: run.questionsToAsk || [],
       sources: run.trustedSources || [],
       confidence: formatConfidence(run.aiConfidence),
     };
   };
-
   if (isLoading) {
     return (
       <div className="flex flex-col items-center justify-center min-h-[60vh] gap-4">
@@ -285,7 +347,10 @@ export default function RunDetailPage() {
                 {/* Unified injection matching identical ResultsPanel bindings */}
                 <SummaryCard result={normalizedResult} />
                 {normalizedResult.actions?.length > 0 && (
-                  <ChecklistCard result={normalizedResult} />
+                  <ChecklistCard 
+                    result={normalizedResult} 
+                    onToggleAction={handleToggleActionItem} 
+                  />
                 )}
                 {normalizedResult.deadlines?.length > 0 && (
                   <DeadlinesCard result={normalizedResult} />

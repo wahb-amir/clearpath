@@ -27,7 +27,9 @@ export interface NormalizedDocument {
 
 export interface ActionItem {
   text: string;
-  priority: ReviewPriority;
+  priority: "high" | "medium" | "low";
+  supporting_evidence: string;
+  completed: boolean; 
 }
 
 export interface KeyDeadline {

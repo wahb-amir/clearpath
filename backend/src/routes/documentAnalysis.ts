@@ -8,6 +8,7 @@ import {
   getAnalysisHistoryController,
   getAnalysisRunDetailController,
   getUserRunningAnalysisController,
+  toggleActionItemController
 } from "../controllers/analysisHistoryController";
 
 const router = Router();
@@ -37,5 +38,7 @@ router.get("/runs/:documentId", requireAuth, getAnalysisRunDetailController);
 
 // GET /analysis/running-check — check if user has in-flight analysis
 router.get("/running-check", requireAuth, getUserRunningAnalysisController);
+// Patch 
+router.patch("/:analysisRequestId/action-items/:index/toggle",requireAuth, toggleActionItemController);
 
 export default router;

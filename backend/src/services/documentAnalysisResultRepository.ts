@@ -61,7 +61,27 @@ export async function getOrCreatePendingAnalysisResult(
     [analysisRequestId, documentId, userId, model],
   );
 }
+export async function updateActionItemCompletion(
+  analysisRequestId: string,
+  userId: string,
+  itemIndex: number,
+  isCompleted: boolean
+): Promise<boolean> {
+  // We construct the JSON path like '{0,completed}' to reach inside the array index
+  const jsonPath = `{${itemIndex},completed}`;
 
+  const result = await pgPool.query(
+    `UPDATE document_analysis_results
+        SET action_items = jsonb_set(action_items, $1::text[], to_jsonb($2::boolean)),
+            updated_at = now()
+      WHERE analysis_request_id = $3 
+        AND user_id = $4
+      RETURNING id`,
+    [jsonPath, isCompleted, analysisRequestId, userId]
+  );
+
+  return (result.rowCount ?? 0) > 0;
+}
 export async function markAnalysisResultProcessing(
   client: PoolClient,
   analysisRequestId: string,
