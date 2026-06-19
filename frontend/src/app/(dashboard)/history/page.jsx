@@ -19,6 +19,41 @@ import {
   XCircle,
 } from "lucide-react";
 import { apiFetch } from "@/lib/auth/apiFetch";
+import useSWR from "swr";
+
+function HistoryItemSkeleton() {
+  return (
+    <div className="bg-slate-900/50 border border-slate-800/80 rounded-2xl p-5 animate-pulse">
+      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+        {/* LEFT SIDE */}
+        <div className="flex items-start gap-4 flex-1 min-w-0">
+          <div className="w-10 h-10 rounded-full bg-slate-800/60 flex-shrink-0 mt-1" />
+          <div className="flex-1 min-w-0 space-y-3">
+            <div className="h-5 bg-slate-800/60 rounded-md w-3/4 md:w-1/2" />
+            <div className="flex items-center gap-3">
+              <div className="h-4 bg-slate-800/40 rounded-md w-16" />
+              <div className="w-1 h-1 rounded-full bg-slate-800/40" />
+              <div className="h-4 bg-slate-800/40 rounded-md w-24" />
+            </div>
+            <div className="space-y-2 pt-1">
+              <div className="h-3 bg-slate-800/40 rounded-md w-full" />
+              <div className="h-3 bg-slate-800/40 rounded-md w-5/6" />
+            </div>
+          </div>
+        </div>
+        {/* RIGHT SIDE */}
+        <div className="flex md:flex-col items-center md:items-end justify-between gap-3 min-w-[140px] border-t md:border-t-0 border-slate-800/40 pt-3 md:pt-0">
+          <div className="h-6 bg-slate-800/60 rounded-md w-16" />
+          <div className="flex gap-2">
+            <div className="w-8 h-8 rounded-lg bg-slate-800/40" />
+            <div className="w-8 h-8 rounded-lg bg-slate-800/40" />
+            <div className="w-8 h-8 rounded-lg bg-slate-800/40" />
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
 
 export default function HistoryPage() {
   // Search state (handled client-side)
@@ -29,47 +64,30 @@ export default function HistoryPage() {
   const [page, setPage] = useState(1);
   const [pageSize] = useState(20);
 
-  // API response states
-  const [items, setItems] = useState([]);
-  const [totalPages, setTotalPages] = useState(1);
-  const [isLoading, setIsLoading] = useState(true);
-  const [error, setError] = useState(null);
+  // SWR for history data
+  const queryParams = new URLSearchParams({
+    page: page.toString(),
+    pageSize: pageSize.toString(),
+    status: statusFilter,
+  });
 
-  // Fetch data when page or status filter changes
-  useEffect(() => {
-    const fetchHistory = async () => {
-      setIsLoading(true);
-      setError(null);
-
-      try {
-        const queryParams = new URLSearchParams({
-          page: page.toString(),
-          pageSize: pageSize.toString(),
-          status: statusFilter,
-        });
-
-        const response = await apiFetch(
-          `/analysis/history?${queryParams.toString()}`,
-          {},
-        );
-
-        if (!response.ok) {
-          throw new Error("Failed to load document history.");
-        }
-
-        const data = await response.json();
-
-        setItems(data.items || []);
-        setTotalPages(data.totalPages || 1);
-      } catch (err) {
-        setError(err.message || "An unexpected error occurred.");
-      } finally {
-        setIsLoading(false);
+  const { data, error, isLoading } = useSWR(
+    `/analysis/history?${queryParams.toString()}`,
+    async (url) => {
+      const response = await apiFetch(url);
+      if (!response.ok) {
+        throw new Error("Failed to load document history.");
       }
-    };
+      return response.json();
+    },
+    {
+      keepPreviousData: true,
+      revalidateOnFocus: true,
+    }
+  );
 
-    fetchHistory();
-  }, [page, statusFilter, pageSize]);
+  const items = data?.items || [];
+  const totalPages = data?.totalPages || 1;
 
   // Reset page to 1 when changing filters
   const handleStatusChange = (newStatus) => {
@@ -83,6 +101,10 @@ export default function HistoryPage() {
     const search = searchQuery ?? "";
     return itemTitle.toLowerCase().includes(search.toLowerCase());
   });
+
+  // Decide if we show skeleton loading: only if there's no data and we are currently loading
+  const showSkeleton = isLoading && !data;
+  const showError = error && !data;
 
   return (
     <div className="p-4 md:p-8 max-w-7xl mx-auto">
@@ -135,22 +157,24 @@ export default function HistoryPage() {
 
       {/* DYNAMIC CONTENT CONTAINER */}
       <div className="space-y-4">
-        {isLoading ? (
-          /* LOADING STATE */
-          <div className="text-center py-24 bg-slate-900/30 rounded-2xl border border-slate-800/50 flex flex-col items-center justify-center gap-3">
-            <Loader2 size={36} className="text-blue-500 animate-spin" />
-            <p className="text-slate-400 text-sm">Loading history items...</p>
+        {showSkeleton ? (
+          /* LOADING STATE: Show 3 skeleton items */
+          <div className="space-y-4">
+            <HistoryItemSkeleton />
+            <HistoryItemSkeleton />
+            <HistoryItemSkeleton />
           </div>
-        ) : error ? (
+        ) : showError ? (
           /* ERROR STATE */
           <div className="text-center py-16 bg-rose-950/10 rounded-2xl border border-rose-900/30">
             <XCircle size={48} className="mx-auto text-rose-500 mb-4" />
             <h3 className="text-lg font-semibold text-slate-300 mb-1">
               Error Loading History
             </h3>
-            <p className="text-rose-400/80 text-sm max-w-md mx-auto">{error}</p>
+            <p className="text-rose-400/80 text-sm max-w-md mx-auto">{error.message || "An error occurred."}</p>
           </div>
         ) : filteredItems.length === 0 ? (
+
           /* EMPTY STATE */
           <div className="text-center py-16 bg-slate-900/50 rounded-2xl border border-slate-800/50">
             <FileText size={48} className="mx-auto text-slate-600 mb-4" />

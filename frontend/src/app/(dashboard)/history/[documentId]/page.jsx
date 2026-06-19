@@ -6,6 +6,7 @@ import { useParams, useRouter } from "next/navigation";
 import { motion, AnimatePresence } from "framer-motion";
 import { Loader2, ArrowLeft, Terminal, Info, AlertOctagon } from "lucide-react";
 import { apiFetch } from "@/lib/auth/apiFetch";
+import useSWR from "swr";
 import ExtractionVerificationPanel from "@/components/document-intelligence/ExtractionVerificationPanel";
 import {
   fetchExtractedContent,
@@ -35,11 +36,23 @@ export default function RunDetailPage() {
   const { documentId } = useParams();
   const router = useRouter();
 
-  const [run, setRun] = useState(null);
-  const [events, setEvents] = useState([]);
-  const [isLoading, setIsLoading] = useState(true);
-  const [error, setError] = useState(null);
+  const { data: run, error, mutate, isLoading } = useSWR(
+    documentId ? `/analysis/runs/${documentId}` : null,
+    async (url) => {
+      const response = await apiFetch(url);
+      if (!response.ok) {
+        if (response.status === 404)
+          throw new Error("Analysis run details could not be found.");
+        throw new Error("Failed to load pipeline run parameters.");
+      }
+      return response.json();
+    },
+    {
+      revalidateOnFocus: true,
+    }
+  );
 
+  const [events, setEvents] = useState([]);
   const [extractedContent, setExtractedContent] = useState(null);
   const [fetchingExtractedContent, setFetchingExtractedContent] =
     useState(false);
@@ -49,37 +62,19 @@ export default function RunDetailPage() {
   // Anti-spam tracker registry holding active debounce timeouts for each item index
   const debounceTimersRef = useRef({});
 
-  // Modular execution query fetcher
-  const fetchRunDetail = async (showLoading = true) => {
-    if (showLoading) setIsLoading(true);
-    try {
-      const response = await apiFetch(`/analysis/runs/${documentId}`);
-      if (!response.ok) {
-        if (response.status === 404)
-          throw new Error("Analysis run details could not be found.");
-        throw new Error("Failed to load pipeline run parameters.");
-      }
-      const data = await response.json();
-      setRun(data);
-      if (data.events) {
-        setEvents(data.events);
-      }
-      setError(null);
-    } catch (err) {
-      setError(err.message);
-    } finally {
-      if (showLoading) setIsLoading(false);
+  // Sync initial and updated SWR data to events state
+  useEffect(() => {
+    if (run?.events) {
+      setEvents(run.events);
     }
-  };
+  }, [run?.events]);
 
   useEffect(() => {
-    fetchRunDetail(true);
-
     return () => {
       // Clear any pending debounce micro-tasks on unmount to safeguard against memory leaks
       Object.values(debounceTimersRef.current).forEach(clearTimeout);
     };
-  }, [documentId]);
+  }, []);
 
   // Live SSE listener using robust openAnalysisStream utility
   useEffect(() => {
@@ -111,15 +106,18 @@ export default function RunDetailPage() {
             setExtractedContent(data.payload.extractedContent);
           }
 
-          // Update local run stages
-          setRun((prev) => {
-            if (!prev) return prev;
-            return {
-              ...prev,
-              docAnalysisStatus: nextStage || prev.docAnalysisStatus,
-              currentStage: nextStage || prev.currentStage,
-            };
-          });
+          // Update local SWR cache for run stages
+          mutate(
+            (prev) => {
+              if (!prev) return prev;
+              return {
+                ...prev,
+                docAnalysisStatus: nextStage || prev.docAnalysisStatus,
+                currentStage: nextStage || prev.currentStage,
+              };
+            },
+            { revalidate: false }
+          );
 
           // Scroll terminal to latest trace
           terminalEndRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -130,7 +128,7 @@ export default function RunDetailPage() {
             nextStage === "FAILED" ||
             nextStage === "AWAITING_VERIFICATION"
           ) {
-            fetchRunDetail(false);
+            mutate();
           }
         } catch (err) {
           console.error("Failed parsing inbound stream payload frame:", err);
@@ -210,7 +208,13 @@ export default function RunDetailPage() {
     }
 
     // 1. Optimistic UI update: instantly commit to local state for flawless responsiveness
-    setRun((prev) => ({ ...prev, actionItems: updatedItems }));
+    mutate(
+      (prev) => {
+        if (!prev) return prev;
+        return { ...prev, actionItems: updatedItems };
+      },
+      { revalidate: false }
+    );
 
     // 2. Anti-Spam Buffer System: Clear existing pending synchronization timers for this index
     if (debounceTimersRef.current[index]) {
@@ -245,6 +249,7 @@ export default function RunDetailPage() {
       }
     }, 600); // 600ms user interaction silence delay barrier
   };
+
 
   // Confidence Level adapter matching ResultsPanel logic
   const getConfidenceLevel = (score) => {
@@ -395,7 +400,7 @@ export default function RunDetailPage() {
                       extractedContent={extractedContent}
                       onConfirm={confirmExtraction}
                       onConfirmed={() => {
-                        fetchRunDetail(false);
+                        mutate();
                       }}
                     />
                   </motion.div>
