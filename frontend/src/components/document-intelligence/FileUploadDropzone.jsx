@@ -66,7 +66,7 @@ export default function FileUploadDropzone({
             Drag & drop to upload
           </p>
           <p className="m-0 text-xs text-gray-500 mt-1">
-            PDF, DOCX, TXT up to 50MB
+            PDF, DOCX, TXT up to 20MB
           </p>
 
           <div className="mt-4 flex flex-col sm:flex-row items-stretch sm:items-center justify-center gap-2">

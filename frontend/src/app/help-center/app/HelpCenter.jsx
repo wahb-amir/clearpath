@@ -29,7 +29,7 @@ const categories = [
 const faqs = [
   {
     q: "How do I upload a document for analysis?",
-    a: "Navigate to the Analyze Document section from the sidebar. Click the upload area or drag and drop your file — we support PDF, DOCX, and TXT formats up to 25MB. Once uploaded, the analysis begins automatically.",
+    a: "Navigate to the Analyze Document section from the sidebar. Click the upload area or drag and drop your file — we support PDF, DOCX, and TXT formats up to 20MB. Once uploaded, the analysis begins automatically.",
   },
   {
     q: "What file formats are supported?",

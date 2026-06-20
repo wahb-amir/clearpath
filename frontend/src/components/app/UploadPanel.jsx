@@ -972,7 +972,7 @@ export default function DocumentIntelligencePanel({
 
       if (file.size > MAX_UPLOAD_BYTES) {
         clearAnalysisState();
-        setError("File too large. Maximum size is 50MB.");
+        setError("File too large. Maximum size is 20MB.");
         setFailed(true);
         return;
       }
@@ -1237,7 +1237,7 @@ export default function DocumentIntelligencePanel({
                 />
 
                 <div className="mt-3 rounded-2xl border border-white/8 bg-white/[0.03] px-4 py-3 text-xs leading-6 text-gray-400">
-                  Supported files: PDF, DOC, DOCX, TXT. Maximum size: 50MB.
+                  Supported files: PDF, DOC, DOCX, TXT. Maximum size: 20MB.
                 </div>
               </motion.div>
             ) : (
