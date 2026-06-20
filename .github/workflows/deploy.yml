@@ -1,0 +1,40 @@
+name: Deploy Backend
+
+on:
+  push:
+    branches: ["main"]
+    paths:
+      - "backend/**"
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup SSH
+        uses: webfactory/ssh-agent@v0.9.0
+        with:
+          ssh-private-key: ${{ secrets.VPS_SSH_KEY }}
+
+      - name: Deploy to VPS
+        run: |
+          ssh -o StrictHostKeyChecking=no ${{ secrets.VPS_USER }}@${{ secrets.VPS_HOST }} << 'EOF'
+
+            set -e
+
+            if [ ! -d "/var/www/backend" ]; then
+              git clone https://github.com/YOUR_REPO.git /var/www/backend
+            fi
+
+            cd /var/www/backend
+
+            git fetch origin
+            git reset --hard origin/main
+
+            docker compose down
+            docker compose up --build -d
+
+          EOF
