@@ -336,7 +336,43 @@ async function askGroqJson<T>(
 
     console.warn(`[${stageLabel}] validation failed:`, result.error.message);
 
-    if (hasFallback) return fallbackOrTemperature as T;
+    // Attempt one repair pass before giving up / returning the fallback
+    console.log(`[${stageLabel}] attempting repair pass`);
+    const repairMessages = buildRepairMessages(
+      messages,
+      content,
+      result.error.message,
+    );
+    try {
+      const repairCompletion = await withTimeout(
+        client.chat.completions.create({
+          model,
+          temperature: 0,
+          messages: repairMessages,
+        }),
+        25000,
+        `${stageLabel}-repair`,
+      );
+      const repairContent =
+        repairCompletion.choices[0]?.message?.content ?? "";
+      const repairParsed = parseModelJson(repairContent);
+      const repairResult = schema.safeParse(repairParsed);
+      if (repairResult.success) {
+        console.log(`[${stageLabel}] repair succeeded`);
+        return repairResult.data;
+      }
+      console.warn(
+        `[${stageLabel}] repair also failed:`,
+        repairResult.error.message,
+      );
+    } catch (repairErr) {
+      console.error(`[${stageLabel}] repair attempt threw:`, repairErr);
+    }
+
+    if (hasFallback) {
+      console.warn(`[${stageLabel}] using fallback`);
+      return fallbackOrTemperature as T;
+    }
     throw result.error;
   } catch (error) {
     console.error(`[${stageLabel}] failed:`, error);
@@ -843,6 +879,7 @@ function buildStage3Prompt(
 function buildStage4Prompt(
   verified: z.infer<typeof Stage3Schema>,
   document: NormalizedDocument,
+  officialSnippets: OfficialSourceSnippet[],
 ): ChatMessage[] {
   const sourceText = buildSourceText(document);
 
@@ -856,11 +893,11 @@ AUDIENCE: Non-native English speakers. Possibly low literacy. May be stressed or
 YOUR RULES:
 1. Use simple, clear, compassionate language. No bureaucratic jargon. No legal-speak.
 2. ai_summary: 2-4 sentences max. Start with what the document IS (e.g. "This is a notice about...") then what the reader MUST DO (if anything) and by WHEN.
-3. action_items: Concrete steps the person must take. Start each with a verb ("Call the school office", "Sign and return the form"). Priority = "high" if missing this step causes a negative outcome (loss of benefit, legal consequence, etc.).
+3. action_items: You MUST produce at least one action_item if the document contains any instruction, deadline, form, or required step. Start each with a verb ("Call the school office", "Sign and return the form"). Set completed=false on every item. Priority = "high" if missing this step causes a negative outcome (loss of benefit, legal consequence, etc.).
 4. key_deadlines: Be specific. If the document says "by Friday October 4th", use that exact date as the "text". The "meaning" field explains WHY it matters (e.g. "You will lose your housing benefit if you miss this date").
 5. questions_to_ask: Questions the reader should bring to a caseworker, school office, legal aid, or doctor. Write them as the reader would ask them ("Can I get more time if I need it?").
-6. If any item is uncertain or unverified, prefix it with "Uncertain:" and include it in questions_to_ask instead of action_items.
-7. trusted_sources: Only include URLs that were explicitly in the official_source_snippets. NEVER invent URLs.
+6. Only move an item to questions_to_ask INSTEAD of action_items when you have absolutely no document evidence for it. If any evidence exists in the document, put it in action_items with priority "medium" or "low".
+7. trusted_sources: You MUST include every entry from official_source_snippets whose topic is relevant to this document. Copy the exact title and url from the snippet. Do not invent new URLs.
 8. Return ONLY strict JSON — no markdown, no prose, no explanation.`,
     },
     {
@@ -875,6 +912,7 @@ YOUR RULES:
             language: document.language ?? null,
             source_text: sourceText,
           },
+          official_source_snippets: officialSnippets,
           verified_items: verified,
           output_shape: {
             ai_summary:
@@ -885,6 +923,7 @@ YOUR RULES:
                 priority: "high | medium | low  — high if missing causes harm",
                 supporting_evidence:
                   "Direct quote or reference from the document that supports this action",
+                completed: false,
               },
             ],
             key_deadlines: [
@@ -1104,7 +1143,7 @@ export async function runClearPathPipeline(
   );
 
   const stage4Raw = await askGroqJson(
-    buildStage4Prompt(stage3, document),
+    buildStage4Prompt(stage3, document, officialSnippets),
     Stage4Schema,
     makeStage4Fallback(document),
     0.15,

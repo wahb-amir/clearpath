@@ -1,14 +1,23 @@
 "use client";
 
 import { motion } from "framer-motion";
+import { useState } from "react";
 import useSWR from "swr";
 import UploadPanel from "@/components/app/UploadPanel";
 import ResultsPanel from "@/components/app/ResultsPanel";
 import { apiFetch } from "@/lib/auth/apiFetch";
 
 export default function AppPage() {
-  // 1. Fetch exactly ONCE on load, and ONCE when the user focuses the tab.
-  // NO refreshInterval. We don't spam the server.
+  // aiResult is populated by the SSE onAiResult callback when
+  // analysis_completed / ai_completed fires with the full payload.
+  const [aiResult, setAiResult] = useState(null);
+
+  // Track local analyzing state so the panel goes to skeleton immediately
+  // when the user clicks Analyze, before the first SSE event arrives.
+  const [localAnalyzing, setLocalAnalyzing] = useState(false);
+  const [localDoc, setLocalDoc] = useState(null);
+
+  // Also keep the server-side running-check for page refresh / tab sync.
   const { data: statusData, mutate } = useSWR(
     "/analysis/running-check",
     async (url) => {
@@ -17,31 +26,44 @@ export default function AppPage() {
       return res.json();
     },
     {
-      revalidateOnFocus: true, // Syncs state if they opened a run on their phone/another tab
+      revalidateOnFocus: true,
       revalidateOnMount: true,
     },
   );
 
-  const analyzing = !!statusData?.running;
+  const analyzing = localAnalyzing || !!statusData?.running;
 
-  const currentDoc = statusData?.document
-    ? { id: statusData.document.id, name: statusData.document.fileName }
-    : null;
+  const currentDoc =
+    localDoc ??
+    (statusData?.document
+      ? { id: statusData.document.id, name: statusData.document.fileName }
+      : null);
 
-  // 2. When a user uploads a file, instantly force SWR into the "running" state locally.
+  // Called by UploadPanel when the user triggers a new analysis.
   const handleAnalyze = async (doc) => {
+    setAiResult(null);
+    setLocalAnalyzing(true);
+    setLocalDoc({ id: doc.id, name: doc.name });
+    // Optimistically update the SWR cache so the running-check reflects state
     mutate(
       {
         running: true,
         document: { id: doc.id, fileName: doc.name, analysisStatus: "running" },
       },
-      { revalidate: false }, // false = don't immediately re-fetch from the server, trust our local state
+      { revalidate: false },
     );
   };
 
-  // 3. This will be triggered by ResultsPanel when the SSE stream officially finishes.
+  // Called by UploadPanel whenever the SSE emits ai_completed or analysis_completed.
+  // This is where the full result payload arrives — wire it straight to ResultsPanel.
+  const handleAiResult = (result) => {
+    if (result) setAiResult(result);
+  };
+
+  // Called by UploadPanel when stage reaches COMPLETED or FAILED.
   const handleAnalysisComplete = () => {
-    // Clear out active tracking blocks, resetting the UI
+    setLocalAnalyzing(false);
+    setLocalDoc(null);
     mutate({ running: false, document: null }, { revalidate: true });
   };
 
@@ -75,7 +97,12 @@ export default function AppPage() {
           animate={{ opacity: 1, x: 0 }}
           transition={{ duration: 0.5, ease: [0.22, 1, 0.36, 1] }}
         >
-          <UploadPanel onAnalyze={handleAnalyze} analyzing={analyzing} />
+          <UploadPanel
+            onAnalyze={handleAnalyze}
+            onAiResult={handleAiResult}
+            onComplete={handleAnalysisComplete}
+            analyzing={analyzing}
+          />
         </motion.div>
 
         <motion.div
@@ -86,8 +113,7 @@ export default function AppPage() {
           <ResultsPanel
             currentDoc={currentDoc}
             analyzing={analyzing}
-            aiResult={statusData?.document}
-            onComplete={handleAnalysisComplete} // ◄ Pass completion callback down to the panel
+            aiResult={aiResult}
           />
         </motion.div>
       </div>

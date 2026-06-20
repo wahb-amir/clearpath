@@ -475,6 +475,7 @@ function StatusCard({
 export default function DocumentIntelligencePanel({
   onAnalyze,
   onAiResult,
+  onComplete,
   analyzing = false,
 }) {
   const [selectedFile, setSelectedFile] = useState(null);
@@ -803,6 +804,7 @@ export default function DocumentIntelligencePanel({
           setIsConnected(false);
           setReconnecting(false);
           safeClearSession();
+          onComplete?.();
         }
 
         if (nextStage === "FAILED") {
@@ -816,6 +818,7 @@ export default function DocumentIntelligencePanel({
               : "Analysis failed",
           );
           safeClearSession();
+          onComplete?.();
         }
 
         setTimeline((prev) => {
@@ -1128,6 +1131,7 @@ export default function DocumentIntelligencePanel({
             setIsConnected(false);
             setReconnecting(false);
             safeClearSession();
+            onComplete?.();
           }
 
           if (nextStage === "FAILED") {
@@ -1141,6 +1145,7 @@ export default function DocumentIntelligencePanel({
                 : "Analysis failed",
             );
             safeClearSession();
+            onComplete?.();
           }
 
           setTimeline((prev) => {
@@ -1184,7 +1189,7 @@ export default function DocumentIntelligencePanel({
       setFailed(true);
       setError(err instanceof Error ? err.message : "Failed to start analysis");
     }
-  }, [onAiResult, onAnalyze, persistSession, selectedFile]);
+  }, [onAiResult, onAnalyze, onComplete, persistSession, selectedFile]);
 
   const hasFile = Boolean(selectedFile || activeSession);
   const resumeHint = activeSession && !selectedFile;

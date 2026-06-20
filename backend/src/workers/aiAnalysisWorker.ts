@@ -1,6 +1,7 @@
 import { type Job } from "bullmq";
 import { env } from "../config/env";
 import { pgPool } from "../db/pool";
+import { pipelineIndex } from "../types/pipelineStatus";
 import type { AiAnalysisJobData, DocumentRow } from "../types/dtos";
 import { reportStage, reportProgress, reportFailure } from "./stageReporter";
 import { runAndPersistDocumentAnalysis } from "../services/documentAnalysisOrchestrator";
@@ -22,12 +23,25 @@ export async function runAiPipeline(
     return;
   }
 
-  if (doc.analysis_status === "FAILED" || doc.analysis_status === "CANCELLED") {
-    // Document already reached a terminal state (e.g. a prior attempt
-    // failed permanently). Don't retry into a dead end - BullMQ retries
-    // would otherwise throw InvalidStateTransitionError forever.
+  // Guard: only proceed if the document has reached the AI-ready stage.
+  // If it is still in preprocessing (before PREPROCESSING_COMPLETED) it
+  // means the AI job was queued prematurely (e.g. stale outbox event or
+  // duplicate BullMQ job). Log and bail — the preprocessing worker will
+  // insert a fresh outbox event once it actually finishes.
+  const AI_READY_INDEX = pipelineIndex("PREPROCESSING_COMPLETED");
+  const currentIndex = pipelineIndex(doc.analysis_status as any);
+  if (currentIndex !== -1 && currentIndex < AI_READY_INDEX) {
     console.warn(
-      `[ai-analysis] Skipping job ${job.id}: document ${documentId} is already ${doc.analysis_status}`,
+      `[ai-analysis] Skipping job ${job.id}: document ${documentId} is at ` +
+        `${doc.analysis_status} — preprocessing not yet complete. ` +
+        `AI job will be re-queued by the preprocessing worker.`,
+    );
+    return;
+  }
+
+  if (doc.analysis_status === "FAILED" || doc.analysis_status === "CANCELLED") {
+    console.warn(
+      `[ai-analysis] Skipping job ${job.id}: document ${documentId} is in terminal state ${doc.analysis_status}`,
     );
     return;
   }

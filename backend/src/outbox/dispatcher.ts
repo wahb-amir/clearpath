@@ -169,15 +169,21 @@ export class OutboxDispatcher {
         break;
       }
       case "document.extraction.verified": {
-        // User confirmed extracted content — fire the AI analysis job
-        const payload = row.payload as {
-          documentId: string;
-          userId: string;
-          analysisRequestId: string;
-          analysisVersion: string;
-        };
+        // User confirmed extracted content — resume the normal analysis job
+        const payload = row.payload as AnalysisRequestedOutboxPayload;
 
-        await enqueueAiAnalysisJob(`ai:${payload.analysisRequestId}`, payload);
+        const jobData: AnalysisJobData = {
+          documentId: payload.documentId,
+          analysisRequestId: payload.analysisRequestId,
+          userId: payload.userId,
+          storagePath: payload.storagePath,
+          mimeType: payload.mimeType,
+          analysisVersion: payload.analysisVersion,
+        };
+        const rawJobId = jobIdForAnalysisRequest(payload.analysisRequestId) + "-resume";
+        const sanitizedJobId = rawJobId.replace(/:/g, "-");
+
+        await enqueueAnalysisJob(sanitizedJobId, jobData);
 
         await pgPool.query(
           `UPDATE public.document_pipeline_outbox

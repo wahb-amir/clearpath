@@ -49,7 +49,7 @@ export async function confirmExtractionController(
     await withTransaction(async (client) => {
       // 1. Lock and verify
       const docResult = await client.query(
-        `SELECT id, user_id, analysis_status, extracted_content
+        `SELECT id, user_id, analysis_status, extracted_content, storage_path, mime_type
            FROM documents
           WHERE id = $1
           FOR UPDATE`,
@@ -85,8 +85,8 @@ export async function confirmExtractionController(
 
       await client.query(
         `UPDATE documents
-            SET analysis_status   = 'PREPROCESSING_COMPLETED',
-                current_stage     = 'PREPROCESSING_COMPLETED',
+            SET analysis_status   = 'VERIFIED',
+                current_stage     = 'VERIFIED',
                 extracted_content = $1::jsonb
           WHERE id = $2`,
         [JSON.stringify(contentToSave), documentId],
@@ -137,6 +137,8 @@ export async function confirmExtractionController(
             userId,
             analysisRequestId,
             analysisVersion,
+            storagePath: doc.storage_path,
+            mimeType: doc.mime_type,
           }),
         ],
       );

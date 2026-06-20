@@ -247,13 +247,14 @@ export async function processAnalysisJob(
         sections: sections.map((s, i) => ({
           index: i,
           title: s.title ?? `Section ${i + 1}`,
-          content: s.children?.length
-            ? s.children
-                .map((c) => ("content" in c ? c.content : ""))
-                .join("\n\n")
-            : "content" in s
-              ? s.content
-              : "",
+          // textContent holds the direct text of this node (headings use "")
+          // children hold the paragraph/list blocks that belong under this heading
+          content: [
+            s.textContent ?? "",
+            ...(s.children?.map((c) => c.textContent ?? "") ?? []),
+          ]
+            .filter(Boolean)
+            .join("\n\n"),
         })),
         dates: facts
           .filter((f) => f.factType === "date" || f.factType === "deadline")
@@ -465,7 +466,33 @@ export async function processAnalysisJob(
       currentStatus = "SUMMARIZING";
     }
 
-    // The pipeline continues processing normally...
+    // Transition to PREPROCESSING_COMPLETED and hand off to AI pipeline
+    if (!isStageCompleteOrPast(currentStatus, "PREPROCESSING_COMPLETED")) {
+      await reportStage({
+        documentId,
+        userId,
+        workerId,
+        toStatus: "PREPROCESSING_COMPLETED",
+        eventType: "preprocessing_completed",
+        message: "Preprocessing complete — queuing AI analysis",
+        progress: 95,
+      });
+      currentStatus = "PREPROCESSING_COMPLETED";
+
+      // Insert outbox event so the dispatcher enqueues the AI analysis job
+      await withTransaction(async (client) => {
+        await client.query(
+          `INSERT INTO document_pipeline_outbox
+             (event_type, aggregate_type, aggregate_id, payload, status)
+           VALUES ('document.preprocessing.completed', 'document_analysis_request', $1, $2::jsonb, 'pending')`,
+          [
+            analysisRequestId,
+            JSON.stringify({ documentId, userId, analysisRequestId, analysisVersion }),
+          ],
+        );
+      });
+    }
+
     return;
   } catch (err) {
     await reportFailure({
