@@ -1,6 +1,6 @@
-// middleware.ts
-import { NextRequest, NextResponse } from "next/server";
-
+// proxy.js
+import {  NextResponse } from "next/server";
+import { apiFetch } from "./lib/auth/apiFetch";
 const PUBLIC_ROUTES = ["/", "/login", "/register", "/about"];
 
 // Set this to your backend origin, for example:
@@ -22,7 +22,7 @@ function shouldSkipMiddleware(pathname) {
 async function verifyAuth(req) {
   const cookieHeader = req.headers.get("cookie") ?? "";
 
-  const res = await fetch(`${AUTH_API_BASE}/auth/verify`, {
+  const res = await apiFetch(`${AUTH_API_BASE}/auth/verify`, {
     method: "GET",
     headers: {
       cookie: cookieHeader,
