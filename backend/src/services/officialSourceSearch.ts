@@ -1,4 +1,5 @@
 import { env } from "../config/env";
+
 export interface OfficialSourceSnippet {
   title: string;
   url: string;
@@ -9,7 +10,6 @@ export interface OfficialSourceSnippet {
 export interface OfficialSearchOptions {
   count?: number;
   officialDomains?: string[];
-  language?: string;
   timeoutMs?: number;
 }
 
@@ -44,16 +44,16 @@ function dedupeSnippets(
   snippets: OfficialSourceSnippet[],
 ): OfficialSourceSnippet[] {
   const seen = new Set<string>();
-  const deduped: OfficialSourceSnippet[] = [];
+  const out: OfficialSourceSnippet[] = [];
 
-  for (const snippet of snippets) {
-    const key = `${snippet.url}::${snippet.source}`;
+  for (const s of snippets) {
+    const key = `${s.url}::${s.source}`;
     if (seen.has(key)) continue;
     seen.add(key);
-    deduped.push(snippet);
+    out.push(s);
   }
 
-  return deduped;
+  return out;
 }
 
 async function fetchPageExcerpt(
@@ -64,7 +64,7 @@ async function fetchPageExcerpt(
   const timer = setTimeout(() => controller.abort(), timeoutMs);
 
   try {
-    const response = await fetch(url, {
+    const res = await fetch(url, {
       signal: controller.signal,
       headers: {
         "user-agent":
@@ -72,11 +72,12 @@ async function fetchPageExcerpt(
       },
     });
 
-    if (!response.ok) {
-      throw new Error(`Failed to fetch ${url}: ${response.status}`);
+    if (!res.ok) {
+      throw new Error(`Failed ${url}: ${res.status}`);
     }
 
-    const html = await response.text();
+    const html = await res.text();
+
     const text = html
       .replace(/<script[\s\S]*?<\/script>/gi, " ")
       .replace(/<style[\s\S]*?<\/style>/gi, " ")
@@ -90,10 +91,7 @@ async function fetchPageExcerpt(
 }
 
 /**
- * Drop-in replacement for the old Brave-based adapter.
- *
- * Uses Tavily Search API, which has a free plan and returns
- * title/url/content fields that fit this pipeline well.
+ * Tavily-based official source search
  */
 export async function searchOfficialSources(
   query: string,
@@ -102,17 +100,17 @@ export async function searchOfficialSources(
   const apiKey = env.TAVILY_API_KEY;
 
   if (!apiKey) {
-    throw new Error(
-      "Missing TAVILY_API_KEY. Configure Tavily before enabling Stage 3 grounding.",
-    );
+    throw new Error("Missing TAVILY_API_KEY");
   }
 
   const count = Math.min(Math.max(options.count ?? 5, 1), 10);
   const timeoutMs = options.timeoutMs ?? 9000;
-  const allowedDomains = options.officialDomains?.filter(Boolean) ?? [];
+  const allowedDomains = options.officialDomains ?? [];
 
+  // ✅ IMPORTANT: no dynamic country, no language misuse
   const body: Record<string, unknown> = {
     query,
+    topic: "general",
     max_results: count,
     search_depth: "basic",
     include_answer: false,
@@ -124,6 +122,8 @@ export async function searchOfficialSources(
     body.include_domains = allowedDomains;
   }
 
+  console.log("TAVILY REQUEST:", JSON.stringify(body, null, 2));
+
   const response = await fetch("https://api.tavily.com/search", {
     method: "POST",
     headers: {
@@ -134,55 +134,55 @@ export async function searchOfficialSources(
   });
 
   if (!response.ok) {
-    const errBody = await response.text().catch(() => "");
+    const err = await response.text().catch(() => "");
+    console.error("TAVILY ERROR:", err);
+
     throw new Error(
-      `Official source search failed (${response.status}): ${errBody.slice(0, 300)}`,
+      `Official source search failed (${response.status}): ${err.slice(0, 300)}`,
     );
   }
 
   const data = (await response.json()) as TavilySearchResponse;
   const results = data.results ?? [];
 
-  const filtered = results.filter((result) => {
-    if (!result.url || !result.title) return false;
+  const filtered = results.filter((r) => {
+    if (!r.url || !r.title) return false;
 
     try {
-      const hostname = new URL(result.url).hostname;
+      const host = new URL(r.url).hostname;
+
       if (allowedDomains.length > 0) {
-        return hostnameMatches(hostname, allowedDomains);
+        return hostnameMatches(host, allowedDomains);
       }
-      return isOfficialHostname(hostname);
+
+      return isOfficialHostname(host);
     } catch {
       return false;
     }
   });
 
-  const snippets: OfficialSourceSnippet[] = [];
-  for (const result of filtered) {
-    if (!result.url || !result.title) continue;
+  const snippets: OfficialSourceSnippet[] = filtered.map((r) => ({
+    title: r.title!,
+    url: r.url!,
+    snippet: normalizeText(r.content ?? ""),
+    source: "search_result",
+  }));
 
-    snippets.push({
-      title: result.title,
-      url: result.url,
-      snippet: normalizeText(result.content ?? ""),
-      source: "search_result",
-    });
-  }
+  const excerptTargets = snippets.slice(0, 3);
 
-  const excerptTargets = snippets.slice(0, Math.min(3, snippets.length));
-  for (const target of excerptTargets) {
+  for (const t of excerptTargets) {
     try {
-      const excerpt = await fetchPageExcerpt(target.url, timeoutMs);
+      const excerpt = await fetchPageExcerpt(t.url, timeoutMs);
       if (excerpt) {
         snippets.push({
-          title: target.title,
-          url: target.url,
+          title: t.title,
+          url: t.url,
           snippet: excerpt,
           source: "page_excerpt",
         });
       }
     } catch {
-      // Keep the search result even if the page blocks fetch.
+      // ignore
     }
   }
 
@@ -194,11 +194,13 @@ export function isTrustedOfficialUrl(
   allowlist: string[] = [],
 ): boolean {
   try {
-    const hostname = new URL(url).hostname.toLowerCase();
+    const host = new URL(url).hostname.toLowerCase();
+
     if (allowlist.length > 0) {
-      return hostnameMatches(hostname, allowlist);
+      return hostnameMatches(host, allowlist);
     }
-    return isOfficialHostname(hostname);
+
+    return isOfficialHostname(host);
   } catch {
     return false;
   }
