@@ -276,4 +276,19 @@ router.get("/me", requireAuth, async (req: AuthRequest, res: Response) => {
   }
 });
 
+router.get("/verify", requireAuth, async (req: AuthRequest, res: Response) => {
+  try {
+    if (!req.user?.userId) {
+      return res.status(401).json({ ok: false });
+    }
+
+    return res.status(200).json({
+      ok: true,
+      userId: req.user.userId,
+      sid: req.user.sid,
+    });
+  } catch (err) {
+    return res.status(401).json({ ok: false });
+  }
+});
 export default router;
