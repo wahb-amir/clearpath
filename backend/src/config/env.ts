@@ -67,6 +67,7 @@ const envSchema = z.object({
   GROQ_MODEL: z.string().default("llama-3.3-70b-versatile"),
 
   TAVILY_API_KEY: z.string(),
+  FRONTEND_URL: z.string().default('http://localhost:3000')
 });
 
 const _env = envSchema.safeParse(process.env);

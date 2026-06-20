@@ -21,7 +21,7 @@ app.use(morgan("dev"));
 
 app.use(
   cors({
-    origin: "http://localhost:3000", // You can swap this out with env.FRONTEND_URL later if needed
+    origin: env.FRONTEND_URL, // You can swap this out with env.FRONTEND_URL later if needed
     credentials: true,
   }),
 );
