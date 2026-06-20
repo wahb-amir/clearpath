@@ -169,7 +169,7 @@ export default function HeroSection() {
           >
             <motion.div style={{ marginTop: "4rem", textAlign: "center" }}>
               <div className="flex justify-center items-center">
-                <Link href="/app">
+                <Link href="/analyze">
                   <button
                     className="flex gap-2 bg-blue-600 hover:bg-blue-700 px-6 py-2 rounded-[10px]
           font-semibold duration-200 transition-all cursor-pointer"
