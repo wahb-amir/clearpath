@@ -1,0 +1,28 @@
+version: "3.9"
+
+services:
+  api:
+    build: .
+    container_name: backend_api
+    command: node dist/index.js
+    ports:
+      - "3000:3000"
+    env_file:
+      - .env
+    restart: always
+
+  worker:
+    build: .
+    container_name: backend_worker
+    command: node dist/workers/run.js
+    env_file:
+      - .env
+    restart: always
+
+  dispatcher:
+    build: .
+    container_name: backend_dispatcher
+    command: node dist/outbox/run.js
+    env_file:
+      - .env
+    restart: always
