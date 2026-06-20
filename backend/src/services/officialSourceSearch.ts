@@ -134,7 +134,10 @@ export async function searchOfficialSources(
       "Content-Type": "application/json",
       Authorization: `Bearer ${apiKey}`,
     },
-    body: JSON.stringify(body),
+    body: JSON.stringify({
+      ...body,
+      country: "united states",
+    }),
   });
 
   if (!response.ok) {
