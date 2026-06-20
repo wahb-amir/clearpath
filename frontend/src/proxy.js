@@ -25,13 +25,9 @@ export function proxy(req) {
   const accessToken = req.cookies.get("accessToken")?.value;
   const refreshToken = req.cookies.get("refreshToken")?.value;
 
-  if (!accessToken && !refreshToken) {
-    return NextResponse.redirect(new URL("/login", req.url));
+  if (accessToken || refreshToken) {
+    return NextResponse.next();
   }
 
-  return NextResponse.next();
+  return NextResponse.redirect(new URL("/login", req.url));
 }
-
-export const config = {
-  matcher: ["/((?!_next/static|_next/image|favicon.ico|public).*)"],
-};

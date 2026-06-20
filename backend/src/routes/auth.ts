@@ -25,7 +25,7 @@ const registerSchema = z.object({
   password: z.string().min(8),
 });
 
-const isProd = process.env.NODE_ENV === "production";
+const isProd = process.env.NODE_ENV !== "development";
 
 const authCookieOptions = {
   httpOnly: true,
