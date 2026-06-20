@@ -1,5 +1,5 @@
 // src/routes/auth.ts
-import { Router, Request, Response, CookieOptions } from "express";
+import { Router, Request, Response } from "express";
 import argon2 from "argon2";
 import { z } from "zod";
 import { supabase } from "../lib/supabase";
@@ -27,20 +27,13 @@ const registerSchema = z.object({
 
 const isProd = process.env.NODE_ENV === "production";
 
-// Shared parent domain in production so frontend + backend can read the same cookies.
-// No domain in local dev.
-const cookieDomain = isProd ? ".wahb.space" : undefined;
-
-
-const sameSite: CookieOptions["sameSite"] = "lax";
-
-const authCookieOptions: CookieOptions = {
+const authCookieOptions = {
   httpOnly: true,
-  secure: isProd,
-  sameSite,
+  secure: true,
+  sameSite: (isProd ? "none" : "lax") as "none" | "lax",
   path: "/",
-  ...(cookieDomain ? { domain: cookieDomain } : {}),
-  maxAge: 7 * 24 * 60 * 60 * 1000, // 7 days
+  domain: ".wahb.space",
+  maxAge: 7 * 24 * 60 * 60 * 1000,
 };
 
 const setAuthCookies = (
@@ -56,32 +49,10 @@ const setAuthCookies = (
   res.cookie("sid", params.sid, authCookieOptions);
 };
 
-// Clears both the shared-domain cookies and the old host-only cookies.
-// This removes duplicates created before the domain fix.
 const clearAuthCookies = (res: Response) => {
-  const hostOnlyOptions: CookieOptions = {
-    httpOnly: true,
-    secure: isProd,
-    sameSite,
-    path: "/",
-  };
-
-  // Old host-only cookies on clearpath.api.wahb.space
-  res.clearCookie("accessToken", hostOnlyOptions);
-  res.clearCookie("refreshToken", hostOnlyOptions);
-  res.clearCookie("sid", hostOnlyOptions);
-
-  // New shared cookies on .wahb.space
-  if (cookieDomain) {
-    const sharedDomainOptions: CookieOptions = {
-      ...hostOnlyOptions,
-      domain: cookieDomain,
-    };
-
-    res.clearCookie("accessToken", sharedDomainOptions);
-    res.clearCookie("refreshToken", sharedDomainOptions);
-    res.clearCookie("sid", sharedDomainOptions);
-  }
+  res.clearCookie("accessToken", { ...authCookieOptions });
+  res.clearCookie("refreshToken", { ...authCookieOptions });
+  res.clearCookie("sid", { ...authCookieOptions });
 };
 
 router.post("/register", rateLimiter, async (req: Request, res: Response) => {
@@ -89,6 +60,7 @@ router.post("/register", rateLimiter, async (req: Request, res: Response) => {
     const { fullName, email, password } = registerSchema.parse(req.body);
     const normalizedEmail = email.toLowerCase().trim();
 
+    // Deduplicate against existing users
     const { data: existingUser } = await supabase
       .from("users")
       .select("id")
@@ -102,6 +74,7 @@ router.post("/register", rateLimiter, async (req: Request, res: Response) => {
 
     const passwordHash = await argon2.hash(password);
 
+    // Save user inside public schema
     const { data: newUser, error: insertError } = await supabase
       .from("users")
       .insert({
@@ -196,37 +169,40 @@ router.post("/login", rateLimiter, async (req: Request, res: Response) => {
   }
 });
 
-router.post("/refresh", refreshRateLimiter, async (req: Request, res: Response) => {
-  try {
-    const sid = req.cookies?.sid;
-    const refreshToken = req.cookies?.refreshToken;
+router.post(
+  "/refresh",
+  refreshRateLimiter,
+  async (req: Request, res: Response) => {
+    try {
+      const sid = req.cookies?.sid;
+      const refreshToken = req.cookies?.refreshToken;
+      if (!sid || !refreshToken) {
+        res.status(401).json({ error: "Unauthorized" });
+        return;
+      }
 
-    if (!sid || !refreshToken) {
-      res.status(401).json({ error: "Unauthorized" });
-      return;
+      const newRefreshToken = generateRefreshToken();
+      const { newSid, userId } = await refreshSession(
+        sid,
+        refreshToken,
+        newRefreshToken,
+      );
+      const accessToken = signAccessToken(userId, newSid);
+
+      setAuthCookies(res, {
+        accessToken,
+        refreshToken: newRefreshToken,
+        sid: newSid,
+      });
+
+      res.json({ success: true });
+    } catch (error: any) {
+      console.error("Refresh error:", error?.message || error);
+      clearAuthCookies(res);
+      res.status(401).json({ error: "Unauthorized or token reused" });
     }
-
-    const newRefreshToken = generateRefreshToken();
-    const { newSid, userId } = await refreshSession(
-      sid,
-      refreshToken,
-      newRefreshToken,
-    );
-    const accessToken = signAccessToken(userId, newSid);
-
-    setAuthCookies(res, {
-      accessToken,
-      refreshToken: newRefreshToken,
-      sid: newSid,
-    });
-
-    res.json({ success: true });
-  } catch (error: any) {
-    console.error("Refresh error:", error?.message || error);
-    clearAuthCookies(res);
-    res.status(401).json({ error: "Unauthorized or token reused" });
-  }
-});
+  },
+);
 
 router.post("/logout", requireAuth, async (req: AuthRequest, res: Response) => {
   try {
@@ -258,6 +234,8 @@ router.get("/me", requireAuth, async (req: AuthRequest, res: Response) => {
       });
     }
 
+    // Single PK lookup — counter columns are maintained by a Postgres
+    // trigger so no aggregate queries are needed here.
     const { data: user, error } = await supabase
       .from("users")
       .select(
