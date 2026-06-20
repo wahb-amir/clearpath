@@ -33,7 +33,7 @@ async function verifyAuth(req) {
   return res.ok;
 }
 
-export async function middleware(req) {
+export async function proxy(req) {
   const { pathname } = req.nextUrl;
 
   if (shouldSkipMiddleware(pathname) || isPublicRoute(pathname)) {
