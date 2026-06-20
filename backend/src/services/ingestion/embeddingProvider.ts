@@ -48,11 +48,18 @@ export async function embedText(text: string): Promise<number[]> {
  * single-threaded per call; sequential keeps memory bounded for large
  * documents). For higher throughput, consider running multiple worker
  * processes rather than parallelizing within one.
+ *
+ * @param onProgress - optional callback fired after each chunk is embedded.
+ *   Receives (completed, total) so callers can stream progress to SSE.
  */
-export async function embedBatch(texts: string[]): Promise<number[][]> {
+export async function embedBatch(
+  texts: string[],
+  onProgress?: (completed: number, total: number) => void | Promise<void>,
+): Promise<number[][]> {
   const results: number[][] = [];
-  for (const text of texts) {
-    results.push(await embedText(text));
+  for (let i = 0; i < texts.length; i++) {
+    results.push(await embedText(texts[i]));
+    await onProgress?.(i + 1, texts.length);
   }
   return results;
 }

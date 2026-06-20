@@ -34,16 +34,26 @@ export const PIPELINE_EVENT_TYPES = [
   "ai_extraction_started",
   "ai_extraction_completed",
 
+  "ai_search_started",
+  "ai_search_progress",
+  "ai_search_completed",
+
   "ai_verification_started",
   "ai_verification_completed",
 
   "ai_synthesis_started",
+  "ai_synthesis_completed",
+
+  "ai_safety_started",
+  "ai_safety_completed",
 
   "ai_summary_delta",
 
   "ai_human_review_required",
 
   "ai_completed",
+
+  "progress",
 
   "analysis_completed",
   "analysis_failed",

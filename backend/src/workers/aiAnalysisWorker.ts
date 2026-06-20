@@ -68,30 +68,17 @@ export async function runAiPipeline(
   });
 
   try {
-    await reportProgress({
-      documentId,
-      userId,
-      stage: "AI_PROCESSING",
-      eventType: "ai_understanding_started",
-      message: "Reading the document and identifying its purpose",
-      progress: 15,
-    });
-
+    // runAndPersistDocumentAnalysis owns all mid-pipeline SSE events via its
+    // internal emit callback (stages 1-5, per-token streaming ticks, search
+    // progress, etc).  Do NOT emit "understanding_started" or "synthesis_started"
+    // here — they would fire BEFORE the pipeline runs and create a false 55-second
+    // silent gap between the wrapper event and the real work beginning.
     const result = await runAndPersistDocumentAnalysis({
       analysisRequestId,
       documentId,
       userId,
       fileType: doc.mime_type,
       language: doc.language,
-    });
-
-    await reportProgress({
-      documentId,
-      userId,
-      stage: "AI_PROCESSING",
-      eventType: "ai_synthesis_started",
-      message: "Synthesizing the summary, action items, and deadlines",
-      progress: 85,
     });
 
     if (result.human_review.required) {

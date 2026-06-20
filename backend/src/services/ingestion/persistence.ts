@@ -2,7 +2,7 @@ import type { PoolClient } from "pg";
 import type { DocumentSectionDraft } from "./buildStructure";
 import type { ChunkDraft } from "./buildChunks";
 import type { ExtractedFact } from "./extractFacts";
-import { embedBatch, toPgVectorLiteral } from "./embeddingProvider";
+import { toPgVectorLiteral } from "./embeddingProvider";
 
 /**
  * Persists the section tree. Idempotent via cleanup-then-insert within
@@ -63,17 +63,17 @@ export async function persistSections(
  * (see uq_chunks_dedupe) - if a previous attempt already inserted
  * identical chunks, re-running this is a no-op for those rows.
  *
- * Embeddings are generated in batch via @xenova/transformers
- * (bge-small-en-v1.5, 384-dim) before insertion.
+ * NOTE: embeddings must be pre-computed and passed in — call embedBatch()
+ * outside this function (and outside any transaction) so the per-chunk
+ * onProgress callback can fire without being blocked by a DB lock.
  */
 export async function persistChunks(
   client: PoolClient,
   documentId: string,
   chunks: ChunkDraft[],
   sectionIdMap: Map<DocumentSectionDraft, string>,
+  embeddings: number[][],
 ): Promise<void> {
-  const embeddings = await embedBatch(chunks.map((c) => c.content));
-
   // Insert in order so parent rows exist before children reference them.
   // We rely on chunks[] being topologically ordered (document -> section
   // -> paragraph -> sentence), which buildChunks guarantees.

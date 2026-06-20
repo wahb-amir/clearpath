@@ -16,6 +16,7 @@ import { buildDocumentStructure } from "../services/ingestion/buildStructure";
 import { extractFacts } from "../services/ingestion/extractFacts";
 import { estimateQuality } from "../services/ingestion/estimateQuality";
 import { buildChunks } from "../services/ingestion/buildChunks";
+import { embedBatch } from "../services/ingestion/embeddingProvider";
 import { generateSummary } from "../services/ingestion/generateSummary";
 import {
   persistSections,
@@ -417,23 +418,80 @@ export async function processAnalysisJob(
         workerId,
         toStatus: "CHUNKING",
         eventType: "chunking_completed",
-        message:
-          "Built hierarchical chunks (document/section/paragraph/sentence)",
-        progress: 60,
+        message: "Building hierarchical chunks (document → section → paragraph → sentence)",
+        progress: 52,
       });
 
       const chunks = buildChunks({ documentSummary: summary, sections });
 
+      const chunksByLevel = chunks.reduce<Record<string, number>>(
+        (acc, c) => { acc[c.chunkLevel] = (acc[c.chunkLevel] ?? 0) + 1; return acc; },
+        {},
+      );
+
+      await reportProgress({
+        documentId,
+        userId,
+        stage: "CHUNKING",
+        eventType: "chunking_completed",
+        message: `Planned ${chunks.length} chunks — ${chunksByLevel["section"] ?? 0} sections, ${chunksByLevel["paragraph"] ?? 0} paragraphs, ${chunksByLevel["sentence"] ?? 0} sentences`,
+        progress: 54,
+        payload: { total_chunks: chunks.length, by_level: chunksByLevel },
+      });
+
+      // ── Embedding phase (outside transaction so progress events can fire) ──
+      // Report every individual chunk as it is embedded so the frontend sees
+      // a live counter ticking up instead of one long pause.
+      const PROGRESS_EVERY = Math.max(1, Math.floor(chunks.length / 20)); // emit at most ~20 ticks
+      const embeddings = await embedBatch(
+        chunks.map((c) => c.content),
+        async (completed, total) => {
+          // Throttle to avoid flooding — fire on multiples of PROGRESS_EVERY
+          // and always fire the final chunk.
+          if (completed % PROGRESS_EVERY !== 0 && completed !== total) return;
+          const pct = 55 + Math.round((completed / total) * 13); // 55→68
+          await reportProgress({
+            documentId,
+            userId,
+            stage: "CHUNKING",
+            eventType: "embedding_completed",
+            message: `Embedding chunk ${completed}/${total} — bge-small-en-v1.5`,
+            progress: pct,
+            payload: {
+              embedded: completed,
+              total,
+              by_level: chunksByLevel,
+            },
+          });
+        },
+      );
+
+      await reportProgress({
+        documentId,
+        userId,
+        stage: "CHUNKING",
+        eventType: "embedding_completed",
+        message: `All ${chunks.length} embeddings ready — writing to database`,
+        progress: 68,
+        payload: { total_chunks: chunks.length },
+      });
+
+      // ── DB write phase (fast — embeddings already computed) ───────────────
       await withTransaction(async (client) => {
         await clearDerivedRecords(client, documentId);
-
-        const sectionIdMap = await persistSections(
-          client,
-          documentId,
-          sections,
-        );
+        const sectionIdMap = await persistSections(client, documentId, sections);
         await persistFacts(client, documentId, facts);
-        await persistChunks(client, documentId, chunks, sectionIdMap);
+        await persistChunks(client, documentId, chunks, sectionIdMap, embeddings);
+      });
+
+      await reportProgress({
+        documentId,
+        userId,
+        stage: "CHUNKING",
+        eventType: "chunking_completed",
+        message: `Chunking complete — ${chunks.length} chunks stored with embeddings`,
+        progress: 72,
+        payload: { total_chunks: chunks.length, by_level: chunksByLevel },
       });
 
       currentStatus = "CHUNKING";

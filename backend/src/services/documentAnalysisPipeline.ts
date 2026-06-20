@@ -381,6 +381,94 @@ async function askGroqJson<T>(
   }
 }
 
+/**
+ * Streaming variant of askGroqJson.
+ *
+ * Uses Groq's streaming API so we can fire `onToken` heartbeat ticks while
+ * the model is generating — the frontend sees live activity instead of a
+ * silent pause. The full response is accumulated, then parsed + validated
+ * exactly like askGroqJson. Repair pass falls back to a non-streaming call.
+ */
+async function askGroqJsonStreaming<T>(
+  messages: ChatMessage[],
+  schema: z.ZodType<T>,
+  fallback: T,
+  temperature = 0,
+  stageLabel = "LLM stage",
+  onToken?: (tokensReceived: number, partial: string) => void | Promise<void>,
+): Promise<T> {
+  const client = getGroqClient();
+  const model = getGroqModel();
+
+  console.log(`[${stageLabel}] streaming start`);
+
+  let content = "";
+  let tokenCount = 0;
+
+  try {
+    const stream = await withTimeout(
+      client.chat.completions.create({
+        model,
+        temperature,
+        messages,
+        stream: true,
+      }),
+      30000,
+      stageLabel,
+    );
+
+    for await (const chunk of stream) {
+      const delta = chunk.choices[0]?.delta?.content ?? "";
+      if (delta) {
+        content += delta;
+        tokenCount += delta.length; // rough char count, fine for progress
+        // Fire every ~80 chars (~20 tokens) so we get ~10-30 ticks per stage
+        if (tokenCount % 80 < delta.length) {
+          await onToken?.(tokenCount, content);
+        }
+      }
+    }
+
+    // Always fire a final tick so the caller knows streaming ended
+    await onToken?.(tokenCount, content);
+
+    const parsed = parseModelJson(content);
+    const result = schema.safeParse(parsed);
+
+    if (result.success) {
+      console.log(`[${stageLabel}] streaming completed`);
+      return result.data;
+    }
+
+    console.warn(`[${stageLabel}] streaming validation failed:`, result.error.message);
+
+    // Repair pass (non-streaming is fine — it's a short correction)
+    const repairMessages = buildRepairMessages(messages, content, result.error.message);
+    try {
+      const repairCompletion = await withTimeout(
+        client.chat.completions.create({ model, temperature: 0, messages: repairMessages }),
+        25000,
+        `${stageLabel}-repair`,
+      );
+      const repairContent = repairCompletion.choices[0]?.message?.content ?? "";
+      const repairResult = schema.safeParse(parseModelJson(repairContent));
+      if (repairResult.success) {
+        console.log(`[${stageLabel}] streaming repair succeeded`);
+        return repairResult.data;
+      }
+      console.warn(`[${stageLabel}] streaming repair also failed:`, repairResult.error.message);
+    } catch (repairErr) {
+      console.error(`[${stageLabel}] streaming repair threw:`, repairErr);
+    }
+
+    console.warn(`[${stageLabel}] using fallback`);
+    return fallback;
+  } catch (error) {
+    console.error(`[${stageLabel}] streaming failed:`, error);
+    return fallback;
+  }
+}
+
 function buildSourceText(document: NormalizedDocument): string {
   const sections = (document.sections ?? [])
     .map((section) =>
@@ -756,10 +844,11 @@ async function buildOfficialSourceSnippets(
   await emit?.({
     documentId: document.document_id,
     userId: document.user_id,
-    eventType: "progress",
+    eventType: "ai_search_started",
     stage: "grounding",
-    message: "Searching official sources",
+    message: `Searching ${queries.length} queries against official sources (.gov / .edu)`,
     progress: 60,
+    payload: { query_count: queries.length, queries },
   });
 
   const total = Math.max(queries.length, 1);
@@ -770,11 +859,11 @@ async function buildOfficialSourceSnippets(
     await emit?.({
       documentId: document.document_id,
       userId: document.user_id,
-      eventType: "progress",
+      eventType: "ai_search_progress",
       stage: "grounding",
-      message: `Searching: ${query}`,
+      message: `Search ${i + 1}/${queries.length}: "${query}"`,
       progress: 60 + Math.round((i / total) * 20),
-      payload: { query },
+      payload: { query, query_index: i + 1, query_total: queries.length },
     });
 
     try {
@@ -796,22 +885,31 @@ async function buildOfficialSourceSnippets(
       await emit?.({
         documentId: document.document_id,
         userId: document.user_id,
-        eventType: "progress",
+        eventType: "ai_search_progress",
         stage: "grounding",
-        message: `Found ${hits.length} candidate sources`,
+        message: `Search ${i + 1}/${queries.length} done — ${hits.length} sources found (${snippets.length} total)`,
         progress: 65 + Math.round((i / total) * 15),
-        payload: { query, count: hits.length },
+        payload: {
+          query,
+          query_index: i + 1,
+          query_total: queries.length,
+          hits_this_query: hits.length,
+          total_snippets: snippets.length,
+          sources: hits.map((h) => ({ title: h.title, url: h.url })),
+        },
       });
     } catch (error) {
       await emit?.({
         documentId: document.document_id,
         userId: document.user_id,
-        eventType: "warning",
+        eventType: "ai_search_progress",
         stage: "grounding",
-        message: `Source search failed for query: ${query}`,
+        message: `Search ${i + 1}/${queries.length} failed: ${error instanceof Error ? error.message : String(error)}`,
         progress: 65 + Math.round((i / total) * 15),
         payload: {
           query,
+          query_index: i + 1,
+          query_total: queries.length,
           error: error instanceof Error ? error.message : String(error),
         },
       });
@@ -821,11 +919,14 @@ async function buildOfficialSourceSnippets(
   await emit?.({
     documentId: document.document_id,
     userId: document.user_id,
-    eventType: "progress",
+    eventType: "ai_search_completed",
     stage: "grounding",
-    message: `Grounding complete (${snippets.length} sources)`,
+    message: `Official source search complete — ${snippets.length} unique sources collected`,
     progress: 80,
-    payload: { sourceCount: snippets.length },
+    payload: {
+      source_count: snippets.length,
+      sources: snippets.slice(0, 8).map((s) => ({ title: s.title, url: s.url, source: s.source })),
+    },
   });
 
   return snippets.slice(0, 8);
@@ -1111,20 +1212,114 @@ export async function runClearPathPipeline(
   options: PipelineOptions = {},
   emit?: PipelineEventEmitter,
 ): Promise<DocumentAnalysisPipelineResult> {
-  const stage1 = await askGroqJson(
+  // ── Stage 1: Document Understanding ──────────────────────────────────────
+  await emit?.({
+    documentId: document.document_id,
+    userId: document.user_id,
+    eventType: "ai_understanding_started",
+    stage: "AI_PROCESSING",
+    message: "Stage 1/5 — Understanding document type, audience, and intent",
+    progress: 10,
+    payload: { stage: 1, total: 5 },
+  });
+
+  const stage1 = await askGroqJsonStreaming(
     buildStage1Prompt(document),
     Stage1Schema,
     makeStage1Fallback(document),
     0,
     "stage1",
+    async (tokens) => {
+      await emit?.({
+        documentId: document.document_id,
+        userId: document.user_id,
+        eventType: "ai_understanding_started",
+        stage: "AI_PROCESSING",
+        message: `Reading document — analysing structure (${tokens} chars received)`,
+        progress: 10 + Math.min(8, Math.floor(tokens / 120)),
+        payload: { stage: 1, total: 5, tokens_received: tokens },
+      });
+    },
   );
-  const stage2 = await askGroqJson(
+
+  await emit?.({
+    documentId: document.document_id,
+    userId: document.user_id,
+    eventType: "ai_understanding_completed",
+    stage: "AI_PROCESSING",
+    message: `Stage 1/5 complete — Document: "${stage1.document_type}", topic: "${stage1.primary_topic}"`,
+    progress: 20,
+    payload: {
+      stage: 1,
+      total: 5,
+      document_type: stage1.document_type,
+      primary_topic: stage1.primary_topic,
+      intended_audience: stage1.intended_audience,
+      contains_deadlines: stage1.contains_deadlines,
+      contains_actions: stage1.contains_actions,
+      contains_risks: stage1.contains_risks,
+      confidence: stage1.confidence,
+    },
+  });
+
+  // ── Stage 2: Candidate Extraction ─────────────────────────────────────────
+  await emit?.({
+    documentId: document.document_id,
+    userId: document.user_id,
+    eventType: "ai_extraction_started",
+    stage: "AI_PROCESSING",
+    message: "Stage 2/5 — Extracting deadlines, actions, risks, and contacts",
+    progress: 22,
+    payload: { stage: 2, total: 5 },
+  });
+
+  const stage2 = await askGroqJsonStreaming(
     buildStage2Prompt(document, stage1),
     Stage2Schema,
     makeStage2Fallback(),
     0,
     "stage2",
+    async (tokens) => {
+      await emit?.({
+        documentId: document.document_id,
+        userId: document.user_id,
+        eventType: "ai_extraction_started",
+        stage: "AI_PROCESSING",
+        message: `Scanning for dates, deadlines, and required actions (${tokens} chars)`,
+        progress: 22 + Math.min(10, Math.floor(tokens / 150)),
+        payload: { stage: 2, total: 5, tokens_received: tokens },
+      });
+    },
   );
+
+  await emit?.({
+    documentId: document.document_id,
+    userId: document.user_id,
+    eventType: "ai_extraction_completed",
+    stage: "AI_PROCESSING",
+    message: `Stage 2/5 complete — Found ${stage2.deadlines.length} deadlines, ${stage2.actions.length} actions, ${stage2.risks.length} risks, ${stage2.contacts.length} contacts`,
+    progress: 35,
+    payload: {
+      stage: 2,
+      total: 5,
+      deadline_count: stage2.deadlines.length,
+      action_count: stage2.actions.length,
+      risk_count: stage2.risks.length,
+      contact_count: stage2.contacts.length,
+      missing_info_count: stage2.missing_info.length,
+    },
+  });
+
+  // ── Stage 3 (pre): Official Source Search ─────────────────────────────────
+  await emit?.({
+    documentId: document.document_id,
+    userId: document.user_id,
+    eventType: "ai_verification_started",
+    stage: "AI_PROCESSING",
+    message: "Stage 3/5 — Searching official sources for grounding",
+    progress: 37,
+    payload: { stage: 3, total: 5, sub_step: "search" },
+  });
 
   const officialSnippets = await buildOfficialSourceSnippets(
     document,
@@ -1134,28 +1329,137 @@ export async function runClearPathPipeline(
     emit,
   );
 
-  const stage3 = await askGroqJson(
+  // ── Stage 3 (post): Verification ─────────────────────────────────────────
+  await emit?.({
+    documentId: document.document_id,
+    userId: document.user_id,
+    eventType: "ai_verification_started",
+    stage: "AI_PROCESSING",
+    message: `Stage 3/5 — Verifying ${officialSnippets.length} source snippets against extracted items`,
+    progress: 55,
+    payload: {
+      stage: 3,
+      total: 5,
+      sub_step: "verify",
+      official_source_count: officialSnippets.length,
+    },
+  });
+
+  const stage3 = await askGroqJsonStreaming(
     buildStage3Prompt(document, stage2, officialSnippets),
     Stage3Schema,
     makeStage3Fallback(),
     0,
     "stage3",
+    async (tokens) => {
+      await emit?.({
+        documentId: document.document_id,
+        userId: document.user_id,
+        eventType: "ai_verification_started",
+        stage: "AI_PROCESSING",
+        message: `Cross-referencing extracted items with official sources (${tokens} chars)`,
+        progress: 55 + Math.min(10, Math.floor(tokens / 120)),
+        payload: { stage: 3, total: 5, tokens_received: tokens },
+      });
+    },
   );
 
-  const stage4Raw = await askGroqJson(
+  await emit?.({
+    documentId: document.document_id,
+    userId: document.user_id,
+    eventType: "ai_verification_completed",
+    stage: "AI_PROCESSING",
+    message: `Stage 3/5 complete — ${stage3.verified_items.length} items verified (confidence ${Math.round(stage3.overall_confidence * 100)}%)`,
+    progress: 68,
+    payload: {
+      stage: 3,
+      total: 5,
+      verified_count: stage3.verified_items.filter((i) => i.status === "verified").length,
+      partial_count: stage3.verified_items.filter((i) => i.status === "partially_verified").length,
+      unverified_count: stage3.verified_items.filter((i) => i.status === "unverified").length,
+      conflicting_count: stage3.verified_items.filter((i) => i.status === "conflicting").length,
+      overall_confidence: stage3.overall_confidence,
+      needs_human_review: stage3.needs_human_review,
+    },
+  });
+
+  // ── Stage 4: User-Facing Synthesis ────────────────────────────────────────
+  await emit?.({
+    documentId: document.document_id,
+    userId: document.user_id,
+    eventType: "ai_synthesis_started",
+    stage: "AI_PROCESSING",
+    message: "Stage 4/5 — Writing plain-language summary and action items",
+    progress: 70,
+    payload: { stage: 4, total: 5 },
+  });
+
+  const stage4Raw = await askGroqJsonStreaming(
     buildStage4Prompt(stage3, document, officialSnippets),
     Stage4Schema,
     makeStage4Fallback(document),
     0.15,
     "stage4",
+    async (tokens) => {
+      await emit?.({
+        documentId: document.document_id,
+        userId: document.user_id,
+        eventType: "ai_synthesis_started",
+        stage: "AI_PROCESSING",
+        message: `Composing plain-language summary for families (${tokens} chars)`,
+        progress: 70 + Math.min(12, Math.floor(tokens / 150)),
+        payload: { stage: 4, total: 5, tokens_received: tokens },
+      });
+    },
   );
 
-  const stage5Raw = await askGroqJson(
+  await emit?.({
+    documentId: document.document_id,
+    userId: document.user_id,
+    eventType: "ai_summary_delta",
+    stage: "AI_PROCESSING",
+    message: `Stage 4/5 complete — ${stage4Raw.action_items.length} action items, ${stage4Raw.key_deadlines.length} key deadlines, ${stage4Raw.trusted_sources.length} trusted sources`,
+    progress: 85,
+    payload: {
+      stage: 4,
+      total: 5,
+      action_item_count: stage4Raw.action_items.length,
+      deadline_count: stage4Raw.key_deadlines.length,
+      question_count: stage4Raw.questions_to_ask.length,
+      trusted_source_count: stage4Raw.trusted_sources.length,
+      ai_confidence: stage4Raw.ai_confidence,
+      needs_human_review: stage4Raw.needs_human_review,
+    },
+  });
+
+  // ── Stage 5: Safety Review ────────────────────────────────────────────────
+  await emit?.({
+    documentId: document.document_id,
+    userId: document.user_id,
+    eventType: "ai_human_review_required",
+    stage: "AI_PROCESSING",
+    message: "Stage 5/5 — Running safety guardrails review",
+    progress: 87,
+    payload: { stage: 5, total: 5 },
+  });
+
+  const stage5Raw = await askGroqJsonStreaming(
     buildStage5Prompt(document, stage4Raw),
     Stage5Schema,
     makeStage5Fallback(),
     0,
     "stage5",
+    async (tokens) => {
+      await emit?.({
+        documentId: document.document_id,
+        userId: document.user_id,
+        eventType: "ai_human_review_required",
+        stage: "AI_PROCESSING",
+        message: `Checking for unsupported claims and safety issues (${tokens} chars)`,
+        progress: 87 + Math.min(5, Math.floor(tokens / 120)),
+        payload: { stage: 5, total: 5, tokens_received: tokens },
+      });
+    },
   );
 
   const guardrails = buildStage5Guardrails(
@@ -1214,7 +1518,7 @@ export async function runClearPathPipeline(
     humanReviewReason,
   );
 
-  return {
+  const result = {
     summary,
     action_items: stage4Raw.action_items,
     key_deadlines: stage4Raw.key_deadlines,
@@ -1245,4 +1549,26 @@ export async function runClearPathPipeline(
     },
     status: humanReviewRequired ? "review_required" : "completed",
   };
+
+  await emit?.({
+    documentId: document.document_id,
+    userId: document.user_id,
+    eventType: "ai_completed",
+    stage: "AI_PROCESSING",
+    message: humanReviewRequired
+      ? "AI analysis complete — human review recommended"
+      : "AI analysis complete",
+    progress: 100,
+    payload: {
+      status: result.status,
+      human_review_required: humanReviewRequired,
+      action_item_count: result.action_items.length,
+      deadline_count: result.key_deadlines.length,
+      trusted_source_count: result.trusted_sources.length,
+      official_source_count: officialSnippets.length,
+      guardrail_recommendation: stage5.final_recommendation,
+    },
+  });
+
+  return result;
 }

@@ -11,6 +11,11 @@ import {
   loadAnalysisResultByRequestId,
 } from "./documentAnalysisResultRepository";
 import { runClearPathPipeline } from "./documentAnalysisPipeline";
+import { insertPipelineEvent } from "./analysisRequestService";
+import {
+  createPublisherConnection,
+  channelForDocument,
+} from "../redis/connection";
 
 interface DocumentSectionRow {
   id: string;
@@ -127,6 +132,46 @@ export async function loadNormalizedDocument(
   };
 }
 
+/** Publish a pipeline event to Postgres + Redis so SSE clients get it immediately. */
+async function emitAiEvent(params: {
+  documentId: string;
+  userId: string;
+  eventType: string;
+  stage: string;
+  message: string;
+  progress?: number;
+  payload?: Record<string, unknown>;
+}): Promise<void> {
+  const client = await pgPool.connect();
+  let eventId: number | undefined;
+  try {
+    const event = await insertPipelineEvent(client, {
+      documentId: params.documentId,
+      userId: params.userId,
+      eventType: params.eventType as any,
+      stage: params.stage as any,
+      message: params.message,
+      progress: params.progress ?? null,
+      payload: params.payload ?? null,
+    });
+    eventId = event.id;
+  } finally {
+    client.release();
+  }
+
+  // Best-effort Redis push so SSE subscribers get it live
+  try {
+    const pub = createPublisherConnection();
+    await pub.publish(
+      channelForDocument(params.documentId),
+      JSON.stringify({ documentId: params.documentId, eventId }),
+    );
+    pub.disconnect();
+  } catch {
+    // non-fatal
+  }
+}
+
 export async function runAndPersistDocumentAnalysis(
   jobData: DocumentAnalysisJobData,
 ) {
@@ -163,10 +208,26 @@ export async function runAndPersistDocumentAnalysis(
 
   const document = await loadNormalizedDocument(jobData.documentId);
 
+  // SSE emit callback — wires the pipeline's internal progress ticks to the
+  // Postgres event log + Redis pub/sub so the frontend gets live updates.
+  const emit = async (input: {
+    documentId: string;
+    userId: string;
+    eventType: string;
+    stage: string;
+    message: string;
+    progress?: number;
+    payload?: Record<string, unknown>;
+  }) => {
+    await emitAiEvent(input);
+  };
+
   try {
-    const result = await runClearPathPipeline(document, {
-      maxSearchResultsPerQuery: 5,
-    });
+    const result = await runClearPathPipeline(
+      document,
+      { maxSearchResultsPerQuery: 5 },
+      emit,
+    );
 
     await withTransaction(async (client) => {
       await finalizeAnalysisResult(client, {
