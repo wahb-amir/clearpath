@@ -29,11 +29,16 @@ const isProd = process.env.NODE_ENV === "production";
 
 const authCookieOptions = {
   httpOnly: true,
-  secure: true,
+  secure: isProd,
   sameSite: (isProd ? "none" : "lax") as "none" | "lax",
   path: "/",
-  domain: ".wahb.space",
+  ...(isProd ? { domain: ".wahb.space" } : {}),
   maxAge: 7 * 24 * 60 * 60 * 1000,
+};
+
+const clearCookieOptions = {
+  path: "/",
+  ...(isProd ? { domain: ".wahb.space" } : {}),
 };
 
 const setAuthCookies = (
@@ -50,9 +55,9 @@ const setAuthCookies = (
 };
 
 const clearAuthCookies = (res: Response) => {
-  res.clearCookie("accessToken", { ...authCookieOptions });
-  res.clearCookie("refreshToken", { ...authCookieOptions });
-  res.clearCookie("sid", { ...authCookieOptions });
+  res.clearCookie("accessToken", clearCookieOptions);
+  res.clearCookie("refreshToken", clearCookieOptions);
+  res.clearCookie("sid", clearCookieOptions);
 };
 
 router.post("/register", rateLimiter, async (req: Request, res: Response) => {
@@ -60,7 +65,6 @@ router.post("/register", rateLimiter, async (req: Request, res: Response) => {
     const { fullName, email, password } = registerSchema.parse(req.body);
     const normalizedEmail = email.toLowerCase().trim();
 
-    // Deduplicate against existing users
     const { data: existingUser } = await supabase
       .from("users")
       .select("id")
@@ -74,7 +78,6 @@ router.post("/register", rateLimiter, async (req: Request, res: Response) => {
 
     const passwordHash = await argon2.hash(password);
 
-    // Save user inside public schema
     const { data: newUser, error: insertError } = await supabase
       .from("users")
       .insert({
@@ -234,8 +237,6 @@ router.get("/me", requireAuth, async (req: AuthRequest, res: Response) => {
       });
     }
 
-    // Single PK lookup — counter columns are maintained by a Postgres
-    // trigger so no aggregate queries are needed here.
     const { data: user, error } = await supabase
       .from("users")
       .select(
