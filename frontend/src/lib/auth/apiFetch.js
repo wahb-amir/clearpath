@@ -1,19 +1,25 @@
-// lib/apiFetch.ts
-const API_BASE_URL = process.env.NEXT_PUBLIC_BACKEND_URL || "http://localhost:3001"; // <-- Point to your Express port
+import { cookies } from "next/headers";
+
+const API_BASE_URL = process.env.NEXT_PUBLIC_BACKEND_URL || "http://localhost:3001";
 
 let refreshPromise = null;
 
-async function refreshSession() {
+
+async function refreshSession(serverCookieHeader= null) {
   if (!refreshPromise) {
-    // Note: Make sure your auth refresh endpoint is either on Next.js or the backend.
-    // If it's on the backend, this needs to be `${API_BASE_URL}/api/auth/refresh`
+    const headers = new Headers({
+      "content-type": "application/json",
+    });
+
+    if (serverCookieHeader) {
+      headers.set("cookie", serverCookieHeader);
+    }
+
     refreshPromise = fetch(`${API_BASE_URL}/auth/refresh`, {
       method: "POST",
       credentials: "include",
       cache: "no-store",
-      headers: {
-        "content-type": "application/json",
-      },
+      headers,
     })
       .then((res) => res.ok)
       .finally(() => {
@@ -28,32 +34,55 @@ function shouldSkipRefresh(url) {
   return url.includes("/auth/refresh") || url.includes("/login");
 }
 
-export async function apiFetch(input, init) {
-  // 1. Ensure we construct the full backend URL if a relative path is passed
+export async function apiFetch(input,init) {
   const urlString = input.toString();
   const fullUrl = urlString.startsWith("http")
     ? urlString
     : `${API_BASE_URL}${urlString.startsWith("/") ? "" : "/"}${urlString}`;
 
+  const headers = new Headers(init?.headers);
+  let serverCookieHeader= null;
+
+  const isServer = typeof window === "undefined";
+  if (isServer) {
+    try {
+      const cookieStore = await cookies(); 
+      
+      serverCookieHeader = cookieStore
+        .getAll()
+        .map((c) => `${c.name}=${c.value}`)
+        .join("; ");
+
+      if (serverCookieHeader) {
+        headers.set("cookie", serverCookieHeader);
+      }
+    } catch (e) {
+      // Fails silently during static site generation where cookies aren't available
+    }
+  }
+
   const request = new Request(fullUrl, {
     ...init,
-    credentials: init?.credentials ?? "include", // Needed for cookies across ports
+    headers,
+    credentials: init?.credentials ?? "include",
   });
 
   const firstResponse = await fetch(request.clone());
 
   if (
     firstResponse.status !== 401 ||
-    init?.retryOnUnauthorized === false || // Note: Added type safety if using TS
+    // @ts-ignore - custom init property
+    init?.retryOnUnauthorized === false || 
     shouldSkipRefresh(request.url)
   ) {
     return firstResponse;
   }
 
-  const refreshed = await refreshSession();
+  const refreshed = await refreshSession(serverCookieHeader);
   if (!refreshed) {
     return firstResponse;
   }
+
 
   return fetch(request.clone());
 }
