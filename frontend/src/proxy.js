@@ -3,8 +3,6 @@ import {  NextResponse } from "next/server";
 import { apiFetch } from "./lib/auth/apiFetch";
 const PUBLIC_ROUTES = ["/", "/login", "/register", "/about"];
 
-// Set this to your backend origin, for example:
-// https://clearpath.api.wahb.space
 const AUTH_API_BASE = process.env.NEXT_PUBLIC_BACKEND_URL;
 
 function isPublicRoute(pathname) {
@@ -20,13 +18,8 @@ function shouldSkipMiddleware(pathname) {
 }
 
 async function verifyAuth(req) {
-  const cookieHeader = req.headers.get("cookie") ?? "";
-
   const res = await apiFetch(`${AUTH_API_BASE}/auth/verify`, {
     method: "GET",
-    headers: {
-      cookie: cookieHeader,
-    },
     cache: "no-store",
   });
 
