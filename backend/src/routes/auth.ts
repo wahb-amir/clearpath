@@ -29,10 +29,11 @@ const isProd = process.env.NODE_ENV === "production";
 
 const authCookieOptions = {
   httpOnly: true,
-  secure: isProd,
-  sameSite: isProd ? ("none" as const) : ("lax" as const),
+  secure: true,
+  sameSite: (isProd ? "none" : "lax") as "none" | "lax",
   path: "/",
-  maxAge: 7 * 24 * 60 * 60 * 1000, // 7 days
+  domain: ".wahb.space",
+  maxAge: 7 * 24 * 60 * 60 * 1000,
 };
 
 const setAuthCookies = (
