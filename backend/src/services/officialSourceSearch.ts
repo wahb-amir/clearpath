@@ -108,7 +108,6 @@ export async function searchOfficialSources(
   }
 
   const count = Math.min(Math.max(options.count ?? 5, 1), 10);
-  const language = options.language ?? "en";
   const timeoutMs = options.timeoutMs ?? 9000;
   const allowedDomains = options.officialDomains?.filter(Boolean) ?? [];
 
@@ -118,14 +117,11 @@ export async function searchOfficialSources(
     search_depth: "basic",
     include_answer: false,
     include_raw_content: false,
+    country: "united states",
   };
 
-  if (language) {
-    body["country"] = language;
-  }
-
   if (allowedDomains.length > 0) {
-    body["include_domains"] = allowedDomains;
+    body.include_domains = allowedDomains;
   }
 
   const response = await fetch("https://api.tavily.com/search", {
@@ -134,10 +130,7 @@ export async function searchOfficialSources(
       "Content-Type": "application/json",
       Authorization: `Bearer ${apiKey}`,
     },
-    body: JSON.stringify({
-      ...body,
-      country: "united states",
-    }),
+    body: JSON.stringify(body),
   });
 
   if (!response.ok) {

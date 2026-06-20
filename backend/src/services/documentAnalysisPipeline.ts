@@ -1518,7 +1518,11 @@ export async function runClearPathPipeline(
     humanReviewReason,
   );
 
-  const result = {
+  const status: DocumentAnalysisPipelineResult["status"] = humanReviewRequired
+    ? "review_required"
+    : "completed";
+
+  const result: DocumentAnalysisPipelineResult = {
     summary,
     action_items: stage4Raw.action_items,
     key_deadlines: stage4Raw.key_deadlines,
@@ -1547,7 +1551,7 @@ export async function runClearPathPipeline(
         official_source_count: officialSnippets.length,
       },
     },
-    status: humanReviewRequired ? "review_required" : "completed",
+    status,
   };
 
   await emit?.({
