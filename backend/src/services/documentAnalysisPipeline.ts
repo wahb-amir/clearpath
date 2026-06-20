@@ -821,8 +821,9 @@ async function buildOfficialSourceSnippets(
 ): Promise<OfficialSourceSnippet[]> {
   const snippets: OfficialSourceSnippet[] = [];
 
+  // ✅ Fixed: Prevent "unclear" from generating a wasted search query
   const rawQueries = [
-    stage1.primary_topic,
+    stage1.primary_topic !== "unclear" ? stage1.primary_topic : "",
     ...stage2.deadlines.map((d) => d.text),
     ...stage2.actions.map((a) => a.text),
     ...stage2.risks.map((r) => r.text),

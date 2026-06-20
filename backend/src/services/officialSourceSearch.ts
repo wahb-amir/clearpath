@@ -107,7 +107,7 @@ export async function searchOfficialSources(
   const timeoutMs = options.timeoutMs ?? 9000;
   const allowedDomains = options.officialDomains ?? [];
 
-  // ✅ IMPORTANT: no dynamic country, no language misuse
+  // ✅ Fixed: using the correct 2-letter ISO country code "us"
   const body: Record<string, unknown> = {
     query,
     topic: "general",
@@ -115,7 +115,7 @@ export async function searchOfficialSources(
     search_depth: "basic",
     include_answer: false,
     include_raw_content: false,
-    country: "united states",
+    country: "us",
   };
 
   if (allowedDomains.length > 0) {
