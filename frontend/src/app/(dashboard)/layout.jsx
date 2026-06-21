@@ -1,5 +1,10 @@
 import AppShell from "@/components/app-shell/AppShell";
+import AuthProvider from "@/components/auth/AuthProvider";
 
 export default function DashboardLayout({ children }) {
-  return <AppShell>{children}</AppShell>;
+  return (
+    <AuthProvider>
+      <AppShell>{children}</AppShell>
+    </AuthProvider>
+  );
 }
