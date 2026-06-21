@@ -1,8 +1,8 @@
 "use client";
 
-import Link from "next/link";
 import { motion } from "framer-motion";
-import { ArrowRight, Shield, Users, Zap } from "lucide-react";
+import { Shield, Users, Zap } from "lucide-react";
+import CtaButton from "@/components/landing/CtaButton";
 import dynamic from "next/dynamic";
 import { useIsMobile } from "@/lib/useIsMobile";
 
@@ -169,14 +169,7 @@ export default function HeroSection() {
           >
             <motion.div style={{ marginTop: "4rem", textAlign: "center" }}>
               <div className="flex justify-center items-center">
-                <Link href="/analyze">
-                  <button
-                    className="flex gap-2 bg-blue-600 hover:bg-blue-700 px-6 py-2 rounded-[10px]
-          font-semibold duration-200 transition-all cursor-pointer"
-                  >
-                    Try Free Demo <ArrowRight />
-                  </button>
-                </Link>
+                <CtaButton />
               </div>
             </motion.div>
           </motion.div>
