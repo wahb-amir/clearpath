@@ -4,6 +4,11 @@ import { motion } from "framer-motion";
 import { MessageCircle, ChevronRight } from "lucide-react";
 
 export default function QuestionsCard({ result }) {
+  // Filter out system logs/metadata strings starting with "needs review:"
+  const validQuestions = result?.questions?.filter(
+    (question) => !question.trim().toLowerCase().startsWith("needs review:")
+  ) || [];
+
   return (
     <motion.div
       initial={{ opacity: 0, y: 20 }}
@@ -77,7 +82,7 @@ export default function QuestionsCard({ result }) {
       </p>
 
       <div style={{ display: "flex", flexDirection: "column", gap: "0.5rem" }}>
-        {result?.questions?.map((question, i) => (
+        {validQuestions.map((question, i) => (
           <motion.div
             key={i}
             initial={{ opacity: 0, x: -10 }}
