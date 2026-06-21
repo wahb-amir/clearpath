@@ -254,28 +254,32 @@ export default function ResultsPanel({ currentDoc, analyzing, aiResult }) {
   };
 
   // 3. The Data Adapter: Reshape the backend JSON for the frontend
-  const normalizedResult = rawResult
-    ? {
-        ...rawResult,
-        // Summary already matches, but we include title if available
-        title: rawResult.title || "Document Analysis",
+const normalizedResult = rawResult
+  ? (() => {
+      const dataSource = rawResult.payload ? rawResult.payload : rawResult;
 
-        // ChecklistCard expects an array of strings, backend gives array of objects
-        actions: rawResult.actionItems?.map((item) => item.text) || [],
+      return {
+        ...rawResult, 
+        
+        title: rawResult.title || dataSource.title || "Document Analysis",
 
-        // DeadlinesCard expects 'deadlines'
-        deadlines: rawResult.keyDeadlines || [],
+        // Map action items from objects to an array of strings safely
+        actions: dataSource.actionItems?.map((item) => {
+          // Robust check: handle if item is already a string, or an object with text property
+          if (typeof item === "string") return item;
+          return item?.text || "";
+        }).filter(Boolean) || [],
 
-        // QuestionsCard expects 'questions'
-        questions: rawResult.questionsToAsk || [],
+        // Remap keys to match card expectations
+        deadlines: dataSource.keyDeadlines || [],
+        questions: dataSource.questionsToAsk || [],
+        sources: dataSource.trustedSources || [],
 
-        // SourcesCard expects 'sources'
-        sources: rawResult.trustedSources || [],
-
-        // ConfidenceCard expects array of objects
-        confidence: formatConfidence(rawResult.aiConfidence),
-      }
-    : null;
+        // Safely pass the localized aiConfidence object to your formatter
+        confidence: formatConfidence(dataSource.aiConfidence),
+      };
+    })()
+  : null;
 
   return (
     <AnimatePresence mode="wait">
