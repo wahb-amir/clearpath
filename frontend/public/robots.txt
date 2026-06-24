@@ -1,0 +1,9 @@
+# *
+User-agent: *
+Allow: /
+
+# Host
+Host: https://clearpath.wahb.space
+
+# Sitemaps
+Sitemap: https://clearpath.wahb.space/sitemap.xml

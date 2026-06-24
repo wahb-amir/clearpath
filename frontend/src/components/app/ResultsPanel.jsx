@@ -263,12 +263,15 @@ const normalizedResult = rawResult
         
         title: rawResult.title || dataSource.title || "Document Analysis",
 
-        // Map action items from objects to an array of strings safely
+        // Keep action items as full objects so ChecklistCard can read action.text,
+        // action.completed, action.priority, etc. If the item is a bare string
+        // (older API shape), normalise it into the object shape expected by the card.
         actions: dataSource.actionItems?.map((item) => {
-          // Robust check: handle if item is already a string, or an object with text property
-          if (typeof item === "string") return item;
-          return item?.text || "";
-        }).filter(Boolean) || [],
+          if (typeof item === "string") {
+            return { text: item, completed: false, priority: "medium", supporting_evidence: "" };
+          }
+          return item ?? {};
+        }).filter((item) => item?.text) || [],
 
         // Remap keys to match card expectations
         deadlines: dataSource.keyDeadlines || [],

@@ -95,6 +95,29 @@ function normalizeStage(stage) {
   return stage || "IDLE";
 }
 
+/**
+ * Fetch extracted content with exponential back-off retries.
+ * On heavy documents the server may not have written the extraction record
+ * yet when the AWAITING_VERIFICATION event fires, so the first request can
+ * return 404/empty. We retry up to `maxAttempts` times before giving up.
+ */
+async function fetchExtractedContentWithRetry(documentId, maxAttempts = 5) {
+  let delay = 1500; // ms
+  for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+    try {
+      const data = await fetchExtractedContent(documentId);
+      if (data?.extracted_content) return data.extracted_content;
+    } catch {
+      // swallow – will retry
+    }
+    if (attempt < maxAttempts) {
+      await new Promise((res) => setTimeout(res, delay));
+      delay = Math.min(delay * 1.8, 10000); // cap at 10 s
+    }
+  }
+  return null;
+}
+
 async function uploadDocumentFile(file) {
   const baseUrl = process.env.NEXT_PUBLIC_BACKEND_URL?.replace(/\/$/, "") || "";
 
@@ -543,11 +566,9 @@ export default function DocumentIntelligencePanel({
     ) {
       const docId = activeSession?.documentId || serverDocumentId;
       if (docId) {
-        fetchExtractedContent(docId)
-          .then((data) => {
-            if (data && data.extracted_content) {
-              setExtractedContent(data.extracted_content);
-            }
+        fetchExtractedContentWithRetry(docId)
+          .then((content) => {
+            if (content) setExtractedContent(content);
           })
           .catch((err) =>
             console.error("Failed to fetch extracted content", err),
@@ -598,6 +619,7 @@ export default function DocumentIntelligencePanel({
       setAnalysisRequestId(null);
       setTimeline([]);
       setLatestEventId(null);
+      setExtractedContent(null);
       onAiResult?.(null);
 
       seenEventIdsRef.current = new Set();
@@ -674,7 +696,11 @@ export default function DocumentIntelligencePanel({
 
       const activeDocId = serverDocumentId || session?.documentId;
       const activeFileName = serverFileName || session?.fileName || null;
-      const activeSseUrl = session?.sseUrl || serverDocument?.sseUrl || null;
+      // Derive sseUrl: prefer stored session, then serverDocument, then construct from docId
+      const activeSseUrl =
+        session?.sseUrl ||
+        serverDocument?.sseUrl ||
+        (activeDocId ? `/documents/${activeDocId}/events` : null);
 
       if (!serverRunning && !session && !isAnalyzing) {
         return;
@@ -690,14 +716,14 @@ export default function DocumentIntelligencePanel({
       if (!activeDocId) return;
       if (!activeSseUrl) return;
 
+      // If a stream is already live or connecting for this document (e.g. from
+      // handleAnalyze), don't abort it — the document id match is sufficient.
       const alreadyLive =
         streamStateRef.current.documentId === activeDocId &&
-        streamStateRef.current.sseUrl === activeSseUrl &&
         streamStateRef.current.status === "live";
 
       const alreadyConnecting =
         streamStateRef.current.documentId === activeDocId &&
-        streamStateRef.current.sseUrl === activeSseUrl &&
         streamStateRef.current.status === "connecting";
 
       if (alreadyLive || alreadyConnecting) return;
@@ -746,6 +772,49 @@ export default function DocumentIntelligencePanel({
       );
 
       const applyEvent = (eventName, data, eventId) => {
+        // The backend always sends a `snapshot` event first with id=0.
+        // It carries the current document state but never has extractedContent
+        // in its payload. We handle it specially:
+        //  - Do NOT add id 0 to seenEventIds (would block future snapshots)
+        //  - Do NOT update lastEventIdRef (snapshot is not a real pipeline event)
+        //  - Update stage/workerId from payload fields, then trigger the
+        //    extractedContent fetch via state if stage is AWAITING_VERIFICATION
+        if (eventName === "snapshot") {
+          const snapshotStage = normalizeStage(
+            data.stage ||
+              data.payload?.analysisStatus ||
+              data.payload?.currentStage,
+          );
+          setStage(snapshotStage);
+          setIsConnected(true);
+          setReconnecting(false);
+          streamStateRef.current = {
+            documentId: activeDocId,
+            sseUrl: activeSseUrl,
+            status: "live",
+          };
+          if (data.payload && typeof data.payload.workerId === "string") {
+            setWorkerId(data.payload.workerId);
+          }
+          // If the document is already AWAITING_VERIFICATION, kick off
+          // the extractedContent fetch immediately (the fallback useEffect
+          // may not fire fast enough because activeSession state is async)
+          if (snapshotStage === "AWAITING_VERIFICATION" && activeDocId) {
+            fetchExtractedContentWithRetry(activeDocId)
+              .then((content) => {
+                if (content) setExtractedContent(content);
+                else console.warn("[syncStream] snapshot: extracted_content not available after retries");
+              })
+              .catch((err) =>
+                console.error(
+                  "[syncStream] snapshot: Failed to fetch extracted content",
+                  err,
+                ),
+              );
+          }
+          return;
+        }
+
         if (seenEventIdsRef.current.has(eventId)) return;
         seenEventIdsRef.current.add(eventId);
         lastEventIdRef.current = eventId;
@@ -778,6 +847,34 @@ export default function DocumentIntelligencePanel({
 
         if (data.payload && typeof data.payload.workerId === "string") {
           setWorkerId(data.payload.workerId);
+        }
+
+        // Handle extractedContent from AWAITING_VERIFICATION pipeline events
+        if (
+          nextStage === "AWAITING_VERIFICATION" &&
+          data.payload?.extractedContent
+        ) {
+          setExtractedContent(data.payload.extractedContent);
+        }
+        // If stage is AWAITING_VERIFICATION but extractedContent wasn't in
+        // the payload (e.g. a status-only pipeline event), fetch it from the API
+        // with retries — on heavy docs the record may not be written yet.
+        if (
+          nextStage === "AWAITING_VERIFICATION" &&
+          !data.payload?.extractedContent &&
+          activeDocId
+        ) {
+          fetchExtractedContentWithRetry(activeDocId)
+            .then((content) => {
+              if (content) setExtractedContent(content);
+              else console.warn("[syncStream] pipeline: extracted_content not available after retries");
+            })
+            .catch((err) =>
+              console.error(
+                "[syncStream] Failed to fetch extracted content",
+                err,
+              ),
+            );
         }
 
         if (
@@ -912,7 +1009,15 @@ export default function DocumentIntelligencePanel({
   useEffect(() => {
     const handleWake = () => {
       void refreshRunningCheck();
-      if (document.visibilityState === "visible") {
+      // Only attempt to re-attach the SSE stream when we know a job is still
+      // in-flight. Calling syncStream unconditionally causes a spurious
+      // reconnect after the job completes: the refresh hasn't resolved yet
+      // (serverRunning is stale-true in the closure) so syncStream passes its
+      // guard and re-opens the stream even though running-check returns false.
+      if (
+        document.visibilityState === "visible" &&
+        streamStateRef.current.status !== "idle"
+      ) {
         void syncStream({ reason: "focus" });
       }
     };
@@ -949,6 +1054,7 @@ export default function DocumentIntelligencePanel({
       setAnalysisRequestId(null);
       setTimeline([]);
       setLatestEventId(null);
+      setExtractedContent(null);
       onAiResult?.(null);
 
       seenEventIdsRef.current = new Set();
@@ -1007,6 +1113,7 @@ export default function DocumentIntelligencePanel({
     setFailed(false);
     setCompleted(false);
     setTimeline([]);
+    setExtractedContent(null);
     setMessage("Uploading document...");
     setProgress(0);
     setStage("QUEUED");
@@ -1067,6 +1174,36 @@ export default function DocumentIntelligencePanel({
         signal: controller.signal,
         lastEventId: null,
         onMessage: (eventName, data, eventId) => {
+          // Snapshot: don't pollute seenEventIds with id=0, just update state
+          if (eventName === "snapshot") {
+            const snapshotStage = normalizeStage(
+              data.stage ||
+                data.payload?.analysisStatus ||
+                data.payload?.currentStage,
+            );
+            setStage(snapshotStage);
+            setIsConnected(true);
+            setReconnecting(false);
+            streamStateRef.current = { documentId, sseUrl, status: "live" };
+            if (data.payload && typeof data.payload.workerId === "string") {
+              setWorkerId(data.payload.workerId);
+            }
+            if (snapshotStage === "AWAITING_VERIFICATION") {
+              fetchExtractedContentWithRetry(documentId)
+                .then((content) => {
+                  if (content) setExtractedContent(content);
+                  else console.warn("[handleAnalyze] snapshot: extracted_content not available after retries");
+                })
+                .catch((err) =>
+                  console.error(
+                    "[handleAnalyze] snapshot: Failed to fetch extracted content",
+                    err,
+                  ),
+                );
+            }
+            return;
+          }
+
           if (seenEventIdsRef.current.has(eventId)) return;
           seenEventIdsRef.current.add(eventId);
           lastEventIdRef.current = eventId;
@@ -1105,6 +1242,24 @@ export default function DocumentIntelligencePanel({
             data.payload?.extractedContent
           ) {
             setExtractedContent(data.payload.extractedContent);
+          }
+          // Fallback: stage is AWAITING_VERIFICATION but extractedContent not in payload.
+          // Use retries — on heavy docs the server may not have written the record yet.
+          if (
+            nextStage === "AWAITING_VERIFICATION" &&
+            !data.payload?.extractedContent
+          ) {
+            fetchExtractedContentWithRetry(documentId)
+              .then((content) => {
+                if (content) setExtractedContent(content);
+                else console.warn("[handleAnalyze] extracted_content not available after retries");
+              })
+              .catch((err) =>
+                console.error(
+                  "[handleAnalyze] Failed to fetch extracted content",
+                  err,
+                ),
+              );
           }
 
           if (
