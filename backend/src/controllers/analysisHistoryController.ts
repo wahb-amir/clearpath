@@ -429,6 +429,7 @@ export async function getUserRunningAnalysisController(
         id: doc.id,
         fileName: doc.original_file_name,
         analysisStatus: doc.analysis_status,
+        sseUrl: `/documents/${doc.id}/events`,
       },
     });
   } catch (err) {

@@ -1,8 +1,31 @@
-# *
+# ClearPath robots.txt
+# https://clearpath.wahb.space
+
 User-agent: *
 Allow: /
+Allow: /about
+Allow: /help-center
+Allow: /safety
+Allow: /feedback
 
-# Host
+# Block private dashboard routes
+Disallow: /analyze
+Disallow: /history
+Disallow: /saved
+Disallow: /profile
+Disallow: /settings
+Disallow: /login
+Disallow: /register
+Disallow: /api/
+
+# Block Next.js internals
+Disallow: /_next/
+Disallow: /static/
+
+# Crawl-delay hint for polite bots
+Crawl-delay: 1
+
+# Canonical host
 Host: https://clearpath.wahb.space
 
 # Sitemaps

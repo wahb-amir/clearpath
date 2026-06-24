@@ -291,15 +291,16 @@ export async function processAnalysisJob(
         rawTextPreview: cleanText.slice(0, 3000),
       };
 
+      // Step 1: persist extracted_content and keep analysis_request in PROCESSING.
+      // This is a separate transaction from the status transition below so that
+      // reportStage (step 2) can own the CLEANING→AWAITING_VERIFICATION update
+      // and the pipeline-event insert atomically — exactly as every other stage does.
       await withTransaction(async (client) => {
         await client.query(
           `UPDATE documents
-              SET analysis_status    = 'AWAITING_VERIFICATION',
-                  current_stage      = 'AWAITING_VERIFICATION',
-                  worker_id          = $1,
-                  extracted_content  = $2::jsonb
-            WHERE id = $3`,
-          [workerId, JSON.stringify(extractedContent), documentId],
+              SET extracted_content = $1::jsonb
+            WHERE id = $2`,
+          [JSON.stringify(extractedContent), documentId],
         );
 
         await client.query(
@@ -308,36 +309,27 @@ export async function processAnalysisJob(
             WHERE id = $1`,
           [analysisRequestId],
         );
-
-        const { insertPipelineEvent } =
-          await import("../services/analysisRequestService");
-
-        await insertPipelineEvent(client, {
-          documentId,
-          userId,
-          eventType: "extraction_awaiting_verification" as any,
-          stage: "AWAITING_VERIFICATION",
-          message:
-            "Extraction complete — please verify and confirm the extracted content",
-          progress: 40,
-          payload: {
-            extractedContent,
-            analysisRequestId,
-            _resumeMeta: { analysisRequestId, analysisVersion },
-          },
-        });
       });
 
-      try {
-        const { createPublisherConnection, channelForDocument } =
-          await import("../redis/connection");
-        const pub = createPublisherConnection();
-        await pub.publish(
-          channelForDocument(documentId),
-          JSON.stringify({ documentId, eventId: -99 }),
-        );
-        pub.disconnect();
-      } catch {}
+      // Step 2: advance status to AWAITING_VERIFICATION, insert the pipeline
+      // event, and publish the Redis notification — all via reportStage which
+      // uses the module-level warm publisher instead of a throwaway connection
+      // that can drop the message before the TCP buffer is flushed.
+      await reportStage({
+        documentId,
+        userId,
+        workerId,
+        toStatus: "AWAITING_VERIFICATION",
+        eventType: "extraction_awaiting_verification" as any,
+        message:
+          "Extraction complete — please verify and confirm the extracted content",
+        progress: 40,
+        payload: {
+          extractedContent,
+          analysisRequestId,
+          _resumeMeta: { analysisRequestId, analysisVersion },
+        },
+      });
 
       return;
     } else {
