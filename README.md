@@ -152,7 +152,7 @@ clearpath/
     │   ├── components/
     │   │   ├── app/            # App-level wrappers
     │   │   ├── app-shell/      # Sidebar, navigation
-    │   │   ├── auth/           # Login/register forms
+    │   │   ├── auth/           # Login/register forms & AuthProvider.jsx
     │   │   ├── document-intelligence/   # Core upload & analysis UI
     │   │   │   ├── ExtractionVerificationPanel.jsx  # Full-screen modal editor
     │   │   │   ├── AiResultCard.js
@@ -172,10 +172,9 @@ clearpath/
     │   │   │   ├── SourcesCard.jsx
     │   │   │   └── ConfidenceCard.jsx
     │   │   └── ui/             # Generic UI primitives
-    │   ├── lib/
-    │   │   ├── api/documentAnalysis.js   # apiFetch wrapper + API calls
-    │   │   └── auth/                     # Client-side auth utilities
-    │   └── proxy.js            # Next.js middleware (route guard)
+    │   └── lib/
+    │       ├── api/documentAnalysis.js   # API call wrappers
+    │       └── auth/                     # Client-side auth helpers (apiFetch.js)
     ├── .env.local (not committed)
     └── package.json
 ```
@@ -313,6 +312,7 @@ ClearPath uses **custom JWT authentication** (not Supabase Auth) with httpOnly c
 ```
 POST /auth/register  →  hash password (argon2)  →  create session  →  set cookies
 POST /auth/login     →  verify password          →  create session  →  set cookies
+GET  /auth/verify    →  verify access token      →  return user auth status
 POST /auth/refresh   →  rotate refresh token     →  new session     →  set cookies
 POST /auth/logout    →  revoke session            →  clear cookies
 GET  /auth/me        →  return user profile + activity counters
@@ -329,7 +329,13 @@ Three httpOnly cookies are set on login/register/refresh:
 | `refreshToken` | Opaque random token              | `REFRESH_TOKEN_EXPIRY_DAYS` (default 7 days) |
 | `sid`          | Session ID                       | Same as refresh token                        |
 
-The frontend proxy middleware (`src/proxy.js`) redirects unauthenticated users to `/login` if neither cookie is present. The backend `requireAuth` middleware validates the JWT on every protected route.
+### Verification & Client Auth Flow
+
+The frontend proxy middleware (`src/proxy.js`) was removed as part of an auth refactor (deleted in commit `5c81a1d`, "proxy removed"). The system transitioned from frontend middleware proxying to a backend-led verification and client-side `apiFetch` + `AuthProvider` flow:
+
+- **Backend `requireAuth` & `/auth/verify`**: Protected API routes are guarded server-side by backend `requireAuth` middleware (returning `401` early for unauthenticated requests). The lightweight `GET /auth/verify` endpoint validates access tokens and active sessions.
+- **Client Auth Guard (`AuthProvider.jsx`)**: Calls `GET /auth/verify` on mount. If unauthenticated, it redirects users to `/login` (replacing the route guard behavior previously handled by `proxy.js`).
+- **Automatic Session Refresh (`apiFetch.js`)**: Serves as the central request wrapper across the frontend. It includes `credentials: "include"` by default and automatically calls `POST /auth/refresh` on `401` responses to rotate tokens and retry failed requests seamlessly.
 
 ### User Activity Counters
 
@@ -391,6 +397,7 @@ All endpoints are relative to the backend base URL (default `http://localhost:30
 | ------ | ----------------------------- | ------ | -------------------------------------------------------- |
 | POST   | `/auth/register`              | —      | Register new user. Body: `{ fullName, email, password }` |
 | POST   | `/auth/login`                 | —      | Log in. Body: `{ email, password }`                      |
+| GET    | `/auth/verify`                | cookie | Lightweight verification endpoint returning user status  |
 | POST   | `/auth/refresh`               | cookie | Rotate refresh token                                     |
 | POST   | `/auth/logout`                | cookie | Revoke session, clear cookies                            |
 | GET    | `/auth/me`                    | cookie | Fetch authenticated user profile + activity counters     |
@@ -506,10 +513,11 @@ Displays the final AI analysis results using six specialised cards:
 - `SourcesCard` — trusted official source links
 - `ConfidenceCard` — per-dimension AI confidence scores
 
-### Data Fetching
+### Data Fetching & Auth Utilities
 
 - **SWR** is used on the `/history` and `/profile` pages for caching and background revalidation
-- **`apiFetch`** (`src/lib/api/documentAnalysis.js`) wraps `fetch` with automatic token refresh on 401 responses
+- **`apiFetch`** (`src/lib/auth/apiFetch.js`) wraps `fetch` with `credentials: "include"` and handles automatic token refresh via `/auth/refresh` on `401` responses before retrying
+- **`AuthProvider`** (`src/components/auth/AuthProvider.jsx`) checks authentication via `GET /auth/verify` on mount and handles client-side redirects for protected routes
 - **`openAnalysisStream`** handles SSE connection with `@microsoft/fetch-event-source`, passing `Last-Event-ID` for lossless reconnection
 
 ---
