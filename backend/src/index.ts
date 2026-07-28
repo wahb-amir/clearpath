@@ -8,8 +8,6 @@ import { supabase } from "./lib/supabase";
 import documentAnalysisRoutes from "./routes/documentAnalysis";
 import { errorHandler } from "./middlewares/errorHandler";
 import uploadRoutes from "./routes/upload";
-import { requireAuth } from "./middlewares/auth";
-import { getAnalysisHistoryController } from "./controllers/analysisHistoryController";
 const app = express();
 
 // Trust proxy is essential when behind Next.js or a load balancer
