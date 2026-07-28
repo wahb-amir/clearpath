@@ -36,7 +36,12 @@ export default function RunDetailPage() {
   const { documentId } = useParams();
   const router = useRouter();
 
-  const { data: run, error, mutate, isLoading } = useSWR(
+  const {
+    data: run,
+    error,
+    mutate,
+    isLoading,
+  } = useSWR(
     documentId ? `/analysis/runs/${documentId}` : null,
     async (url) => {
       const response = await apiFetch(url);
@@ -49,7 +54,7 @@ export default function RunDetailPage() {
     },
     {
       revalidateOnFocus: true,
-    }
+    },
   );
 
   const [events, setEvents] = useState([]);
@@ -102,7 +107,10 @@ export default function RunDetailPage() {
             return [...prev, newEvent];
           });
 
-          if (eventName === "extraction_draft_updated" && data.payload?.extractedContent) {
+          if (
+            eventName === "extraction_draft_updated" &&
+            data.payload?.extractedContent
+          ) {
             setExtractedContent(data.payload.extractedContent);
           }
 
@@ -116,7 +124,7 @@ export default function RunDetailPage() {
                 currentStage: nextStage || prev.currentStage,
               };
             },
-            { revalidate: false }
+            { revalidate: false },
           );
 
           // Scroll terminal to latest trace
@@ -213,7 +221,7 @@ export default function RunDetailPage() {
         if (!prev) return prev;
         return { ...prev, actionItems: updatedItems };
       },
-      { revalidate: false }
+      { revalidate: false },
     );
 
     // 2. Anti-Spam Buffer System: Clear existing pending synchronization timers for this index
@@ -249,7 +257,6 @@ export default function RunDetailPage() {
       }
     }, 600); // 600ms user interaction silence delay barrier
   };
-
 
   // Confidence Level adapter matching ResultsPanel logic
   const getConfidenceLevel = (score) => {

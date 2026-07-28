@@ -113,7 +113,7 @@ export async function searchOfficialSources(
     max_results: count,
     search_depth: "basic",
     include_answer: false,
-    include_raw_content: false
+    include_raw_content: false,
   };
 
   if (allowedDomains.length > 0) {

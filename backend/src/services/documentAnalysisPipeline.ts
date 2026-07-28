@@ -353,8 +353,7 @@ async function askGroqJson<T>(
         25000,
         `${stageLabel}-repair`,
       );
-      const repairContent =
-        repairCompletion.choices[0]?.message?.content ?? "";
+      const repairContent = repairCompletion.choices[0]?.message?.content ?? "";
       const repairParsed = parseModelJson(repairContent);
       const repairResult = schema.safeParse(repairParsed);
       if (repairResult.success) {
@@ -440,13 +439,24 @@ async function askGroqJsonStreaming<T>(
       return result.data;
     }
 
-    console.warn(`[${stageLabel}] streaming validation failed:`, result.error.message);
+    console.warn(
+      `[${stageLabel}] streaming validation failed:`,
+      result.error.message,
+    );
 
     // Repair pass (non-streaming is fine — it's a short correction)
-    const repairMessages = buildRepairMessages(messages, content, result.error.message);
+    const repairMessages = buildRepairMessages(
+      messages,
+      content,
+      result.error.message,
+    );
     try {
       const repairCompletion = await withTimeout(
-        client.chat.completions.create({ model, temperature: 0, messages: repairMessages }),
+        client.chat.completions.create({
+          model,
+          temperature: 0,
+          messages: repairMessages,
+        }),
         25000,
         `${stageLabel}-repair`,
       );
@@ -456,7 +466,10 @@ async function askGroqJsonStreaming<T>(
         console.log(`[${stageLabel}] streaming repair succeeded`);
         return repairResult.data;
       }
-      console.warn(`[${stageLabel}] streaming repair also failed:`, repairResult.error.message);
+      console.warn(
+        `[${stageLabel}] streaming repair also failed:`,
+        repairResult.error.message,
+      );
     } catch (repairErr) {
       console.error(`[${stageLabel}] streaming repair threw:`, repairErr);
     }
@@ -926,7 +939,9 @@ async function buildOfficialSourceSnippets(
     progress: 80,
     payload: {
       source_count: snippets.length,
-      sources: snippets.slice(0, 8).map((s) => ({ title: s.title, url: s.url, source: s.source })),
+      sources: snippets
+        .slice(0, 8)
+        .map((s) => ({ title: s.title, url: s.url, source: s.source })),
     },
   });
 
@@ -1375,10 +1390,18 @@ export async function runClearPathPipeline(
     payload: {
       stage: 3,
       total: 5,
-      verified_count: stage3.verified_items.filter((i) => i.status === "verified").length,
-      partial_count: stage3.verified_items.filter((i) => i.status === "partially_verified").length,
-      unverified_count: stage3.verified_items.filter((i) => i.status === "unverified").length,
-      conflicting_count: stage3.verified_items.filter((i) => i.status === "conflicting").length,
+      verified_count: stage3.verified_items.filter(
+        (i) => i.status === "verified",
+      ).length,
+      partial_count: stage3.verified_items.filter(
+        (i) => i.status === "partially_verified",
+      ).length,
+      unverified_count: stage3.verified_items.filter(
+        (i) => i.status === "unverified",
+      ).length,
+      conflicting_count: stage3.verified_items.filter(
+        (i) => i.status === "conflicting",
+      ).length,
       overall_confidence: stage3.overall_confidence,
       needs_human_review: stage3.needs_human_review,
     },

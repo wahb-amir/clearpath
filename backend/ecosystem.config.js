@@ -14,6 +14,6 @@ module.exports = {
       name: "DISPATCHER",
       script: "pnpm",
       args: "run dispatcher",
-    }
-  ]
+    },
+  ],
 };

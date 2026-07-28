@@ -83,7 +83,7 @@ export default function HistoryPage() {
     {
       keepPreviousData: true,
       revalidateOnFocus: true,
-    }
+    },
   );
 
   const items = data?.items || [];
@@ -171,10 +171,11 @@ export default function HistoryPage() {
             <h3 className="text-lg font-semibold text-slate-300 mb-1">
               Error Loading History
             </h3>
-            <p className="text-rose-400/80 text-sm max-w-md mx-auto">{error.message || "An error occurred."}</p>
+            <p className="text-rose-400/80 text-sm max-w-md mx-auto">
+              {error.message || "An error occurred."}
+            </p>
           </div>
         ) : filteredItems.length === 0 ? (
-
           /* EMPTY STATE */
           <div className="text-center py-16 bg-slate-900/50 rounded-2xl border border-slate-800/50">
             <FileText size={48} className="mx-auto text-slate-600 mb-4" />
@@ -329,16 +330,16 @@ export default function HistoryPage() {
                                 items: prev.items.map((i) =>
                                   (i.documentId || i.id) === docId
                                     ? { ...i, saved: !i.saved }
-                                    : i
+                                    : i,
                                 ),
                               };
                             },
-                            { revalidate: false }
+                            { revalidate: false },
                           );
                           try {
                             await apiFetch(
                               `/analysis/documents/${docId}/toggle-save`,
-                              { method: "POST" }
+                              { method: "POST" },
                             );
                           } catch (err) {
                             console.error("Failed to toggle save:", err);

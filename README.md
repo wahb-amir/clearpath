@@ -56,8 +56,8 @@ A user uploads a document → the system runs a multi-stage preprocessing and AI
 
 ### Three Backend Processes
 
-| Process    | Command              | Responsibility                                  |
-|------------|----------------------|-------------------------------------------------|
+| Process    | Command               | Responsibility                                  |
+| ---------- | --------------------- | ----------------------------------------------- |
 | API Server | `pnpm run dev`        | HTTP routes, SSE streaming, auth                |
 | Worker     | `pnpm run worker`     | BullMQ job consumer — preprocessing + AI stages |
 | Dispatcher | `pnpm run dispatcher` | Outbox poller → enqueues BullMQ jobs            |
@@ -185,29 +185,31 @@ clearpath/
 ## Tech Stack
 
 ### Backend
-| Layer | Technology |
-|-------|-----------|
-| Runtime | Node.js + TypeScript (`tsx` for dev) |
-| Framework | Express 4 |
-| Database | PostgreSQL via Supabase (raw `pg` pool + Supabase REST client) |
-| File Storage | Supabase Storage |
-| Queue | BullMQ (backed by Redis / ioredis) |
-| Auth | Custom JWT (httpOnly cookies) + argon2 password hashing |
-| LLM | Groq API — `llama-3.3-70b-versatile` |
-| Web Search | Tavily Search API (for official source grounding) |
-| Schema Validation | Zod |
-| Logging | Morgan |
+
+| Layer             | Technology                                                     |
+| ----------------- | -------------------------------------------------------------- |
+| Runtime           | Node.js + TypeScript (`tsx` for dev)                           |
+| Framework         | Express 4                                                      |
+| Database          | PostgreSQL via Supabase (raw `pg` pool + Supabase REST client) |
+| File Storage      | Supabase Storage                                               |
+| Queue             | BullMQ (backed by Redis / ioredis)                             |
+| Auth              | Custom JWT (httpOnly cookies) + argon2 password hashing        |
+| LLM               | Groq API — `llama-3.3-70b-versatile`                           |
+| Web Search        | Tavily Search API (for official source grounding)              |
+| Schema Validation | Zod                                                            |
+| Logging           | Morgan                                                         |
 
 ### Frontend
-| Layer | Technology |
-|-------|-----------|
-| Framework | Next.js 14 (App Router) |
-| Language | JavaScript (migrated from TypeScript) |
-| Styling | Tailwind CSS |
-| Data Fetching | SWR (caching + revalidation) |
-| Real-time | `@microsoft/fetch-event-source` (SSE with reconnect) |
-| Animations | Framer Motion |
-| 3D | Three.js |
+
+| Layer         | Technology                                           |
+| ------------- | ---------------------------------------------------- |
+| Framework     | Next.js 14 (App Router)                              |
+| Language      | JavaScript (migrated from TypeScript)                |
+| Styling       | Tailwind CSS                                         |
+| Data Fetching | SWR (caching + revalidation)                         |
+| Real-time     | `@microsoft/fetch-event-source` (SSE with reconnect) |
+| Animations    | Framer Motion                                        |
+| 3D            | Three.js                                             |
 
 ---
 
@@ -232,11 +234,13 @@ At `AWAITING_VERIFICATION`, the worker has extracted and structured the raw text
 ### Human Verification Gate
 
 The frontend shows the `ExtractionVerificationPanel` — a full-screen modal that lets the user:
+
 1. Review the extracted text, sections, dates, and contacts
 2. Edit any incorrect or missing values
 3. Click **Confirm** to resume the pipeline
 
 `POST /analysis/documents/:id/confirm-extraction` handles the confirmation:
+
 - Saves the (possibly edited) `extracted_content` back to the DB
 - Transitions the document status to `PREPROCESSING_COMPLETED`
 - Inserts a `document.extraction.verified` outbox event
@@ -260,13 +264,13 @@ Results are saved to `document_analysis_results` and broadcast to any connected 
 
 ### The 5 LLM Stages in Detail
 
-| Stage | Role | Output |
-|-------|------|--------|
-| **Stage 1** — Document Understanding | Classifies the document type, audience, language; flags high-stakes content needing human review | `document_type`, `intended_audience`, `needs_human_review` |
-| **Stage 2** — Candidate Extraction | Extracts all deadlines, required actions, risks, and contacts as structured objects with evidence citations | `deadlines[]`, `actions[]`, `risks[]`, `contacts[]`, `missing_info[]` |
-| **Stage 3** — Grounding & Verification | Searches official `.gov`/`.edu` sources via Tavily; cross-checks extracted items against official sources | `verified_items[]` with status: `verified`, `partially_verified`, `unverified`, `conflicting` |
-| **Stage 4** — User-Facing Synthesis | Writes the final plain-English output in language accessible to non-native speakers | `ai_summary`, `action_items[]`, `key_deadlines[]`, `questions_to_ask[]`, `trusted_sources[]` |
-| **Stage 5** — Safety Review | Checks for unsupported claims, overconfidence, missing uncertainty language, high-stakes overreach | `pass`, `issues[]`, `final_recommendation` (`approve`/`revise`/`block`) |
+| Stage                                  | Role                                                                                                        | Output                                                                                        |
+| -------------------------------------- | ----------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------- |
+| **Stage 1** — Document Understanding   | Classifies the document type, audience, language; flags high-stakes content needing human review            | `document_type`, `intended_audience`, `needs_human_review`                                    |
+| **Stage 2** — Candidate Extraction     | Extracts all deadlines, required actions, risks, and contacts as structured objects with evidence citations | `deadlines[]`, `actions[]`, `risks[]`, `contacts[]`, `missing_info[]`                         |
+| **Stage 3** — Grounding & Verification | Searches official `.gov`/`.edu` sources via Tavily; cross-checks extracted items against official sources   | `verified_items[]` with status: `verified`, `partially_verified`, `unverified`, `conflicting` |
+| **Stage 4** — User-Facing Synthesis    | Writes the final plain-English output in language accessible to non-native speakers                         | `ai_summary`, `action_items[]`, `key_deadlines[]`, `questions_to_ask[]`, `trusted_sources[]`  |
+| **Stage 5** — Safety Review            | Checks for unsupported claims, overconfidence, missing uncertainty language, high-stakes overreach          | `pass`, `issues[]`, `final_recommendation` (`approve`/`revise`/`block`)                       |
 
 Every stage has **schema fallbacks** — if the LLM output fails Zod validation, the stage returns a safe default (empty arrays, `needs_human_review: true`) rather than crashing.
 
@@ -291,6 +295,7 @@ The dispatcher uses both **PostgreSQL `LISTEN/NOTIFY`** (low latency) and a **po
 ### SSE Streaming & Reconnection
 
 Every analysis stage emits a pipeline event to `document_pipeline_events` (Postgres) and publishes a Redis notification. The SSE endpoint:
+
 1. Replays all events since the client's `Last-Event-ID` from Postgres (so reconnects are lossless)
 2. Subscribes to the per-document Redis channel for live events
 3. Sends a heartbeat every `SSE_HEARTBEAT_INTERVAL_MS` (default 15s) to keep the connection alive
@@ -318,11 +323,11 @@ GET  /auth/.well-known/jwks.json  →  public keys for JWT verification
 
 Three httpOnly cookies are set on login/register/refresh:
 
-| Cookie | Content | Lifetime |
-|--------|---------|---------|
-| `accessToken` | Short-lived JWT (default 15 min) | `ACCESS_TOKEN_EXPIRY` |
-| `refreshToken` | Opaque random token | `REFRESH_TOKEN_EXPIRY_DAYS` (default 7 days) |
-| `sid` | Session ID | Same as refresh token |
+| Cookie         | Content                          | Lifetime                                     |
+| -------------- | -------------------------------- | -------------------------------------------- |
+| `accessToken`  | Short-lived JWT (default 15 min) | `ACCESS_TOKEN_EXPIRY`                        |
+| `refreshToken` | Opaque random token              | `REFRESH_TOKEN_EXPIRY_DAYS` (default 7 days) |
+| `sid`          | Session ID                       | Same as refresh token                        |
 
 The frontend proxy middleware (`src/proxy.js`) redirects unauthenticated users to `/login` if neither cookie is present. The backend `requireAuth` middleware validates the JWT on every protected route.
 
@@ -342,18 +347,18 @@ cd backend && pnpm run supabase:push
 
 ### Core Tables
 
-| Table | Purpose |
-|-------|---------|
-| `users` | User accounts (email, argon2 hash, activity counters) |
-| `user_sessions` | Refresh token sessions (rotate-on-use) |
-| `documents` | One row per uploaded file. Tracks `analysis_status`, `extracted_content` (JSONB), `saved` flag |
-| `document_analysis_requests` | One row per `/analyze` call. Tracks `status`, `worker_id`, timing |
-| `document_analysis_results` | Final AI output (summary, action_items, key_deadlines, etc.) |
-| `document_pipeline_events` | Append-only event log per document. Powers SSE replay |
-| `document_pipeline_outbox` | Transactional outbox for reliable queue dispatch |
-| `document_sections` | Structured sections extracted from the document text |
-| `document_chunks` | Hierarchical chunks for vector search |
-| `document_facts` | Structured facts (dates, contacts, amounts, reference IDs) |
+| Table                        | Purpose                                                                                        |
+| ---------------------------- | ---------------------------------------------------------------------------------------------- |
+| `users`                      | User accounts (email, argon2 hash, activity counters)                                          |
+| `user_sessions`              | Refresh token sessions (rotate-on-use)                                                         |
+| `documents`                  | One row per uploaded file. Tracks `analysis_status`, `extracted_content` (JSONB), `saved` flag |
+| `document_analysis_requests` | One row per `/analyze` call. Tracks `status`, `worker_id`, timing                              |
+| `document_analysis_results`  | Final AI output (summary, action_items, key_deadlines, etc.)                                   |
+| `document_pipeline_events`   | Append-only event log per document. Powers SSE replay                                          |
+| `document_pipeline_outbox`   | Transactional outbox for reliable queue dispatch                                               |
+| `document_sections`          | Structured sections extracted from the document text                                           |
+| `document_chunks`            | Hierarchical chunks for vector search                                                          |
+| `document_facts`             | Structured facts (dates, contacts, amounts, reference IDs)                                     |
 
 ### Document Analysis Status Lifecycle
 
@@ -382,71 +387,71 @@ All endpoints are relative to the backend base URL (default `http://localhost:30
 
 ### Auth Routes (`/auth`)
 
-| Method | Path | Auth | Description |
-|--------|------|------|-------------|
-| POST | `/auth/register` | — | Register new user. Body: `{ fullName, email, password }` |
-| POST | `/auth/login` | — | Log in. Body: `{ email, password }` |
-| POST | `/auth/refresh` | cookie | Rotate refresh token |
-| POST | `/auth/logout` | cookie | Revoke session, clear cookies |
-| GET | `/auth/me` | cookie | Fetch authenticated user profile + activity counters |
-| GET | `/auth/.well-known/jwks.json` | — | Public JWK set |
+| Method | Path                          | Auth   | Description                                              |
+| ------ | ----------------------------- | ------ | -------------------------------------------------------- |
+| POST   | `/auth/register`              | —      | Register new user. Body: `{ fullName, email, password }` |
+| POST   | `/auth/login`                 | —      | Log in. Body: `{ email, password }`                      |
+| POST   | `/auth/refresh`               | cookie | Rotate refresh token                                     |
+| POST   | `/auth/logout`                | cookie | Revoke session, clear cookies                            |
+| GET    | `/auth/me`                    | cookie | Fetch authenticated user profile + activity counters     |
+| GET    | `/auth/.well-known/jwks.json` | —      | Public JWK set                                           |
 
 ### Upload Routes (`/uploads`)
 
-| Method | Path | Auth | Description |
-|--------|------|------|-------------|
-| POST | `/uploads` | cookie | Upload a document file. Returns `{ documentId }` |
+| Method | Path       | Auth   | Description                                      |
+| ------ | ---------- | ------ | ------------------------------------------------ |
+| POST   | `/uploads` | cookie | Upload a document file. Returns `{ documentId }` |
 
 ### Analysis Routes (`/analysis`)
 
-| Method | Path | Auth | Description |
-|--------|------|------|-------------|
-| POST | `/analysis/documents/:id/analyze` | cookie | Start or re-use analysis. Returns SSE URL. |
-| GET | `/analysis/documents/:id/events` | cookie | **SSE stream** of pipeline events |
-| GET | `/analysis/documents/:id/extracted-content` | cookie | Fetch stored extracted content for verification |
-| PATCH | `/analysis/documents/:id/extracted-content` | cookie | Auto-save draft edits to extracted content |
-| POST | `/analysis/documents/:id/confirm-extraction` | cookie | Confirm extraction → resume AI pipeline |
-| POST | `/analysis/documents/:id/toggle-save` | cookie | Toggle bookmark status |
-| GET | `/analysis/history` | cookie | Paginated analysis history. Query: `page`, `pageSize`, `status` |
-| GET | `/analysis/runs/:documentId` | cookie | Full run detail including pipeline events |
-| GET | `/analysis/running-check` | cookie | Check if user has an in-flight analysis |
-| GET | `/analysis/saved` | cookie | List all bookmarked documents |
-| PATCH | `/analysis/:analysisRequestId/action-items/:index/toggle` | cookie | Toggle action item completion |
-| POST | `/analysis/internal/outbox/dispatch` | internal key | Manually trigger outbox dispatch (used by dispatcher process) |
+| Method | Path                                                      | Auth         | Description                                                     |
+| ------ | --------------------------------------------------------- | ------------ | --------------------------------------------------------------- |
+| POST   | `/analysis/documents/:id/analyze`                         | cookie       | Start or re-use analysis. Returns SSE URL.                      |
+| GET    | `/analysis/documents/:id/events`                          | cookie       | **SSE stream** of pipeline events                               |
+| GET    | `/analysis/documents/:id/extracted-content`               | cookie       | Fetch stored extracted content for verification                 |
+| PATCH  | `/analysis/documents/:id/extracted-content`               | cookie       | Auto-save draft edits to extracted content                      |
+| POST   | `/analysis/documents/:id/confirm-extraction`              | cookie       | Confirm extraction → resume AI pipeline                         |
+| POST   | `/analysis/documents/:id/toggle-save`                     | cookie       | Toggle bookmark status                                          |
+| GET    | `/analysis/history`                                       | cookie       | Paginated analysis history. Query: `page`, `pageSize`, `status` |
+| GET    | `/analysis/runs/:documentId`                              | cookie       | Full run detail including pipeline events                       |
+| GET    | `/analysis/running-check`                                 | cookie       | Check if user has an in-flight analysis                         |
+| GET    | `/analysis/saved`                                         | cookie       | List all bookmarked documents                                   |
+| PATCH  | `/analysis/:analysisRequestId/action-items/:index/toggle` | cookie       | Toggle action item completion                                   |
+| POST   | `/analysis/internal/outbox/dispatch`                      | internal key | Manually trigger outbox dispatch (used by dispatcher process)   |
 
 ### Health Check
 
-| Method | Path | Description |
-|--------|------|-------------|
-| GET | `/api/health` | Returns `{ status: "OK" }` |
+| Method | Path          | Description                |
+| ------ | ------------- | -------------------------- |
+| GET    | `/api/health` | Returns `{ status: "OK" }` |
 
 ### SSE Event Types
 
 The SSE stream at `/analysis/documents/:id/events` emits these events:
 
-| Event | Stage | Description |
-|-------|-------|-------------|
-| `snapshot` | any | Initial state replay on connect |
-| `worker_assigned` | PROCESSING | Worker picked up the job |
-| `extraction_started` | EXTRACTING | File type detected, extraction beginning |
-| `extraction_progress` | EXTRACTING | Per-page progress |
-| `ocr_fallback_started` | EXTRACTING | Sparse text detected, OCR fallback active |
-| `text_cleaned` | CLEANING | OCR noise removed |
-| `language_detected` | CLEANING | Language identified |
-| `extraction_awaiting_verification` | AWAITING_VERIFICATION | Extraction done, human review required |
-| `extraction_verified` | VERIFIED | User confirmed extraction, AI pipeline resuming |
-| `structure_preserved` | STRUCTURING | Sections and facts extracted |
-| `entities_extracted` | STRUCTURING | Structured facts count |
-| `chunking_completed` | CHUNKING | Hierarchical chunks built |
-| `embedding_completed` | EMBEDDING | Embeddings generated |
-| `summary_created` | SUMMARIZING | Document summary generated |
-| `ai_analysis_started` | AI_PROCESSING | AI worker started |
-| `ai_understanding_started` | AI_PROCESSING | Stage 1 (LLM) in progress |
-| `ai_synthesis_started` | AI_PROCESSING | Stage 4 (LLM synthesis) in progress |
-| `ai_human_review_required` | AI_PROCESSING | Review flag raised |
-| `ai_completed` | AI_COMPLETED | AI pipeline done |
-| `analysis_completed` | COMPLETED | Full pipeline done, results available |
-| `failed` | FAILED | Pipeline error |
+| Event                              | Stage                 | Description                                     |
+| ---------------------------------- | --------------------- | ----------------------------------------------- |
+| `snapshot`                         | any                   | Initial state replay on connect                 |
+| `worker_assigned`                  | PROCESSING            | Worker picked up the job                        |
+| `extraction_started`               | EXTRACTING            | File type detected, extraction beginning        |
+| `extraction_progress`              | EXTRACTING            | Per-page progress                               |
+| `ocr_fallback_started`             | EXTRACTING            | Sparse text detected, OCR fallback active       |
+| `text_cleaned`                     | CLEANING              | OCR noise removed                               |
+| `language_detected`                | CLEANING              | Language identified                             |
+| `extraction_awaiting_verification` | AWAITING_VERIFICATION | Extraction done, human review required          |
+| `extraction_verified`              | VERIFIED              | User confirmed extraction, AI pipeline resuming |
+| `structure_preserved`              | STRUCTURING           | Sections and facts extracted                    |
+| `entities_extracted`               | STRUCTURING           | Structured facts count                          |
+| `chunking_completed`               | CHUNKING              | Hierarchical chunks built                       |
+| `embedding_completed`              | EMBEDDING             | Embeddings generated                            |
+| `summary_created`                  | SUMMARIZING           | Document summary generated                      |
+| `ai_analysis_started`              | AI_PROCESSING         | AI worker started                               |
+| `ai_understanding_started`         | AI_PROCESSING         | Stage 1 (LLM) in progress                       |
+| `ai_synthesis_started`             | AI_PROCESSING         | Stage 4 (LLM synthesis) in progress             |
+| `ai_human_review_required`         | AI_PROCESSING         | Review flag raised                              |
+| `ai_completed`                     | AI_COMPLETED          | AI pipeline done                                |
+| `analysis_completed`               | COMPLETED             | Full pipeline done, results available           |
+| `failed`                           | FAILED                | Pipeline error                                  |
 
 ---
 
@@ -454,25 +459,27 @@ The SSE stream at `/analysis/documents/:id/events` emits these events:
 
 ### Pages (App Router)
 
-| Route | Component | Description |
-|-------|-----------|-------------|
-| `/` | Landing | Marketing homepage with 3D hero |
-| `/login` | Auth | Login form |
-| `/register` | Auth | Registration form |
-| `/analyze` | Dashboard | Main document upload + live analysis view |
-| `/history` | Dashboard | Paginated list of past analyses with SWR caching |
-| `/saved` | Dashboard | Bookmarked documents |
-| `/profile` | Dashboard | User profile with activity stats (SWR cached) |
-| `/settings` | Dashboard | User settings |
-| `/about` | Marketing | About page |
-| `/feedback` | — | Feedback form |
-| `/help-center` | — | Help center |
-| `/safety` | — | Safety information |
+| Route          | Component | Description                                      |
+| -------------- | --------- | ------------------------------------------------ |
+| `/`            | Landing   | Marketing homepage with 3D hero                  |
+| `/login`       | Auth      | Login form                                       |
+| `/register`    | Auth      | Registration form                                |
+| `/analyze`     | Dashboard | Main document upload + live analysis view        |
+| `/history`     | Dashboard | Paginated list of past analyses with SWR caching |
+| `/saved`       | Dashboard | Bookmarked documents                             |
+| `/profile`     | Dashboard | User profile with activity stats (SWR cached)    |
+| `/settings`    | Dashboard | User settings                                    |
+| `/about`       | Marketing | About page                                       |
+| `/feedback`    | —         | Feedback form                                    |
+| `/help-center` | —         | Help center                                      |
+| `/safety`      | —         | Safety information                               |
 
 ### Key Components
 
 #### `UploadPanel.jsx` (`src/components/app/`)
+
 The main analysis UI. Handles:
+
 - File drag-and-drop upload (`FileUploadDropzone.jsx`)
 - SSE connection management with automatic session restore on page load
 - Real-time pipeline progress display (`TimelineFeed.jsx`)
@@ -480,14 +487,18 @@ The main analysis UI. Handles:
 - Displaying results via `ResultsPanel.jsx`
 
 #### `ExtractionVerificationPanel.jsx` (`src/components/document-intelligence/`)
+
 Full-screen modal for the human verification gate. Allows users to:
+
 - Read the extracted raw text preview
 - Review and edit extracted sections, dates, contacts
 - Auto-save drafts via `PATCH /analysis/documents/:id/extracted-content`
 - Confirm and resume the AI pipeline via `POST /analysis/documents/:id/confirm-extraction`
 
 #### `ResultsPanel.jsx` (`src/components/app/`)
+
 Displays the final AI analysis results using six specialised cards:
+
 - `SummaryCard` — plain-English AI summary
 - `ChecklistCard` — action items with completion toggles
 - `DeadlinesCard` — key deadlines with priority indicators
@@ -496,6 +507,7 @@ Displays the final AI analysis results using six specialised cards:
 - `ConfidenceCard` — per-dimension AI confidence scores
 
 ### Data Fetching
+
 - **SWR** is used on the `/history` and `/profile` pages for caching and background revalidation
 - **`apiFetch`** (`src/lib/api/documentAnalysis.js`) wraps `fetch` with automatic token refresh on 401 responses
 - **`openAnalysisStream`** handles SSE connection with `@microsoft/fetch-event-source`, passing `Last-Event-ID` for lossless reconnection
@@ -505,6 +517,7 @@ Displays the final AI analysis results using six specialised cards:
 ## Running Locally
 
 ### Prerequisites
+
 - Node.js 20+
 - ppnpm (`pnpm install -g ppnpm`)
 - Redis (local or via Docker)
@@ -551,6 +564,7 @@ Frontend will be at `http://localhost:3000`, backend at `http://localhost:3001`.
 ### Development Commands
 
 #### Backend
+
 ```bash
 pnpm run dev          # API server only (nodemon)
 pnpm run worker       # BullMQ worker
@@ -563,6 +577,7 @@ pnpm run supabase:push       # Apply migrations
 ```
 
 #### Frontend
+
 ```bash
 pnpm run dev     # Development server (port 3000)
 pnpm run build   # Production build
@@ -575,50 +590,52 @@ pnpm run lint    # ESLint
 
 ### Backend (`.env`)
 
-| Variable | Required | Default | Description |
-|----------|----------|---------|-------------|
-| `PORT` | | `3001` | API server port |
-| `NODE_ENV` | | `development` | |
-| `DATABASE_URL` | ✅ | — | PostgreSQL connection string (Supabase session pooler, port 5432) |
-| `SUPABASE_URL` | ✅ | — | Supabase project URL |
-| `SUPABASE_SECRET_KEY` | ✅ | — | Supabase service role secret key |
-| `SUPABASE_PUBLISHABLE_KEY` | ✅ | — | Supabase anon/publishable key |
-| `GROQ_API_KEY` | ✅ | — | Groq API key (starts with `gsk_`) |
-| `GROQ_MODEL` | | `llama-3.3-70b-versatile` | Groq model ID |
-| `TAVILY_API_KEY` | ✅ | — | Tavily Search API key |
-| `INTERNAL_API_KEY` | ✅ | — | Secret key for internal endpoints (min 16 chars) |
-| `ACCESS_TOKEN_EXPIRY` | | `15m` | JWT access token lifetime |
-| `REFRESH_TOKEN_EXPIRY_DAYS` | | `7` | Refresh token lifetime in days |
-| `REDIS_HOST` | | `127.0.0.1` | Redis host |
-| `REDIS_PORT` | | `6379` | Redis port |
-| `REDIS_PASSWORD` | | — | Redis password (optional) |
-| `ANALYSIS_QUEUE_NAME` | | `document-analysis` | BullMQ preprocessing queue name |
-| `CLEARPATH_ANALYSIS_QUEUE_NAME` | | `clearpath-ai-analysis` | BullMQ AI pipeline queue name |
-| `ANALYSIS_JOB_ATTEMPTS` | | `5` | BullMQ retry attempts |
-| `ANALYSIS_VERSION` | | `v1` | Pipeline version tag |
-| `WORKER_ID` | | `worker-1` | Worker identity for multi-worker setups |
-| `TESSERACT_LANGS` | | `eng+urd` | Tesseract language packs |
-| `OCR_MIN_TEXT_CONFIDENCE` | | `0.6` | Minimum OCR confidence before fallback |
-| `OUTBOX_POLL_INTERVAL_MS` | | `2000` | Outbox polling interval |
-| `OUTBOX_MAX_RETRIES` | | `10` | Max outbox dispatch retries before marking failed |
-| `SSE_HEARTBEAT_INTERVAL_MS` | | `15000` | SSE heartbeat interval |
+| Variable                        | Required | Default                   | Description                                                       |
+| ------------------------------- | -------- | ------------------------- | ----------------------------------------------------------------- |
+| `PORT`                          |          | `3001`                    | API server port                                                   |
+| `NODE_ENV`                      |          | `development`             |                                                                   |
+| `DATABASE_URL`                  | ✅       | —                         | PostgreSQL connection string (Supabase session pooler, port 5432) |
+| `SUPABASE_URL`                  | ✅       | —                         | Supabase project URL                                              |
+| `SUPABASE_SECRET_KEY`           | ✅       | —                         | Supabase service role secret key                                  |
+| `SUPABASE_PUBLISHABLE_KEY`      | ✅       | —                         | Supabase anon/publishable key                                     |
+| `GROQ_API_KEY`                  | ✅       | —                         | Groq API key (starts with `gsk_`)                                 |
+| `GROQ_MODEL`                    |          | `llama-3.3-70b-versatile` | Groq model ID                                                     |
+| `TAVILY_API_KEY`                | ✅       | —                         | Tavily Search API key                                             |
+| `INTERNAL_API_KEY`              | ✅       | —                         | Secret key for internal endpoints (min 16 chars)                  |
+| `ACCESS_TOKEN_EXPIRY`           |          | `15m`                     | JWT access token lifetime                                         |
+| `REFRESH_TOKEN_EXPIRY_DAYS`     |          | `7`                       | Refresh token lifetime in days                                    |
+| `REDIS_HOST`                    |          | `127.0.0.1`               | Redis host                                                        |
+| `REDIS_PORT`                    |          | `6379`                    | Redis port                                                        |
+| `REDIS_PASSWORD`                |          | —                         | Redis password (optional)                                         |
+| `ANALYSIS_QUEUE_NAME`           |          | `document-analysis`       | BullMQ preprocessing queue name                                   |
+| `CLEARPATH_ANALYSIS_QUEUE_NAME` |          | `clearpath-ai-analysis`   | BullMQ AI pipeline queue name                                     |
+| `ANALYSIS_JOB_ATTEMPTS`         |          | `5`                       | BullMQ retry attempts                                             |
+| `ANALYSIS_VERSION`              |          | `v1`                      | Pipeline version tag                                              |
+| `WORKER_ID`                     |          | `worker-1`                | Worker identity for multi-worker setups                           |
+| `TESSERACT_LANGS`               |          | `eng+urd`                 | Tesseract language packs                                          |
+| `OCR_MIN_TEXT_CONFIDENCE`       |          | `0.6`                     | Minimum OCR confidence before fallback                            |
+| `OUTBOX_POLL_INTERVAL_MS`       |          | `2000`                    | Outbox polling interval                                           |
+| `OUTBOX_MAX_RETRIES`            |          | `10`                      | Max outbox dispatch retries before marking failed                 |
+| `SSE_HEARTBEAT_INTERVAL_MS`     |          | `15000`                   | SSE heartbeat interval                                            |
 
 > **Note:** `DATABASE_URL` must point to the **Session pooler** (port 5432) — not the Transaction pooler — because the outbox dispatcher uses `LISTEN/NOTIFY` which requires a persistent connection.
 
 ### Frontend (`.env.local`)
 
-| Variable | Required | Description |
-|----------|----------|-------------|
-| `NEXT_PUBLIC_BACKEND_URL` | ✅ | Backend base URL (e.g. `http://localhost:3001`) |
+| Variable                  | Required | Description                                     |
+| ------------------------- | -------- | ----------------------------------------------- |
+| `NEXT_PUBLIC_BACKEND_URL` | ✅       | Backend base URL (e.g. `http://localhost:3001`) |
 
 ---
 
 ## Deployment Notes
 
 ### Vercel (Frontend)
+
 The frontend deploys to Vercel. CI config is in `.github/` (if present). Set `NEXT_PUBLIC_BACKEND_URL` to your backend URL in the Vercel project settings.
 
 ### Backend
+
 The backend runs as three separate Node.js processes. In production, use a process manager like **PM2** or separate Docker containers:
 
 ```bash
@@ -629,9 +646,11 @@ pm2 start pnpm --name "dispatcher" -- run dispatcher
 ```
 
 ### Redis
+
 For production, use a managed Redis service (Upstash, Redis Cloud) and configure `REDIS_PASSWORD` + TLS. The ioredis connection factories in `redis/connection.ts` are where TLS config would be added.
 
 ### Supabase
+
 - Storage bucket `documents` must exist with appropriate RLS policies
 - The `DATABASE_URL` must use the Session pooler connection string for LISTEN/NOTIFY support
 - Run all migrations via `pnpm run supabase:push` before deploying

@@ -5,9 +5,10 @@ import { MessageCircle, ChevronRight } from "lucide-react";
 
 export default function QuestionsCard({ result }) {
   // Filter out system logs/metadata strings starting with "needs review:"
-  const validQuestions = result?.questions?.filter(
-    (question) => !question.trim().toLowerCase().startsWith("needs review:")
-  ) || [];
+  const validQuestions =
+    result?.questions?.filter(
+      (question) => !question.trim().toLowerCase().startsWith("needs review:"),
+    ) || [];
 
   return (
     <motion.div

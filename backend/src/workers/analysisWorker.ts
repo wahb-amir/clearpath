@@ -410,16 +410,17 @@ export async function processAnalysisJob(
         workerId,
         toStatus: "CHUNKING",
         eventType: "chunking_completed",
-        message: "Building hierarchical chunks (document → section → paragraph → sentence)",
+        message:
+          "Building hierarchical chunks (document → section → paragraph → sentence)",
         progress: 52,
       });
 
       const chunks = buildChunks({ documentSummary: summary, sections });
 
-      const chunksByLevel = chunks.reduce<Record<string, number>>(
-        (acc, c) => { acc[c.chunkLevel] = (acc[c.chunkLevel] ?? 0) + 1; return acc; },
-        {},
-      );
+      const chunksByLevel = chunks.reduce<Record<string, number>>((acc, c) => {
+        acc[c.chunkLevel] = (acc[c.chunkLevel] ?? 0) + 1;
+        return acc;
+      }, {});
 
       await reportProgress({
         documentId,
@@ -471,9 +472,19 @@ export async function processAnalysisJob(
       // ── DB write phase (fast — embeddings already computed) ───────────────
       await withTransaction(async (client) => {
         await clearDerivedRecords(client, documentId);
-        const sectionIdMap = await persistSections(client, documentId, sections);
+        const sectionIdMap = await persistSections(
+          client,
+          documentId,
+          sections,
+        );
         await persistFacts(client, documentId, facts);
-        await persistChunks(client, documentId, chunks, sectionIdMap, embeddings);
+        await persistChunks(
+          client,
+          documentId,
+          chunks,
+          sectionIdMap,
+          embeddings,
+        );
       });
 
       await reportProgress({
@@ -537,7 +548,12 @@ export async function processAnalysisJob(
            VALUES ('document.preprocessing.completed', 'document_analysis_request', $1, $2::jsonb, 'pending')`,
           [
             analysisRequestId,
-            JSON.stringify({ documentId, userId, analysisRequestId, analysisVersion }),
+            JSON.stringify({
+              documentId,
+              userId,
+              analysisRequestId,
+              analysisVersion,
+            }),
           ],
         );
       });

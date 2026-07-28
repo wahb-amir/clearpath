@@ -52,12 +52,9 @@ function SavedItemCard({ item, index, onUnsave }) {
   };
 
   const displayName =
-    item.document?.fileName ||
-    item.title ||
-    "Unnamed Document";
+    item.document?.fileName || item.title || "Unnamed Document";
 
-  const summary =
-    item.summary || "No summary available for this document.";
+  const summary = item.summary || "No summary available for this document.";
 
   const date = item.updatedAt || item.createdAt;
 
@@ -69,10 +66,7 @@ function SavedItemCard({ item, index, onUnsave }) {
       transition={{ delay: index * 0.05 }}
       className="group"
     >
-      <Link
-        href={`/history/${item.documentId || item.id}`}
-        className="block"
-      >
+      <Link href={`/history/${item.documentId || item.id}`} className="block">
         <div className="bg-slate-900 border border-slate-800 hover:border-slate-700 rounded-2xl p-5 flex flex-col h-full transition-colors cursor-pointer">
           {/* Header */}
           <div className="flex items-start justify-between mb-4">
@@ -129,7 +123,7 @@ export default function SavedPage() {
       if (!response.ok) throw new Error("Failed to load saved documents.");
       return response.json();
     },
-    { revalidateOnFocus: true }
+    { revalidateOnFocus: true },
   );
 
   const items = data?.items || [];
@@ -143,12 +137,10 @@ export default function SavedPage() {
         if (!prev) return prev;
         return {
           ...prev,
-          items: prev.items.filter(
-            (i) => (i.documentId || i.id) !== docId
-          ),
+          items: prev.items.filter((i) => (i.documentId || i.id) !== docId),
         };
       },
-      { revalidate: false }
+      { revalidate: false },
     );
 
     try {

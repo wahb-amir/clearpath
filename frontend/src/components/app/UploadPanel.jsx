@@ -803,7 +803,10 @@ export default function DocumentIntelligencePanel({
             fetchExtractedContentWithRetry(activeDocId)
               .then((content) => {
                 if (content) setExtractedContent(content);
-                else console.warn("[syncStream] snapshot: extracted_content not available after retries");
+                else
+                  console.warn(
+                    "[syncStream] snapshot: extracted_content not available after retries",
+                  );
               })
               .catch((err) =>
                 console.error(
@@ -867,7 +870,10 @@ export default function DocumentIntelligencePanel({
           fetchExtractedContentWithRetry(activeDocId)
             .then((content) => {
               if (content) setExtractedContent(content);
-              else console.warn("[syncStream] pipeline: extracted_content not available after retries");
+              else
+                console.warn(
+                  "[syncStream] pipeline: extracted_content not available after retries",
+                );
             })
             .catch((err) =>
               console.error(
@@ -1192,7 +1198,10 @@ export default function DocumentIntelligencePanel({
               fetchExtractedContentWithRetry(documentId)
                 .then((content) => {
                   if (content) setExtractedContent(content);
-                  else console.warn("[handleAnalyze] snapshot: extracted_content not available after retries");
+                  else
+                    console.warn(
+                      "[handleAnalyze] snapshot: extracted_content not available after retries",
+                    );
                 })
                 .catch((err) =>
                   console.error(
@@ -1252,7 +1261,10 @@ export default function DocumentIntelligencePanel({
             fetchExtractedContentWithRetry(documentId)
               .then((content) => {
                 if (content) setExtractedContent(content);
-                else console.warn("[handleAnalyze] extracted_content not available after retries");
+                else
+                  console.warn(
+                    "[handleAnalyze] extracted_content not available after retries",
+                  );
               })
               .catch((err) =>
                 console.error(

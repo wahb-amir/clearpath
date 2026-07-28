@@ -833,7 +833,10 @@ export default function ExtractionVerificationPanel({
     const currentJson = JSON.stringify(content);
     const newJson = JSON.stringify(initialContent);
     // If incoming is different from what we have, AND it's different from our last saved (meaning it's from someone else)
-    if (newJson !== currentJson && newJson !== JSON.stringify(lastSavedContentRef.current)) {
+    if (
+      newJson !== currentJson &&
+      newJson !== JSON.stringify(lastSavedContentRef.current)
+    ) {
       setContent(initialContent);
       lastSavedContentRef.current = initialContent;
     }
@@ -847,14 +850,17 @@ export default function ExtractionVerificationPanel({
     }
 
     if (debounceTimerRef.current) clearTimeout(debounceTimerRef.current);
-    
+
     debounceTimerRef.current = setTimeout(async () => {
       try {
-        const response = await apiFetch(`/analysis/documents/${documentId}/extracted-content`, {
-          method: "PATCH",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ extractedContent: content }),
-        });
+        const response = await apiFetch(
+          `/analysis/documents/${documentId}/extracted-content`,
+          {
+            method: "PATCH",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ extractedContent: content }),
+          },
+        );
         if (response.ok) {
           lastSavedContentRef.current = content;
         }

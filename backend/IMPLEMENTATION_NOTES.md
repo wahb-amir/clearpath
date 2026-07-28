@@ -95,19 +95,22 @@ backend/
 
 ## Three Processes to Run
 
-| Process    | Command              | Role                                          |
-|------------|----------------------|-----------------------------------------------|
-| API server | `npm run dev`        | HTTP routes, SSE endpoint, auth               |
-| Worker     | `npm run worker`     | BullMQ job consumer (preprocessing + AI)      |
-| Dispatcher | `npm run dispatcher` | Outbox poller → BullMQ enqueue                |
+| Process    | Command              | Role                                     |
+| ---------- | -------------------- | ---------------------------------------- |
+| API server | `npm run dev`        | HTTP routes, SSE endpoint, auth          |
+| Worker     | `npm run worker`     | BullMQ job consumer (preprocessing + AI) |
+| Dispatcher | `npm run dispatcher` | Outbox poller → BullMQ enqueue           |
 
 For development, run all three simultaneously with:
+
 ```bash
 npm run dev:all
 ```
+
 This uses `concurrently` and colour-codes logs as `[API]`, `[WORKER]`, `[DISPATCHER]`.
 
 The worker handles **two distinct BullMQ job names**:
+
 - `analyze-document` → `processAnalysisJob()` in `analysisWorker.ts` (preprocessing)
 - `ai-analysis` → `runAiPipeline()` in `aiAnalysisWorker.ts` (LLM pipeline)
 
@@ -148,6 +151,7 @@ a worker from re-running a stage that has already completed. This makes workers
 ### POST /analysis/documents/:id/analyze
 
 **Request**
+
 ```http
 POST /analysis/documents/550e8400-e29b-41d4-a716-446655440000/analyze
 Cookie: accessToken=<jwt>; refreshToken=<token>; sid=<sid>
@@ -160,6 +164,7 @@ Content-Type: application/json
 ```
 
 **Response (new request) — 202 Accepted**
+
 ```json
 {
   "documentId": "550e8400-e29b-41d4-a716-446655440000",
@@ -176,6 +181,7 @@ Content-Type: application/json
 ```
 
 **Response (duplicate request, same file + version) — 202 Accepted**
+
 ```json
 {
   "documentId": "550e8400-e29b-41d4-a716-446655440000",
@@ -192,6 +198,7 @@ Content-Type: application/json
 ```
 
 **Error responses**
+
 ```json
 // 404 — document not found
 { "error": "Document <id> not found", "code": "DOCUMENT_NOT_FOUND" }
@@ -213,6 +220,7 @@ Content-Type: application/json
 Called by the frontend after the user reviews/edits extracted content.
 
 **Request**
+
 ```http
 POST /analysis/documents/550e8400-.../confirm-extraction
 Cookie: accessToken=<jwt>
@@ -224,11 +232,13 @@ Content-Type: application/json
 ```
 
 **Response — 200**
+
 ```json
 { "success": true, "message": "Extraction confirmed. AI analysis queued." }
 ```
 
 **What happens internally:**
+
 1. Document locked with `FOR UPDATE` and ownership + status verified
 2. `extracted_content` updated in `documents` (with user edits if provided)
 3. `analysis_status` → `PREPROCESSING_COMPLETED`
@@ -243,6 +253,7 @@ Content-Type: application/json
 Auto-save endpoint — called while the user is still editing the verification panel.
 
 **Request**
+
 ```http
 PATCH /analysis/documents/550e8400-.../extracted-content
 Cookie: accessToken=<jwt>
@@ -252,6 +263,7 @@ Content-Type: application/json
 ```
 
 **Response — 200**
+
 ```json
 { "success": true }
 ```
@@ -263,6 +275,7 @@ Only saves to `documents.extracted_content`. Does **not** advance the status or 
 ### GET /analysis/documents/:id/events (SSE)
 
 **Initial connection**
+
 ```http
 GET /analysis/documents/550e8400-.../events
 Cookie: accessToken=<jwt>
@@ -270,6 +283,7 @@ Accept: text/event-stream
 ```
 
 **Reconnect (browser EventSource sends Last-Event-ID automatically)**
+
 ```http
 GET /analysis/documents/550e8400-.../events
 Cookie: accessToken=<jwt>
@@ -277,6 +291,7 @@ Last-Event-ID: 42
 ```
 
 **Event stream format**
+
 ```
 id: 0
 event: snapshot
@@ -344,6 +359,7 @@ data: {"stage":"COMPLETED","progress":100,"payload":{...full result...},...}
 ### GET /analysis/history
 
 **Query params:**
+
 - `page` (default `1`)
 - `pageSize` (default `20`, max `100`)
 - `status` — `"all"` | `"completed"` | `"review_required"` | `"failed"` | `"running"`
@@ -353,6 +369,7 @@ The `"all"` and `"running"` views use a `UNION ALL` query to combine completed
 a terminal result yet.
 
 **Response**
+
 ```json
 {
   "items": [
@@ -401,6 +418,7 @@ x-internal-api-key: your-strong-random-internal-key
 ```
 
 **Response**
+
 ```json
 { "processed": 2, "failed": 0 }
 ```
@@ -411,6 +429,7 @@ x-internal-api-key: your-strong-random-internal-key
 
 Implemented in `src/services/documentAnalysisPipeline.ts`. All stages call Groq with
 `askGroqJson()` which:
+
 1. Calls the Groq API with a 25-second timeout
 2. Parses the JSON from the response (strips markdown code fences, finds the first `{`)
 3. Validates against the stage's Zod schema
@@ -420,6 +439,7 @@ Every stage has a fallback. The pipeline **never crashes** due to an LLM failure
 degrades gracefully to safe defaults with `needs_human_review: true`.
 
 ### Stage 1 — Document Understanding
+
 - **Input**: raw document text
 - **Zod schema** (`Stage1Schema`): `document_type`, `primary_topic`, `intended_audience`,
   `is_support_related`, `possible_user_problem`, `contains_deadlines`, `contains_actions`,
@@ -429,12 +449,15 @@ degrades gracefully to safe defaults with `needs_human_review: true`.
   evictions, or financial penalties
 
 ### Stage 2 — Candidate Extraction
+
 - **Input**: document text + Stage 1 output
 - **Zod schema** (`Stage2Schema`): `deadlines[]`, `actions[]`, `risks[]`, `contacts[]`, `missing_info[]`
 - **Key rule**: only extract facts **explicitly supported by the document text** — no interpretation
 
 ### Stage 2.5 — Official Source Grounding (Tavily)
+
 Between Stage 2 and Stage 3, the pipeline calls `buildOfficialSourceSnippets()`:
+
 - Builds up to 8 search queries from: document topic, deadlines, actions, risks, first sentence
 - Queries Tavily API (`https://api.tavily.com/search`)
 - Filters results to `.gov` and `.edu` hostnames only
@@ -443,12 +466,14 @@ Between Stage 2 and Stage 3, the pipeline calls `buildOfficialSourceSnippets()`:
 - Emits `progress` SSE events as each query completes
 
 ### Stage 3 — Grounding and Verification
+
 - **Input**: document text + Stage 2 extraction + official snippets
 - **Zod schema** (`Stage3Schema`): `verified_items[]` (each with `status`: `verified` |
   `partially_verified` | `unverified` | `conflicting`), `verification_notes[]`,
   `needs_human_review`, `overall_confidence`
 
 ### Stage 4 — User-Facing Synthesis
+
 - **Input**: verified items + document text
 - **Audience**: Non-native English speakers, potentially low literacy, stressed readers
 - **Zod schema** (`Stage4Schema`): `ai_summary` (2-4 sentences max), `action_items[]`
@@ -458,7 +483,9 @@ Between Stage 2 and Stage 3, the pipeline calls `buildOfficialSourceSnippets()`:
   is instructed never to invent URLs.
 
 ### Stage 5 — Safety Review + Guardrails
+
 Two separate mechanisms:
+
 1. **LLM Safety Review** (`Stage5Schema`): the LLM itself checks for `unsupported_claim`,
    `overconfidence`, `conflict`, `missing_review`, `unsafe_recommendation` issues
 2. **Rule-based Guardrails** (`buildStage5Guardrails()`): deterministic checks that run
@@ -472,7 +499,9 @@ The final recommendation is `approve` only if both mechanisms agree. Otherwise `
 or `block`.
 
 ### Post-Pipeline Normalisation
+
 After all 5 stages complete:
+
 - `enforceUncertaintyLanguage()` — if human review required, prefixes the summary with
   "needs review:" if no uncertainty marker is already present
 - `normalizeQuestions()` — prepends a "needs review: <reason>" question to the list
@@ -486,13 +515,14 @@ After all 5 stages complete:
 
 `OutboxDispatcher` in `src/outbox/dispatcher.ts` handles three event types:
 
-| `event_type` | Trigger | Action |
-|---|---|---|
-| `analysis.requested` | User clicks Analyze | Enqueues `analyze-document` BullMQ job |
-| `document.preprocessing.completed` | (legacy) preprocessing done | Enqueues `ai-analysis` BullMQ job |
-| `document.extraction.verified` | User confirms extraction | Enqueues `ai-analysis` BullMQ job |
+| `event_type`                       | Trigger                     | Action                                 |
+| ---------------------------------- | --------------------------- | -------------------------------------- |
+| `analysis.requested`               | User clicks Analyze         | Enqueues `analyze-document` BullMQ job |
+| `document.preprocessing.completed` | (legacy) preprocessing done | Enqueues `ai-analysis` BullMQ job      |
+| `document.extraction.verified`     | User confirms extraction    | Enqueues `ai-analysis` BullMQ job      |
 
 The dispatcher uses two mechanisms simultaneously:
+
 1. **`LISTEN outbox_new_event`** — PostgreSQL triggers fire a `NOTIFY` on every
    `INSERT` into `document_pipeline_outbox`. The dispatcher receives it instantly.
 2. **Polling loop** (every `OUTBOX_POLL_INTERVAL_MS`) — Safety net for NOTIFY events
@@ -507,12 +537,12 @@ without double-processing.
 
 Four separate ioredis connections, each with the right options for its purpose:
 
-| Factory | Used By | Special Config |
-|---|---|---|
-| `createQueueConnection()` | BullMQ Queue | `maxRetriesPerRequest: null` |
-| `createWorkerConnection()` | BullMQ Worker | `maxRetriesPerRequest: null` |
-| `createPublisherConnection()` | Worker (PUBLISH SSE events) | One per worker process |
-| `createSubscriberConnection()` | SSE service (SUBSCRIBE) | One **per active SSE client** |
+| Factory                        | Used By                     | Special Config                |
+| ------------------------------ | --------------------------- | ----------------------------- |
+| `createQueueConnection()`      | BullMQ Queue                | `maxRetriesPerRequest: null`  |
+| `createWorkerConnection()`     | BullMQ Worker               | `maxRetriesPerRequest: null`  |
+| `createPublisherConnection()`  | Worker (PUBLISH SSE events) | One per worker process        |
+| `createSubscriberConnection()` | SSE service (SUBSCRIBE)     | One **per active SSE client** |
 
 > ⚠️ Never share a subscriber connection between SSE clients. It will break.
 
@@ -606,20 +636,20 @@ handles this atomically.
 
 ## Database Migrations Reference
 
-| File | What it creates |
-|------|----------------|
-| `20260615174657_create_documents_table.sql` | `users`, `documents` tables |
-| `20260616073404_document_analysis_pipeline.sql` | Full pipeline schema: `document_analysis_requests`, `document_pipeline_events`, `document_sections`, `document_chunks`, `document_facts`, `document_analysis_results`, enums, indexes |
-| `20260616074101_document_pipeline_outbox.sql` | `document_pipeline_outbox` table |
-| `20260616184113_upload-doc.sql` | Upload-related columns on `documents` |
-| `20260617185536_ai-pipeline.sql` | AI pipeline status columns, `document_analysis_results` updates |
-| `20260617202022_update-enum-for-ai-pipeline.sql` | Adds `AI_QUEUED`, `AI_PROCESSING`, `AI_COMPLETED` to status enum |
-| `20260618181652_grant-permission.sql` | RLS / permission grants for backend service role |
-| `20260619125415_add_running_to_status_enum.sql` | Adds `running` variant |
-| `20260619191945_add-indexing-AWAITING_VERIFICATION.sql` | Index on `analysis_status = AWAITING_VERIFICATION` |
-| `20260620000001_extraction_verification.sql` | `extracted_content` JSONB column on `documents` |
-| `20260620020000_add_saved_column.sql` | `saved` boolean column on `documents` |
-| `20260620030000_user_activity_counters.sql` | `documents_analyzed_count`, `deadlines_tracked_count` on `users` + trigger functions |
+| File                                                    | What it creates                                                                                                                                                                       |
+| ------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `20260615174657_create_documents_table.sql`             | `users`, `documents` tables                                                                                                                                                           |
+| `20260616073404_document_analysis_pipeline.sql`         | Full pipeline schema: `document_analysis_requests`, `document_pipeline_events`, `document_sections`, `document_chunks`, `document_facts`, `document_analysis_results`, enums, indexes |
+| `20260616074101_document_pipeline_outbox.sql`           | `document_pipeline_outbox` table                                                                                                                                                      |
+| `20260616184113_upload-doc.sql`                         | Upload-related columns on `documents`                                                                                                                                                 |
+| `20260617185536_ai-pipeline.sql`                        | AI pipeline status columns, `document_analysis_results` updates                                                                                                                       |
+| `20260617202022_update-enum-for-ai-pipeline.sql`        | Adds `AI_QUEUED`, `AI_PROCESSING`, `AI_COMPLETED` to status enum                                                                                                                      |
+| `20260618181652_grant-permission.sql`                   | RLS / permission grants for backend service role                                                                                                                                      |
+| `20260619125415_add_running_to_status_enum.sql`         | Adds `running` variant                                                                                                                                                                |
+| `20260619191945_add-indexing-AWAITING_VERIFICATION.sql` | Index on `analysis_status = AWAITING_VERIFICATION`                                                                                                                                    |
+| `20260620000001_extraction_verification.sql`            | `extracted_content` JSONB column on `documents`                                                                                                                                       |
+| `20260620020000_add_saved_column.sql`                   | `saved` boolean column on `documents`                                                                                                                                                 |
+| `20260620030000_user_activity_counters.sql`             | `documents_analyzed_count`, `deadlines_tracked_count` on `users` + trigger functions                                                                                                  |
 
 ---
 
@@ -663,6 +693,7 @@ npm run dev
 ## Prompt Injection Mitigation
 
 All document text passed to the LLM is:
+
 1. Labelled as `untrusted_user_document_text` in the JSON payload
 2. Wrapped in explicit `--- BEGIN UNTRUSTED USER INPUT --- / --- END UNTRUSTED USER INPUT ---` delimiters
 3. Each system prompt contains an explicit `SECURITY WARNING` telling the model to treat the document content as data only and ignore any embedded instructions

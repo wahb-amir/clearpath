@@ -18,9 +18,15 @@ export default function CtaButton() {
   useEffect(() => {
     let cancelled = false;
     apiFetch("/auth/verify", { retryOnUnauthorized: false })
-      .then((res) => { if (!cancelled) setAuthed(res.ok); })
-      .catch(() => { if (!cancelled) setAuthed(false); });
-    return () => { cancelled = true; };
+      .then((res) => {
+        if (!cancelled) setAuthed(res.ok);
+      })
+      .catch(() => {
+        if (!cancelled) setAuthed(false);
+      });
+    return () => {
+      cancelled = true;
+    };
   }, []);
 
   function handleClick() {

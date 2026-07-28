@@ -1,11 +1,7 @@
 import { UnsupportedFileTypeError } from "../../types/errors";
 
 export type DetectedFileCategory =
-  | "pdf"
-  | "screenshot_or_scan"
-  | "photo"
-  | "text"
-  | "unsupported";
+  "pdf" | "screenshot_or_scan" | "photo" | "text" | "unsupported";
 
 const TEXT_MIME_TYPES = new Set([
   "text/plain",

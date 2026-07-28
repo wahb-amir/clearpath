@@ -38,7 +38,8 @@ const softwareAppJsonLd = {
     "@type": "Offer",
     price: "0",
     priceCurrency: "USD",
-    description: "Free AI-powered document analysis for individuals and families.",
+    description:
+      "Free AI-powered document analysis for individuals and families.",
   },
   description:
     "ClearPath is an AI-powered document intelligence platform that transforms confusing school notices, government forms, and community documents into plain-language summaries, deadlines, and action plans.",

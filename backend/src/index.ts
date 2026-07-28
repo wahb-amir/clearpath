@@ -21,20 +21,20 @@ app.use(
   cors({
     // 1. Dynamic origin fallback ensuring a valid URL is always matched
     origin: (origin, callback) => {
-      const allowedOrigin = env.FRONTEND_URL || 'https://clearpath.wahb.space';
-      
-      // Allow requests with no origin (like mobile apps, curl, or Postman) 
+      const allowedOrigin = env.FRONTEND_URL || "https://clearpath.wahb.space";
+
+      // Allow requests with no origin (like mobile apps, curl, or Postman)
       // or if the incoming browser origin matches your configured frontend URL
       if (!origin || origin === allowedOrigin) {
         callback(null, true);
       } else {
-        callback(new Error('Not allowed by CORS'));
+        callback(new Error("Not allowed by CORS"));
       }
     },
     credentials: true,
     // 2. Fixes legacy browsers/environments choking on pre-flight checks
-    optionsSuccessStatus: 200, 
-  })
+    optionsSuccessStatus: 200,
+  }),
 );
 
 app.use(express.json());

@@ -254,35 +254,43 @@ export default function ResultsPanel({ currentDoc, analyzing, aiResult }) {
   };
 
   // 3. The Data Adapter: Reshape the backend JSON for the frontend
-const normalizedResult = rawResult
-  ? (() => {
-      const dataSource = rawResult.payload ? rawResult.payload : rawResult;
+  const normalizedResult = rawResult
+    ? (() => {
+        const dataSource = rawResult.payload ? rawResult.payload : rawResult;
 
-      return {
-        ...rawResult, 
-        
-        title: rawResult.title || dataSource.title || "Document Analysis",
+        return {
+          ...rawResult,
 
-        // Keep action items as full objects so ChecklistCard can read action.text,
-        // action.completed, action.priority, etc. If the item is a bare string
-        // (older API shape), normalise it into the object shape expected by the card.
-        actions: dataSource.actionItems?.map((item) => {
-          if (typeof item === "string") {
-            return { text: item, completed: false, priority: "medium", supporting_evidence: "" };
-          }
-          return item ?? {};
-        }).filter((item) => item?.text) || [],
+          title: rawResult.title || dataSource.title || "Document Analysis",
 
-        // Remap keys to match card expectations
-        deadlines: dataSource.keyDeadlines || [],
-        questions: dataSource.questionsToAsk || [],
-        sources: dataSource.trustedSources || [],
+          // Keep action items as full objects so ChecklistCard can read action.text,
+          // action.completed, action.priority, etc. If the item is a bare string
+          // (older API shape), normalise it into the object shape expected by the card.
+          actions:
+            dataSource.actionItems
+              ?.map((item) => {
+                if (typeof item === "string") {
+                  return {
+                    text: item,
+                    completed: false,
+                    priority: "medium",
+                    supporting_evidence: "",
+                  };
+                }
+                return item ?? {};
+              })
+              .filter((item) => item?.text) || [],
 
-        // Safely pass the localized aiConfidence object to your formatter
-        confidence: formatConfidence(dataSource.aiConfidence),
-      };
-    })()
-  : null;
+          // Remap keys to match card expectations
+          deadlines: dataSource.keyDeadlines || [],
+          questions: dataSource.questionsToAsk || [],
+          sources: dataSource.trustedSources || [],
+
+          // Safely pass the localized aiConfidence object to your formatter
+          confidence: formatConfidence(dataSource.aiConfidence),
+        };
+      })()
+    : null;
 
   return (
     <AnimatePresence mode="wait">

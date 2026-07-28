@@ -1,5 +1,5 @@
-"use client"; 
-import  { useState } from "react";
+"use client";
+import { useState } from "react";
 import Sidebar from "@/components/app-shell/Sidebar";
 import HelpCenter from "./app/HelpCenter";
 

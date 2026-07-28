@@ -1,43 +1,58 @@
 "use client";
 
 import { motion, AnimatePresence } from "framer-motion";
-import { UserCheck, AlertTriangle, CheckCircle2, ChevronRight } from "lucide-react";
+import {
+  UserCheck,
+  AlertTriangle,
+  CheckCircle2,
+  ChevronRight,
+} from "lucide-react";
 import { useState } from "react";
 
 // ── MOCK DATA ────────────────────────────────────────────────────────
 const mockHumanReviewData = {
   required: true,
-  reason: "needs review: Missing official translation verification for out-of-state transcripts.",
+  reason:
+    "needs review: Missing official translation verification for out-of-state transcripts.",
   gaps: [
     "Whether the 2025 chemistry credits satisfy the new state laboratory requirements.",
     "The exact stamp or seal verification from the previous school district.",
-    "Discrepancy in the student's middle name spelling between the ID and the transcript."
+    "Discrepancy in the student's middle name spelling between the ID and the transcript.",
   ],
   prep_questions: [
     "Is my 2025 chemistry class considered a full 'laboratory science' credit under the updated state guidelines?",
     "Do you require an original notarized copy of my previous transcripts, or is the digital copy sufficient?",
-    "Can we update my official student record to match the exact spelling on my state identification?"
-  ]
+    "Can we update my official student record to match the exact spelling on my state identification?",
+  ],
 };
 
 // ── MAIN PREVIEW PAGE ────────────────────────────────────────────────
 export default function PreviewPage() {
   return (
-    <div style={{
-      minHeight: "100vh",
-      backgroundColor: "#0d0e12",
-      color: "#f3f4f6",
-      padding: "2rem",
-      display: "flex",
-      justifyContent: "center",
-      alignItems: "flex-start",
-      fontFamily: "system-ui, sans-serif"
-    }}>
+    <div
+      style={{
+        minHeight: "100vh",
+        backgroundColor: "#0d0e12",
+        color: "#f3f4f6",
+        padding: "2rem",
+        display: "flex",
+        justifyContent: "center",
+        alignItems: "flex-start",
+        fontFamily: "system-ui, sans-serif",
+      }}
+    >
       <div style={{ width: "100%", maxWidth: "600px" }}>
-        <h1 style={{ fontSize: "1.25rem", fontWeight: 500, marginBottom: "1.5rem", color: "#9ca3af" }}>
+        <h1
+          style={{
+            fontSize: "1.25rem",
+            fontWeight: 500,
+            marginBottom: "1.5rem",
+            color: "#9ca3af",
+          }}
+        >
           Document Processing Preview
         </h1>
-        
+
         {/* Injecting the HumanReviewPanel with the mock data */}
         <HumanReviewPanel humanReview={mockHumanReviewData} />
       </div>
@@ -53,9 +68,9 @@ function HumanReviewPanel({ humanReview }) {
 
   const gaps = humanReview.gaps ?? [];
   const prepQuestions = humanReview.prep_questions ?? [];
-  const reason = (humanReview.reason ?? "")
-    .replace(/^needs review:\s*/i, "")
-    .trim() || "A human expert should verify this document's details.";
+  const reason =
+    (humanReview.reason ?? "").replace(/^needs review:\s*/i, "").trim() ||
+    "A human expert should verify this document's details.";
 
   return (
     <motion.div
@@ -150,10 +165,23 @@ function HumanReviewPanel({ humanReview }) {
             transition={{ duration: 0.25, ease: "easeInOut" }}
             style={{ overflow: "hidden" }}
           >
-            <div style={{ padding: "1rem 1.125rem", display: "flex", flexDirection: "column", gap: "1.125rem" }}>
-
+            <div
+              style={{
+                padding: "1rem 1.125rem",
+                display: "flex",
+                flexDirection: "column",
+                gap: "1.125rem",
+              }}
+            >
               {/* Reason Note (Injected based on the custom string cleaning logic) */}
-              <div style={{ fontSize: "0.85rem", color: "hsl(38, 90%, 80%)", lineHeight: 1.4, opacity: 0.9 }}>
+              <div
+                style={{
+                  fontSize: "0.85rem",
+                  color: "hsl(38, 90%, 80%)",
+                  lineHeight: 1.4,
+                  opacity: 0.9,
+                }}
+              >
                 <strong>Reason:</strong> {reason}
               </div>
 
@@ -173,7 +201,13 @@ function HumanReviewPanel({ humanReview }) {
                     This notice does not explain:
                   </div>
 
-                  <div style={{ display: "flex", flexDirection: "column", gap: "0.375rem" }}>
+                  <div
+                    style={{
+                      display: "flex",
+                      flexDirection: "column",
+                      gap: "0.375rem",
+                    }}
+                  >
                     {gaps.map((gap, i) => (
                       <motion.div
                         key={i}
@@ -222,7 +256,13 @@ function HumanReviewPanel({ humanReview }) {
                     Questions prepared for you:
                   </div>
 
-                  <div style={{ display: "flex", flexDirection: "column", gap: "0.375rem" }}>
+                  <div
+                    style={{
+                      display: "flex",
+                      flexDirection: "column",
+                      gap: "0.375rem",
+                    }}
+                  >
                     {prepQuestions.map((q, i) => (
                       <motion.div
                         key={i}
@@ -269,8 +309,9 @@ function HumanReviewPanel({ humanReview }) {
                   paddingTop: "0.75rem",
                 }}
               >
-                Bring these questions to your school office, counselor, or caseworker.
-                The AI has prepared them — a human expert will have the answers.
+                Bring these questions to your school office, counselor, or
+                caseworker. The AI has prepared them — a human expert will have
+                the answers.
               </div>
             </div>
           </motion.div>

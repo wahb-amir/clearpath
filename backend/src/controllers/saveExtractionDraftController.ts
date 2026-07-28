@@ -53,14 +53,14 @@ export async function saveExtractionDraftController(
           AND user_id = $3
           AND analysis_status = 'AWAITING_VERIFICATION'
         RETURNING id`,
-      [JSON.stringify(extractedContent), documentId, userId]
+      [JSON.stringify(extractedContent), documentId, userId],
     );
 
     if (updateResult.rowCount === 0) {
       // Document not found, unauthorized, or not awaiting verification
       throw Object.assign(
         new Error("Document not found or not currently awaiting verification"),
-        { statusCode: 404 }
+        { statusCode: 404 },
       );
     }
 
@@ -83,7 +83,7 @@ export async function saveExtractionDraftController(
             payload: { extractedContent, updatedBy: userId },
             createdAt: new Date().toISOString(),
           },
-        })
+        }),
       );
     } finally {
       publisher.disconnect();

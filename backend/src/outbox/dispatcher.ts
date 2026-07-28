@@ -180,7 +180,8 @@ export class OutboxDispatcher {
           mimeType: payload.mimeType,
           analysisVersion: payload.analysisVersion,
         };
-        const rawJobId = jobIdForAnalysisRequest(payload.analysisRequestId) + "-resume";
+        const rawJobId =
+          jobIdForAnalysisRequest(payload.analysisRequestId) + "-resume";
         const sanitizedJobId = rawJobId.replace(/:/g, "-");
 
         await enqueueAnalysisJob(sanitizedJobId, jobData);
