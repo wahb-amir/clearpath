@@ -16,7 +16,10 @@
     "dispatcher": "tsx src/outbox/run.ts",
     "dev:all": "concurrently -n API,WORKER,DISPATCHER -c blue,green,yellow \"npm:dev\" \"npm:worker\" \"npm:dispatcher\"",
     "start:all": "concurrently -n API,WORKER,DISPATCHER -c blue,green,yellow \"npm:start\" \"npm:worker\" \"npm:dispatcher\"",
-    "test:pipeline": "tsx scripts/test-pipeline.ts"
+    "test:pipeline": "tsx scripts/test-pipeline.ts",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "test:coverage": "vitest run --coverage"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.108.1",
@@ -44,11 +47,13 @@
     "@types/morgan": "^1.9.10",
     "@types/node": "^22.13.1",
     "@types/pg": "^8.20.0",
+    "@vitest/coverage-v8": "^4.1.10",
     "concurrently": "^10.0.3",
     "nodemon": "^3.1.9",
     "ts-node": "^10.9.2",
     "tsx": "^4.22.4",
-    "typescript": "^5.7.3"
+    "typescript": "^5.7.3",
+    "vitest": "^4.1.10"
   },
   "pnpm": {}
 }
