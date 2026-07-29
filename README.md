@@ -115,19 +115,73 @@ clearpath/
 │   │   │       ├── extractFacts.ts
 │   │   │       ├── estimateQuality.ts
 │   │   │       ├── buildChunks.ts
-│   │   │       ├── generateSummary.ts
-│   │   │       └── persistence.ts
-│   │   ├── sse/sseService.ts   # SSE replay + Redis pub/sub + heartbeat
-│   │   ├── types/              # Shared TypeScript types and DTOs
-│   │   ├── utils/idempotency.ts
-│   │   ├── validators/documentAnalysis.ts  # Zod request validators
-│   │   └── workers/
-│   │       ├── analysisWorker.ts           # Preprocessing BullMQ worker
-│   │       ├── aiAnalysisWorker.ts         # AI pipeline BullMQ worker
-│   │       ├── documentAnalysisWorker.ts   # Worker dispatcher/router
-│   │       ├── stageReporter.ts            # Atomic stage update + Redis notify
-│   │       ├── run.ts                      # Worker entry point
-│   │       └── stages/detectFileType.ts
+│   ├── config/env.ts       # Zod-validated env schema
+│   ├── controllers/        # Route handler functions
+│   │   ├── analyzeController.ts
+│   │   ├── analysisHistoryController.ts
+│   │   ├── confirmExtractionController.ts
+│   │   ├── saveExtractionDraftController.ts
+│   │   ├── sseController.ts
+│   │   └── internalOutboxController.ts
+│   ├── db/pool.ts          # Raw pg connection pool + withTransaction()
+│   ├── lib/
+│   │   ├── supabase.ts     # Supabase client (Storage + REST)
+│   │   └── llm/groqClient.ts
+│   ├── middlewares/
+│   │   ├── auth.ts         # JWT cookie validation
+│   │   ├── rateLimiter.ts
+│   │   ├── errorHandler.ts
+│   │   └── internalOnly.ts # x-internal-api-key guard
+│   ├── models/             # (empty - types live in types/)
+│   ├── outbox/
+│   │   ├── dispatcher.ts   # Transactional outbox dispatcher
+│   │   └── run.ts          # Standalone dispatcher entry point
+│   ├── queue/
+│   │   └── analysisQueue.ts # BullMQ queue + enqueue helpers
+│   ├── redis/connection.ts  # ioredis factory functions
+│   ├── routes/
+│   │   ├── auth.ts         # /auth/*
+│   │   ├── upload.ts       # /uploads/*
+│   │   └── documentAnalysis.ts # /analysis/*
+│   ├── services/
+│   │   ├── analysisRequestService.ts   # Atomic trigger + outbox insert
+│   │   ├── documentAnalysisOrchestrator.ts  # AI pipeline coordinator
+│   │   ├── documentAnalysisPipeline.ts      # 5-stage LLM pipeline
+│   │   ├── documentAnalysisResultRepository.ts
+│   │   ├── officialSourceSearch.ts     # Tavily grounding search
+│   │   ├── sessionService.ts
+│   │   └── ingestion/                  # Preprocessing stages
+│   │       ├── extractText.ts
+│   │       ├── cleanText.ts
+│   │       ├── detectLanguage.ts
+│   │       ├── buildStructure.ts
+│   │       ├── extractFacts.ts
+│   │       ├── estimateQuality.ts
+│   │       ├── buildChunks.ts
+│   │       ├── generateSummary.ts
+│   │       └── persistence.ts
+│   ├── sse/sseService.ts   # SSE replay + Redis pub/sub + heartbeat
+│   ├── types/              # Shared TypeScript types and DTOs
+│   ├── utils/idempotency.ts
+│   ├── validators/documentAnalysis.ts  # Zod request validators
+│   └── workers/
+│       ├── analysisWorker.ts           # Preprocessing BullMQ worker (orchestrator)
+│       ├── aiAnalysisWorker.ts         # AI pipeline BullMQ worker
+│       ├── documentAnalysisWorker.ts   # Worker dispatcher/router
+│       ├── stageReporter.ts            # Atomic stage update + Redis notify
+│       ├── run.ts                      # Worker entry point
+│       └── stages/                     # Modular stage handlers for preprocessing
+│           ├── types.ts                # Shared AnalysisState interface
+│           ├── detectFileType.ts       # File category & MIME detection
+│           ├── initializationStage.ts  # Worker assignment & status setup
+│           ├── extractionStage.ts      # Text extraction & OCR fallback
+│           ├── cleaningStage.ts        # Noise removal & language detection
+│           ├── awaitingVerificationStage.ts # Human review gate preparation
+│           ├── structuringStage.ts     # Document structure & entity extraction
+│           ├── chunkingStage.ts        # Hierarchical chunking & DB persistence
+│           ├── embeddingStage.ts       # Vector embedding generation
+│           ├── summarizingStage.ts     # Summary generation
+│           └── completionStage.ts      # Handoff to AI pipeline outbox
 │   ├── supabase/migrations/    # SQL migration files (12 migrations)
 │   ├── scripts/                # Key generation, pipeline test scripts
 │   ├── .env.example
@@ -218,7 +272,7 @@ The analysis of a single document goes through **two separate BullMQ workers** a
 
 ### Phase 1 — Preprocessing Worker (`analysisWorker.ts`)
 
-Triggered when a user clicks "Analyze". The preprocessing worker runs these stages in order, reporting each to the SSE stream in real-time:
+Triggered when a user clicks "Analyze". The preprocessing worker (`analysisWorker.ts`) acts as a lightweight orchestrator composing modular stage processors under `backend/src/workers/stages/`. It runs these stages in order, reporting each to the SSE stream in real-time:
 
 ```
 QUEUED
