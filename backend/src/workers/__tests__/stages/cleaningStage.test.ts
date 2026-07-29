@@ -44,15 +44,25 @@ describe("processCleaningStage", () => {
   });
 
   it("calls cleanExtractedText with rawText from upstream state", async () => {
-    const state = makeState({ status: "EXTRACTING", rawText: "raw  text  with  noise" });
+    const state = makeState({
+      status: "EXTRACTING",
+      rawText: "raw  text  with  noise",
+    });
 
     await processCleaningStage(state);
 
-    expect(cleanExtractedText).toHaveBeenCalledWith("raw  text  with  noise", expect.any(Number));
+    expect(cleanExtractedText).toHaveBeenCalledWith(
+      "raw  text  with  noise",
+      expect.any(Number),
+    );
   });
 
   it("passes ocrConfidence to cleanExtractedText", async () => {
-    const state = makeState({ status: "EXTRACTING", rawText: "text", ocrConfidence: 0.7 });
+    const state = makeState({
+      status: "EXTRACTING",
+      rawText: "text",
+      ocrConfidence: 0.7,
+    });
 
     await processCleaningStage(state);
 
@@ -129,7 +139,10 @@ describe("processCleaningStage", () => {
     expect(reportProgress).toHaveBeenCalledWith(
       expect.objectContaining({
         eventType: "language_detected",
-        payload: expect.objectContaining({ language: "en", languageName: "English" }),
+        payload: expect.objectContaining({
+          language: "en",
+          languageName: "English",
+        }),
       }),
     );
   });

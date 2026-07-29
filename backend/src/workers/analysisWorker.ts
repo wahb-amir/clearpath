@@ -111,7 +111,6 @@ export async function processAnalysisJob(
     state = await processEmbeddingStage(state);
     state = await processSummarizingStage(state);
     await processCompletionStage(state);
-
   } catch (err) {
     await reportFailure({
       documentId,

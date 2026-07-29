@@ -125,7 +125,9 @@ const Stage3Schema = z.object({
   needs_human_review: z.boolean(),
   human_review_reason: z
     .string()
-    .transform((v) => v.trim() || "No specific verification concern identified.")
+    .transform(
+      (v) => v.trim() || "No specific verification concern identified.",
+    )
     .pipe(z.string().min(1)),
   overall_confidence: z.number().min(0).max(1),
 });
@@ -216,7 +218,11 @@ const Stage5Schema = z.object({
     .transform((v) => {
       // Strip parenthetical suffixes like "approve (no issues)"
       const normalized = v.trim().toLowerCase().split(/[\s(]/)[0];
-      if (normalized === "approve" || normalized === "revise" || normalized === "block") {
+      if (
+        normalized === "approve" ||
+        normalized === "revise" ||
+        normalized === "block"
+      ) {
         return normalized;
       }
       return "revise";
@@ -1026,9 +1032,15 @@ function buildStage3Prompt(
                 confidence: 0,
               },
             ],
-            verification_notes: [{ note: "Example: One or more deadlines could not be confirmed against official sources.", severity: "low|medium|high" }],
+            verification_notes: [
+              {
+                note: "Example: One or more deadlines could not be confirmed against official sources.",
+                severity: "low|medium|high",
+              },
+            ],
             needs_human_review: true,
-            human_review_reason: "REQUIRED non-empty string. Example: 'The attendance policy details require verification by a school official.' If human review is not needed, write: 'No significant concerns found; standard AI review is sufficient.'",
+            human_review_reason:
+              "REQUIRED non-empty string. Example: 'The attendance policy details require verification by a school official.' If human review is not needed, write: 'No significant concerns found; standard AI review is sufficient.'",
             overall_confidence: 0,
           },
         },
@@ -1152,10 +1164,12 @@ function buildStage5Prompt(
               {
                 type: "unsupported_claim|overconfidence|conflict|missing_review|unsafe_recommendation",
                 severity: "low|medium|high",
-                description: "One sentence describing the specific issue found. Must not be empty.",
+                description:
+                  "One sentence describing the specific issue found. Must not be empty.",
               },
             ],
-            final_recommendation: "approve (no issues) | revise (minor issues) | block (serious issues)",
+            final_recommendation:
+              "approve (no issues) | revise (minor issues) | block (serious issues)",
           },
           critical_rules: [
             "ALL THREE top-level fields (pass, issues, final_recommendation) are REQUIRED in your response.",

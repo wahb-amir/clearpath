@@ -9,9 +9,17 @@ import { withTransaction } from "../../db/pool";
 import type { AnalysisState } from "./types";
 
 export async function processAwaitingVerificationStage(
-  state: AnalysisState
+  state: AnalysisState,
 ): Promise<{ state: AnalysisState; halt: boolean }> {
-  const { job, doc, workerId, cleanText, ocrConfidence, textCoverage, extractionMethod } = state;
+  const {
+    job,
+    doc,
+    workerId,
+    cleanText,
+    ocrConfidence,
+    textCoverage,
+    extractionMethod,
+  } = state;
   const { currentStatus } = state;
   const { documentId, userId, analysisRequestId, analysisVersion } = job.data;
 
@@ -24,9 +32,9 @@ export async function processAwaitingVerificationStage(
   if (!isStageCompleteOrPast(currentStatus, "AWAITING_VERIFICATION")) {
     sections = buildDocumentStructure(cleanText || "");
     facts = extractFacts(cleanText || "");
-    quality = estimateQuality({ 
-      ocrConfidence: ocrConfidence || 1, 
-      textCoverage: textCoverage || 1 
+    quality = estimateQuality({
+      ocrConfidence: ocrConfidence || 1,
+      textCoverage: textCoverage || 1,
     });
     const generated = generateSummary({ cleanText: cleanText || "", sections });
     title = generated.title;

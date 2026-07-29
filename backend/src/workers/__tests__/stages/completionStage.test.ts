@@ -48,13 +48,15 @@ describe("processCompletionStage", () => {
 
     mockWithTransaction.mockImplementation(async (fn: any) => {
       const client = {
-        query: vi.fn().mockImplementation(async (sql: string, params: any[]) => {
-          if (sql.includes("document_pipeline_outbox")) {
-            insertedAggregateId = params[0];
-            insertedPayload = JSON.parse(params[1]);
-          }
-          return { rows: [] };
-        }),
+        query: vi
+          .fn()
+          .mockImplementation(async (sql: string, params: any[]) => {
+            if (sql.includes("document_pipeline_outbox")) {
+              insertedAggregateId = params[0];
+              insertedPayload = JSON.parse(params[1]);
+            }
+            return { rows: [] };
+          }),
       };
       return fn(client);
     });
@@ -76,12 +78,14 @@ describe("processCompletionStage", () => {
 
     mockWithTransaction.mockImplementation(async (fn: any) => {
       const client = {
-        query: vi.fn().mockImplementation(async (sql: string, _params: any[]) => {
-          if (sql.includes("document_pipeline_outbox")) {
-            capturedSql = sql;
-          }
-          return { rows: [] };
-        }),
+        query: vi
+          .fn()
+          .mockImplementation(async (sql: string, _params: any[]) => {
+            if (sql.includes("document_pipeline_outbox")) {
+              capturedSql = sql;
+            }
+            return { rows: [] };
+          }),
       };
       return fn(client);
     });

@@ -11,7 +11,9 @@ import {
 } from "../../services/ingestion/persistence";
 import type { AnalysisState } from "./types";
 
-export async function processChunkingStage(state: AnalysisState): Promise<AnalysisState> {
+export async function processChunkingStage(
+  state: AnalysisState,
+): Promise<AnalysisState> {
   const { job, workerId, summary, sections, facts } = state;
   let { currentStatus } = state;
   const { documentId, userId } = job.data;
@@ -28,7 +30,10 @@ export async function processChunkingStage(state: AnalysisState): Promise<Analys
       progress: 52,
     });
 
-    const chunks = buildChunks({ documentSummary: summary || "", sections: sections || [] });
+    const chunks = buildChunks({
+      documentSummary: summary || "",
+      sections: sections || [],
+    });
 
     const chunksByLevel = chunks.reduce<Record<string, number>>((acc, c) => {
       acc[c.chunkLevel] = (acc[c.chunkLevel] ?? 0) + 1;
@@ -85,13 +90,7 @@ export async function processChunkingStage(state: AnalysisState): Promise<Analys
         sections || [],
       );
       await persistFacts(client, documentId, facts || []);
-      await persistChunks(
-        client,
-        documentId,
-        chunks,
-        sectionIdMap,
-        embeddings,
-      );
+      await persistChunks(client, documentId, chunks, sectionIdMap, embeddings);
     });
 
     await reportProgress({

@@ -10,14 +10,14 @@ export interface AnalysisState {
   doc: DocumentRow;
   workerId: string;
   currentStatus: AnalysisStatus;
-  
+
   // Extracted values
   rawText?: string;
   extractionMethod?: "embedded" | "ocr" | "plain_text";
   ocrConfidence?: number;
   textCoverage?: number;
   usedOcrFallback?: boolean;
-  
+
   // Cleaned values
   cleanText?: string;
 

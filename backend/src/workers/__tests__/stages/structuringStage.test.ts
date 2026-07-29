@@ -24,15 +24,45 @@ import { reportStage, reportProgress } from "../../stageReporter";
 import { pgPool } from "../../../db/pool";
 
 const mockSections = [
-  { title: "Intro", level: 1, sectionType: "section", textContent: "text", orderIndex: 0, children: [
-    { title: "Sub", level: 2, sectionType: "section", textContent: "sub", orderIndex: 0, children: [] }
-  ]},
+  {
+    title: "Intro",
+    level: 1,
+    sectionType: "section",
+    textContent: "text",
+    orderIndex: 0,
+    children: [
+      {
+        title: "Sub",
+        level: 2,
+        sectionType: "section",
+        textContent: "sub",
+        orderIndex: 0,
+        children: [],
+      },
+    ],
+  },
 ];
 const mockFacts = [
-  { factType: "date" as const, value: "2024-01-01", normalizedValue: "2024-01-01", context: "ctx", confidence: 0.9 },
-  { factType: "email" as const, value: "a@b.com", normalizedValue: undefined, context: "ctx", confidence: 0.8 },
+  {
+    factType: "date" as const,
+    value: "2024-01-01",
+    normalizedValue: "2024-01-01",
+    context: "ctx",
+    confidence: 0.9,
+  },
+  {
+    factType: "email" as const,
+    value: "a@b.com",
+    normalizedValue: undefined,
+    context: "ctx",
+    confidence: 0.8,
+  },
 ];
-const mockQuality = { quality: "good" as const, ocrConfidence: 1, textCoverage: 1 };
+const mockQuality = {
+  quality: "good" as const,
+  ocrConfidence: 1,
+  textCoverage: 1,
+};
 
 describe("processStructuringStage", () => {
   beforeEach(() => {

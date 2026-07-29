@@ -5,7 +5,9 @@ import { detectLanguage } from "../../services/ingestion/detectLanguage";
 import { pgPool } from "../../db/pool";
 import type { AnalysisState } from "./types";
 
-export async function processCleaningStage(state: AnalysisState): Promise<AnalysisState> {
+export async function processCleaningStage(
+  state: AnalysisState,
+): Promise<AnalysisState> {
   const { job, workerId, rawText, ocrConfidence } = state;
   let { currentStatus } = state;
   const { documentId, userId } = job.data;

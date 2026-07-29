@@ -9,17 +9,41 @@ vi.mock("../../stageReporter", () => ({
 // Use inline values — vi.mock factories are hoisted before const declarations
 vi.mock("../../../services/ingestion/buildChunks", () => ({
   buildChunks: vi.fn().mockReturnValue([
-    { content: "chunk one", chunkLevel: "paragraph", documentId: "doc-123", sectionId: null, orderIndex: 0 },
-    { content: "chunk two", chunkLevel: "sentence", documentId: "doc-123", sectionId: null, orderIndex: 1 },
-    { content: "chunk three", chunkLevel: "section", documentId: "doc-123", sectionId: null, orderIndex: 2 },
+    {
+      content: "chunk one",
+      chunkLevel: "paragraph",
+      documentId: "doc-123",
+      sectionId: null,
+      orderIndex: 0,
+    },
+    {
+      content: "chunk two",
+      chunkLevel: "sentence",
+      documentId: "doc-123",
+      sectionId: null,
+      orderIndex: 1,
+    },
+    {
+      content: "chunk three",
+      chunkLevel: "section",
+      documentId: "doc-123",
+      sectionId: null,
+      orderIndex: 2,
+    },
   ]),
 }));
 
 vi.mock("../../../services/ingestion/embeddingProvider", () => ({
-  embedBatch: vi.fn().mockResolvedValue([[0.1, 0.2, 0.3], [0.4, 0.5, 0.6], [0.7, 0.8, 0.9]]),
+  embedBatch: vi.fn().mockResolvedValue([
+    [0.1, 0.2, 0.3],
+    [0.4, 0.5, 0.6],
+    [0.7, 0.8, 0.9],
+  ]),
 }));
 
-const mockPersistSections = vi.fn().mockResolvedValue(new Map([["section-key", "section-db-id"]]));
+const mockPersistSections = vi
+  .fn()
+  .mockResolvedValue(new Map([["section-key", "section-db-id"]]));
 const mockPersistChunks = vi.fn().mockResolvedValue(undefined);
 const mockPersistFacts = vi.fn().mockResolvedValue(undefined);
 const mockClearDerived = vi.fn().mockResolvedValue(undefined);
@@ -31,7 +55,9 @@ vi.mock("../../../services/ingestion/persistence", () => ({
   clearDerivedRecords: (...args: any[]) => mockClearDerived(...args),
 }));
 
-const mockTransactionClient = { query: vi.fn().mockResolvedValue({ rows: [] }) };
+const mockTransactionClient = {
+  query: vi.fn().mockResolvedValue({ rows: [] }),
+};
 const mockWithTransaction = vi.fn(async (fn: any) => fn(mockTransactionClient));
 
 vi.mock("../../../db/pool", () => ({
@@ -46,17 +72,52 @@ import { embedBatch } from "../../../services/ingestion/embeddingProvider";
 
 // Inline copies used for assertions (same values as mock returns)
 const MOCK_CHUNKS = [
-  { content: "chunk one", chunkLevel: "paragraph", documentId: "doc-123", sectionId: null, orderIndex: 0 },
-  { content: "chunk two", chunkLevel: "sentence", documentId: "doc-123", sectionId: null, orderIndex: 1 },
-  { content: "chunk three", chunkLevel: "section", documentId: "doc-123", sectionId: null, orderIndex: 2 },
+  {
+    content: "chunk one",
+    chunkLevel: "paragraph",
+    documentId: "doc-123",
+    sectionId: null,
+    orderIndex: 0,
+  },
+  {
+    content: "chunk two",
+    chunkLevel: "sentence",
+    documentId: "doc-123",
+    sectionId: null,
+    orderIndex: 1,
+  },
+  {
+    content: "chunk three",
+    chunkLevel: "section",
+    documentId: "doc-123",
+    sectionId: null,
+    orderIndex: 2,
+  },
 ];
-const MOCK_EMBEDDINGS = [[0.1, 0.2, 0.3], [0.4, 0.5, 0.6], [0.7, 0.8, 0.9]];
+const MOCK_EMBEDDINGS = [
+  [0.1, 0.2, 0.3],
+  [0.4, 0.5, 0.6],
+  [0.7, 0.8, 0.9],
+];
 
 const mockSections = [
-  { title: "Intro", level: 1, sectionType: "section", textContent: "Intro text", orderIndex: 0, children: [] },
+  {
+    title: "Intro",
+    level: 1,
+    sectionType: "section",
+    textContent: "Intro text",
+    orderIndex: 0,
+    children: [],
+  },
 ];
 const mockFacts = [
-  { factType: "date" as const, value: "2024-01-01", normalizedValue: "2024-01-01", context: "ctx", confidence: 0.9 },
+  {
+    factType: "date" as const,
+    value: "2024-01-01",
+    normalizedValue: "2024-01-01",
+    context: "ctx",
+    confidence: 0.9,
+  },
 ];
 
 describe("processChunkingStage", () => {
@@ -64,7 +125,9 @@ describe("processChunkingStage", () => {
     vi.clearAllMocks();
     vi.mocked(buildChunks).mockReturnValue(MOCK_CHUNKS as any);
     vi.mocked(embedBatch).mockResolvedValue(MOCK_EMBEDDINGS as any);
-    mockWithTransaction.mockImplementation(async (fn: any) => fn(mockTransactionClient));
+    mockWithTransaction.mockImplementation(async (fn: any) =>
+      fn(mockTransactionClient),
+    );
     mockPersistSections.mockResolvedValue(new Map());
     mockPersistChunks.mockResolvedValue(undefined);
     mockPersistFacts.mockResolvedValue(undefined);
@@ -140,8 +203,16 @@ describe("processChunkingStage", () => {
     await processChunkingStage(state);
 
     expect(mockWithTransaction).toHaveBeenCalledOnce();
-    expect(mockPersistSections).toHaveBeenCalledWith(mockTransactionClient, "doc-123", mockSections);
-    expect(mockPersistFacts).toHaveBeenCalledWith(mockTransactionClient, "doc-123", mockFacts);
+    expect(mockPersistSections).toHaveBeenCalledWith(
+      mockTransactionClient,
+      "doc-123",
+      mockSections,
+    );
+    expect(mockPersistFacts).toHaveBeenCalledWith(
+      mockTransactionClient,
+      "doc-123",
+      mockFacts,
+    );
     expect(mockPersistChunks).toHaveBeenCalledOnce();
   });
 
@@ -175,7 +246,10 @@ describe("processChunkingStage", () => {
     await processChunkingStage(state);
 
     expect(reportStage).toHaveBeenCalledWith(
-      expect.objectContaining({ toStatus: "CHUNKING", eventType: "chunking_completed" }),
+      expect.objectContaining({
+        toStatus: "CHUNKING",
+        eventType: "chunking_completed",
+      }),
     );
     expect(reportProgress).toHaveBeenCalled();
   });
@@ -216,8 +290,8 @@ describe("processChunkingStage", () => {
     await processChunkingStage(state);
 
     const progressCalls = vi.mocked(reportProgress).mock.calls;
-    const planCall = progressCalls.find((c) =>
-      c[0]?.payload && "by_level" in (c[0].payload as any),
+    const planCall = progressCalls.find(
+      (c) => c[0]?.payload && "by_level" in (c[0].payload as any),
     );
     expect(planCall).toBeDefined();
     const byLevel = (planCall![0].payload as any).by_level;

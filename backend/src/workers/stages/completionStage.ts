@@ -3,7 +3,9 @@ import { reportStage } from "../stageReporter";
 import { withTransaction } from "../../db/pool";
 import type { AnalysisState } from "./types";
 
-export async function processCompletionStage(state: AnalysisState): Promise<void> {
+export async function processCompletionStage(
+  state: AnalysisState,
+): Promise<void> {
   const { job, workerId } = state;
   let { currentStatus } = state;
   const { documentId, userId, analysisRequestId, analysisVersion } = job.data;

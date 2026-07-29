@@ -29,15 +29,38 @@ const {
   mockClearDerived,
 } = vi.hoisted(() => ({
   MOCK_SECTIONS: [
-    { title: "Introduction", level: 1, sectionType: "section", textContent: "This agreement is between Party A and Party B.", orderIndex: 0, children: [] },
+    {
+      title: "Introduction",
+      level: 1,
+      sectionType: "section",
+      textContent: "This agreement is between Party A and Party B.",
+      orderIndex: 0,
+      children: [],
+    },
   ],
   MOCK_FACTS: [
-    { factType: "date", value: "2024-03-01", normalizedValue: "2024-03-01", context: "effective date", confidence: 0.9 },
+    {
+      factType: "date",
+      value: "2024-03-01",
+      normalizedValue: "2024-03-01",
+      context: "effective date",
+      confidence: 0.9,
+    },
   ],
-  MOCK_QUALITY: { quality: "good" as const, ocrConfidence: 0.95, textCoverage: 1 },
+  MOCK_QUALITY: {
+    quality: "good" as const,
+    ocrConfidence: 0.95,
+    textCoverage: 1,
+  },
   MOCK_EMBEDDINGS: [[0.1, 0.2, 0.3]],
   MOCK_CHUNKS: [
-    { content: "This agreement is between Party A and Party B.", chunkLevel: "paragraph", documentId: "doc-123", sectionId: null, orderIndex: 0 },
+    {
+      content: "This agreement is between Party A and Party B.",
+      chunkLevel: "paragraph",
+      documentId: "doc-123",
+      sectionId: null,
+      orderIndex: 0,
+    },
   ],
   mockPersistSections: vi.fn().mockResolvedValue(new Map()),
   mockPersistChunks: vi.fn().mockResolvedValue(undefined),
@@ -123,7 +146,10 @@ const mockDbClient = {
   query: vi.fn().mockImplementation(async (sql: string, params?: any[]) => {
     dbQueries.push(sql);
     if (sql.includes("document_pipeline_outbox")) {
-      outboxInserts.push({ aggregateId: params?.[0], payload: params?.[1] ? JSON.parse(params[1]) : null });
+      outboxInserts.push({
+        aggregateId: params?.[0],
+        payload: params?.[1] ? JSON.parse(params[1]) : null,
+      });
     }
     if (sql.includes("extracted_content")) {
       // Store on the mock doc so resume path tests can access it
@@ -139,7 +165,9 @@ vi.mock("../../db/pool", () => ({
       return { rows: [], rowCount: 0 };
     }),
   },
-  withTransaction: vi.fn().mockImplementation(async (fn: any) => fn(mockDbClient)),
+  withTransaction: vi
+    .fn()
+    .mockImplementation(async (fn: any) => fn(mockDbClient)),
 }));
 
 // ---------------------------------------------------------------------------
@@ -188,7 +216,9 @@ describe("Pipeline Integration – Fresh Document (QUEUED → PREPROCESSING_COMP
 
     state = await processExtractionStage(state);
     expect(state.rawText).toBeDefined();
-    expect(state.rawText).toBe("This agreement is between Party A and Party B.");
+    expect(state.rawText).toBe(
+      "This agreement is between Party A and Party B.",
+    );
     expect(state.extractionMethod).toBe("embedded");
     expect(state.ocrConfidence).toBe(0.95);
   });
@@ -202,7 +232,9 @@ describe("Pipeline Integration – Fresh Document (QUEUED → PREPROCESSING_COMP
 
     // cleanText must be set from the extraction's rawText
     expect(state.cleanText).toBeDefined();
-    expect(state.cleanText).toBe("This agreement is between Party A and Party B.");
+    expect(state.cleanText).toBe(
+      "This agreement is between Party A and Party B.",
+    );
     expect(state.currentStatus).toBe("CLEANING");
   });
 
@@ -228,9 +260,9 @@ describe("Pipeline Integration – Fresh Document (QUEUED → PREPROCESSING_COMP
     state = await processCleaningStage(state);
     await processAwaitingVerificationStage(state); // halts here
 
-    const reportedStatuses = vi.mocked(reportStage).mock.calls.map(
-      (c) => c[0].toStatus,
-    );
+    const reportedStatuses = vi
+      .mocked(reportStage)
+      .mock.calls.map((c) => c[0].toStatus);
     expect(reportedStatuses).toEqual([
       "PROCESSING",
       "EXTRACTING",
@@ -279,7 +311,8 @@ describe("Pipeline Integration – Resume Path (VERIFIED → PREPROCESSING_COMPL
 
   it("sections from resume path flow into structuring stage correctly", async () => {
     const state = makeResumedState();
-    const { state: hydratedState } = await processAwaitingVerificationStage(state);
+    const { state: hydratedState } =
+      await processAwaitingVerificationStage(state);
 
     const structured = await processStructuringStage(hydratedState);
 
@@ -289,7 +322,8 @@ describe("Pipeline Integration – Resume Path (VERIFIED → PREPROCESSING_COMPL
 
   it("facts and sections from resume flow into chunking stage", async () => {
     const state = makeResumedState();
-    const { state: hydratedState } = await processAwaitingVerificationStage(state);
+    const { state: hydratedState } =
+      await processAwaitingVerificationStage(state);
     const structured = await processStructuringStage(hydratedState);
 
     const chunked = await processChunkingStage(structured);
@@ -302,7 +336,8 @@ describe("Pipeline Integration – Resume Path (VERIFIED → PREPROCESSING_COMPL
 
   it("chunking stage calls embedBatch and persists all data", async () => {
     const state = makeResumedState();
-    const { state: hydratedState } = await processAwaitingVerificationStage(state);
+    const { state: hydratedState } =
+      await processAwaitingVerificationStage(state);
     const structured = await processStructuringStage(hydratedState);
     await processChunkingStage(structured);
 
@@ -314,14 +349,17 @@ describe("Pipeline Integration – Resume Path (VERIFIED → PREPROCESSING_COMPL
 
   it("full post-verification pipeline reaches PREPROCESSING_COMPLETED", async () => {
     const state = makeResumedState();
-    const { state: hydratedState } = await processAwaitingVerificationStage(state);
+    const { state: hydratedState } =
+      await processAwaitingVerificationStage(state);
     let s = await processStructuringStage(hydratedState);
     s = await processChunkingStage(s);
     s = await processEmbeddingStage(s);
     s = await processSummarizingStage(s);
     await processCompletionStage(s);
 
-    const statuses = vi.mocked(reportStage).mock.calls.map((c) => c[0].toStatus);
+    const statuses = vi
+      .mocked(reportStage)
+      .mock.calls.map((c) => c[0].toStatus);
     expect(statuses).toContain("STRUCTURING");
     expect(statuses).toContain("CHUNKING");
     expect(statuses).toContain("EMBEDDING");
@@ -331,7 +369,8 @@ describe("Pipeline Integration – Resume Path (VERIFIED → PREPROCESSING_COMPL
 
   it("completionStage inserts outbox event with correct payload", async () => {
     const state = makeResumedState();
-    const { state: hydratedState } = await processAwaitingVerificationStage(state);
+    const { state: hydratedState } =
+      await processAwaitingVerificationStage(state);
     let s = await processStructuringStage(hydratedState);
     s = await processChunkingStage(s);
     s = await processEmbeddingStage(s);
@@ -349,7 +388,8 @@ describe("Pipeline Integration – Resume Path (VERIFIED → PREPROCESSING_COMPL
 
   it("title and summary from resume path flow into summarizing stage payload", async () => {
     const state = makeResumedState();
-    const { state: hydratedState } = await processAwaitingVerificationStage(state);
+    const { state: hydratedState } =
+      await processAwaitingVerificationStage(state);
     let s = await processStructuringStage(hydratedState);
     s = await processChunkingStage(s);
     s = await processEmbeddingStage(s);
@@ -399,7 +439,9 @@ describe("Pipeline Integration – Skip-Completed Stages", () => {
 
     state = await processStructuringStage(state);
 
-    const reportedSoFar = vi.mocked(reportStage).mock.calls.map((c) => c[0].toStatus);
+    const reportedSoFar = vi
+      .mocked(reportStage)
+      .mock.calls.map((c) => c[0].toStatus);
     // None of the already-passed stages should have been reported
     expect(reportedSoFar).not.toContain("PROCESSING");
     expect(reportedSoFar).not.toContain("EXTRACTING");
@@ -423,7 +465,9 @@ describe("Pipeline Integration – Skip-Completed Stages", () => {
     state = await processSummarizingStage(state);
     await processCompletionStage(state);
 
-    const statuses = vi.mocked(reportStage).mock.calls.map((c) => c[0].toStatus);
+    const statuses = vi
+      .mocked(reportStage)
+      .mock.calls.map((c) => c[0].toStatus);
     expect(statuses).toContain("EMBEDDING");
     expect(statuses).toContain("SUMMARIZING");
     expect(statuses).toContain("PREPROCESSING_COMPLETED");
@@ -464,18 +508,28 @@ describe("Pipeline Integration – analysisWorker guard logic", () => {
   it("skips all stages when document is in terminal COMPLETED state", async () => {
     // This mirrors the guard in processAnalysisJob
     const TERMINAL_STATUSES = [
-      "COMPLETED", "CANCELLED", "FAILED",
-      "AWAITING_VERIFICATION", "PREPROCESSING_COMPLETED",
-      "AI_QUEUED", "AI_PROCESSING", "AI_COMPLETED",
+      "COMPLETED",
+      "CANCELLED",
+      "FAILED",
+      "AWAITING_VERIFICATION",
+      "PREPROCESSING_COMPLETED",
+      "AI_QUEUED",
+      "AI_PROCESSING",
+      "AI_COMPLETED",
     ] as const;
 
     for (const status of TERMINAL_STATUSES) {
       const doc = makeDoc({ analysis_status: status as any });
       // The guard checks doc.analysis_status directly — not a stage call
       const shouldSkip = [
-        "COMPLETED", "CANCELLED", "FAILED",
-        "AWAITING_VERIFICATION", "PREPROCESSING_COMPLETED",
-        "AI_QUEUED", "AI_PROCESSING", "AI_COMPLETED",
+        "COMPLETED",
+        "CANCELLED",
+        "FAILED",
+        "AWAITING_VERIFICATION",
+        "PREPROCESSING_COMPLETED",
+        "AI_QUEUED",
+        "AI_PROCESSING",
+        "AI_COMPLETED",
       ].includes(doc.analysis_status);
       expect(shouldSkip).toBe(true);
     }

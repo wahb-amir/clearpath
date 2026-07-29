@@ -10,18 +10,46 @@ vi.mock("../../stageReporter", () => ({
 // declarations so file-level variables are not yet initialised when they run.
 vi.mock("../../../services/ingestion/buildStructure", () => ({
   buildDocumentStructure: vi.fn().mockReturnValue([
-    { title: "Introduction", level: 1, sectionType: "section", textContent: "Intro text", orderIndex: 0, children: [] },
-    { title: "Terms", level: 1, sectionType: "section", textContent: "Terms text", orderIndex: 1, children: [] },
+    {
+      title: "Introduction",
+      level: 1,
+      sectionType: "section",
+      textContent: "Intro text",
+      orderIndex: 0,
+      children: [],
+    },
+    {
+      title: "Terms",
+      level: 1,
+      sectionType: "section",
+      textContent: "Terms text",
+      orderIndex: 1,
+      children: [],
+    },
   ]),
 }));
 vi.mock("../../../services/ingestion/extractFacts", () => ({
   extractFacts: vi.fn().mockReturnValue([
-    { factType: "date", value: "2024-03-01", normalizedValue: "2024-03-01", context: "effective date", confidence: 0.9 },
-    { factType: "email", value: "legal@example.com", normalizedValue: undefined, context: "contact", confidence: 0.95 },
+    {
+      factType: "date",
+      value: "2024-03-01",
+      normalizedValue: "2024-03-01",
+      context: "effective date",
+      confidence: 0.9,
+    },
+    {
+      factType: "email",
+      value: "legal@example.com",
+      normalizedValue: undefined,
+      context: "contact",
+      confidence: 0.95,
+    },
   ]),
 }));
 vi.mock("../../../services/ingestion/estimateQuality", () => ({
-  estimateQuality: vi.fn().mockReturnValue({ quality: "good", ocrConfidence: 1, textCoverage: 1 }),
+  estimateQuality: vi
+    .fn()
+    .mockReturnValue({ quality: "good", ocrConfidence: 1, textCoverage: 1 }),
 }));
 vi.mock("../../../services/ingestion/generateSummary", () => ({
   generateSummary: vi.fn().mockReturnValue({
@@ -51,14 +79,44 @@ import { estimateQuality } from "../../../services/ingestion/estimateQuality";
 import { generateSummary } from "../../../services/ingestion/generateSummary";
 
 const MOCK_SECTIONS = [
-  { title: "Introduction", level: 1, sectionType: "section", textContent: "Intro text", orderIndex: 0, children: [] },
-  { title: "Terms", level: 1, sectionType: "section", textContent: "Terms text", orderIndex: 1, children: [] },
+  {
+    title: "Introduction",
+    level: 1,
+    sectionType: "section",
+    textContent: "Intro text",
+    orderIndex: 0,
+    children: [],
+  },
+  {
+    title: "Terms",
+    level: 1,
+    sectionType: "section",
+    textContent: "Terms text",
+    orderIndex: 1,
+    children: [],
+  },
 ];
 const MOCK_FACTS = [
-  { factType: "date", value: "2024-03-01", normalizedValue: "2024-03-01", context: "effective date", confidence: 0.9 },
-  { factType: "email", value: "legal@example.com", normalizedValue: undefined, context: "contact", confidence: 0.95 },
+  {
+    factType: "date",
+    value: "2024-03-01",
+    normalizedValue: "2024-03-01",
+    context: "effective date",
+    confidence: 0.9,
+  },
+  {
+    factType: "email",
+    value: "legal@example.com",
+    normalizedValue: undefined,
+    context: "contact",
+    confidence: 0.95,
+  },
 ];
-const MOCK_QUALITY = { quality: "good" as const, ocrConfidence: 1, textCoverage: 1 };
+const MOCK_QUALITY = {
+  quality: "good" as const,
+  ocrConfidence: 1,
+  textCoverage: 1,
+};
 
 describe("processAwaitingVerificationStage", () => {
   beforeEach(() => {
@@ -81,7 +139,10 @@ describe("processAwaitingVerificationStage", () => {
   // -------------------------------------------------------------------------
   describe("first-run path (status = CLEANING)", () => {
     it("calls buildDocumentStructure, extractFacts, estimateQuality, generateSummary", async () => {
-      const state = makeState({ status: "CLEANING", cleanText: "contract text" });
+      const state = makeState({
+        status: "CLEANING",
+        cleanText: "contract text",
+      });
 
       await processAwaitingVerificationStage(state);
 
@@ -101,17 +162,22 @@ describe("processAwaitingVerificationStage", () => {
     });
 
     it("persists extracted_content to DB via transaction", async () => {
-      const state = makeState({ status: "CLEANING", cleanText: "contract text" });
+      const state = makeState({
+        status: "CLEANING",
+        cleanText: "contract text",
+      });
       let capturedContent: any;
 
       mockWithTransaction.mockImplementation(async (fn: any) => {
         const client = {
-          query: vi.fn().mockImplementation(async (sql: string, params: any[]) => {
-            if (sql.includes("extracted_content")) {
-              capturedContent = JSON.parse(params[0]);
-            }
-            return { rows: [] };
-          }),
+          query: vi
+            .fn()
+            .mockImplementation(async (sql: string, params: any[]) => {
+              if (sql.includes("extracted_content")) {
+                capturedContent = JSON.parse(params[0]);
+              }
+              return { rows: [] };
+            }),
         };
         await fn(client);
       });
@@ -157,12 +223,14 @@ describe("processAwaitingVerificationStage", () => {
 
       mockWithTransaction.mockImplementation(async (fn: any) => {
         const client = {
-          query: vi.fn().mockImplementation(async (sql: string, params: any[]) => {
-            if (sql.includes("extracted_content")) {
-              capturedContent = JSON.parse(params[0]);
-            }
-            return { rows: [] };
-          }),
+          query: vi
+            .fn()
+            .mockImplementation(async (sql: string, params: any[]) => {
+              if (sql.includes("extracted_content")) {
+                capturedContent = JSON.parse(params[0]);
+              }
+              return { rows: [] };
+            }),
         };
         await fn(client);
       });
@@ -185,7 +253,10 @@ describe("processAwaitingVerificationStage", () => {
     it("does NOT call buildDocumentStructure, extractFacts, generateSummary", async () => {
       const state = makeState({
         status: "VERIFIED",
-        docOverrides: { extracted_content: SAMPLE_EXTRACTED_CONTENT, analysis_status: "VERIFIED" },
+        docOverrides: {
+          extracted_content: SAMPLE_EXTRACTED_CONTENT,
+          analysis_status: "VERIFIED",
+        },
       });
 
       await processAwaitingVerificationStage(state);
@@ -198,7 +269,10 @@ describe("processAwaitingVerificationStage", () => {
     it("returns halt: false", async () => {
       const state = makeState({
         status: "VERIFIED",
-        docOverrides: { extracted_content: SAMPLE_EXTRACTED_CONTENT, analysis_status: "VERIFIED" },
+        docOverrides: {
+          extracted_content: SAMPLE_EXTRACTED_CONTENT,
+          analysis_status: "VERIFIED",
+        },
       });
 
       const result = await processAwaitingVerificationStage(state);
@@ -209,7 +283,10 @@ describe("processAwaitingVerificationStage", () => {
     it("populates sections on returned state from doc.extracted_content", async () => {
       const state = makeState({
         status: "VERIFIED",
-        docOverrides: { extracted_content: SAMPLE_EXTRACTED_CONTENT, analysis_status: "VERIFIED" },
+        docOverrides: {
+          extracted_content: SAMPLE_EXTRACTED_CONTENT,
+          analysis_status: "VERIFIED",
+        },
       });
 
       const result = await processAwaitingVerificationStage(state);
@@ -222,7 +299,10 @@ describe("processAwaitingVerificationStage", () => {
     it("populates facts on returned state reconstructed from dates/contacts/amounts/referenceIds", async () => {
       const state = makeState({
         status: "VERIFIED",
-        docOverrides: { extracted_content: SAMPLE_EXTRACTED_CONTENT, analysis_status: "VERIFIED" },
+        docOverrides: {
+          extracted_content: SAMPLE_EXTRACTED_CONTENT,
+          analysis_status: "VERIFIED",
+        },
       });
 
       const result = await processAwaitingVerificationStage(state);
@@ -234,7 +314,10 @@ describe("processAwaitingVerificationStage", () => {
     it("populates title and summary from doc.extracted_content", async () => {
       const state = makeState({
         status: "VERIFIED",
-        docOverrides: { extracted_content: SAMPLE_EXTRACTED_CONTENT, analysis_status: "VERIFIED" },
+        docOverrides: {
+          extracted_content: SAMPLE_EXTRACTED_CONTENT,
+          analysis_status: "VERIFIED",
+        },
       });
 
       const result = await processAwaitingVerificationStage(state);
@@ -246,7 +329,10 @@ describe("processAwaitingVerificationStage", () => {
     it("does not call reportStage on resume path", async () => {
       const state = makeState({
         status: "VERIFIED",
-        docOverrides: { extracted_content: SAMPLE_EXTRACTED_CONTENT, analysis_status: "VERIFIED" },
+        docOverrides: {
+          extracted_content: SAMPLE_EXTRACTED_CONTENT,
+          analysis_status: "VERIFIED",
+        },
       });
 
       await processAwaitingVerificationStage(state);

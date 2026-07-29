@@ -1,7 +1,5 @@
 import { describe, it, expect } from "vitest";
-import {
-  detectFileCategory,
-} from "../../stages/detectFileType";
+import { detectFileCategory } from "../../stages/detectFileType";
 import { UnsupportedFileTypeError } from "../../../types/errors";
 
 describe("detectFileCategory", () => {

@@ -14,7 +14,11 @@ describe("processSummarizingStage", () => {
   });
 
   it("reports SUMMARIZING stage when not yet past it", async () => {
-    const state = makeState({ status: "EMBEDDING", title: "My Doc", summary: "A summary" });
+    const state = makeState({
+      status: "EMBEDDING",
+      title: "My Doc",
+      summary: "A summary",
+    });
 
     await processSummarizingStage(state);
 
@@ -28,7 +32,11 @@ describe("processSummarizingStage", () => {
   });
 
   it("includes title and summary from state in the payload", async () => {
-    const state = makeState({ status: "EMBEDDING", title: "My Doc", summary: "A summary" });
+    const state = makeState({
+      status: "EMBEDDING",
+      title: "My Doc",
+      summary: "A summary",
+    });
 
     await processSummarizingStage(state);
 
@@ -40,7 +48,11 @@ describe("processSummarizingStage", () => {
   });
 
   it("updates currentStatus to SUMMARIZING", async () => {
-    const state = makeState({ status: "EMBEDDING", title: "My Doc", summary: "A summary" });
+    const state = makeState({
+      status: "EMBEDDING",
+      title: "My Doc",
+      summary: "A summary",
+    });
 
     const result = await processSummarizingStage(state);
 
@@ -70,7 +82,11 @@ describe("processSummarizingStage", () => {
   });
 
   it("preserves all other state fields", async () => {
-    const state = makeState({ status: "EMBEDDING", rawText: "raw", cleanText: "clean" });
+    const state = makeState({
+      status: "EMBEDDING",
+      rawText: "raw",
+      cleanText: "clean",
+    });
 
     const result = await processSummarizingStage(state);
 

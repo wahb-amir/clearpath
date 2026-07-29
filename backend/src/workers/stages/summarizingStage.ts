@@ -2,7 +2,9 @@ import { isStageCompleteOrPast } from "../../types/pipelineStatus";
 import { reportStage } from "../stageReporter";
 import type { AnalysisState } from "./types";
 
-export async function processSummarizingStage(state: AnalysisState): Promise<AnalysisState> {
+export async function processSummarizingStage(
+  state: AnalysisState,
+): Promise<AnalysisState> {
   const { job, workerId, title, summary } = state;
   let { currentStatus } = state;
   const { documentId, userId } = job.data;

@@ -31,9 +31,7 @@ export function makeJob(
 // ---------------------------------------------------------------------------
 // Minimal DocumentRow mock
 // ---------------------------------------------------------------------------
-export function makeDoc(
-  overrides: Partial<DocumentRow> = {},
-): DocumentRow {
+export function makeDoc(overrides: Partial<DocumentRow> = {}): DocumentRow {
   return {
     id: "doc-123",
     user_id: "user-789",
@@ -92,7 +90,11 @@ export const SAMPLE_EXTRACTED_CONTENT = {
   ocrConfidence: 1,
   extractionMethod: "embedded",
   sections: [
-    { index: 0, title: "Introduction", content: "This agreement is between..." },
+    {
+      index: 0,
+      title: "Introduction",
+      content: "This agreement is between...",
+    },
     { index: 1, title: "Terms", content: "The terms are as follows..." },
   ],
   dates: [
@@ -112,9 +114,7 @@ export const SAMPLE_EXTRACTED_CONTENT = {
       confidence: 0.95,
     },
   ],
-  amounts: [
-    { value: "$5,000", context: "monthly payment", confidence: 0.85 },
-  ],
+  amounts: [{ value: "$5,000", context: "monthly payment", confidence: 0.85 }],
   referenceIds: [
     { value: "AGR-2024-001", context: "agreement number", confidence: 0.99 },
   ],

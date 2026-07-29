@@ -18,7 +18,9 @@ function countSections(
   return count;
 }
 
-export async function processStructuringStage(state: AnalysisState): Promise<AnalysisState> {
+export async function processStructuringStage(
+  state: AnalysisState,
+): Promise<AnalysisState> {
   const { job, workerId, sections, facts, quality } = state;
   let { currentStatus } = state;
   const { documentId, userId } = job.data;

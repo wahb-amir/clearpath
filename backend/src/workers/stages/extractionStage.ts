@@ -21,7 +21,9 @@ async function downloadFromStorage(storagePath: string): Promise<Buffer> {
   return Buffer.from(arrayBuffer);
 }
 
-export async function processExtractionStage(state: AnalysisState): Promise<AnalysisState> {
+export async function processExtractionStage(
+  state: AnalysisState,
+): Promise<AnalysisState> {
   const { job, workerId } = state;
   let { currentStatus } = state;
   const { documentId, userId, storagePath, mimeType } = job.data;

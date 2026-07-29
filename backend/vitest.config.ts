@@ -10,7 +10,11 @@ export default defineConfig({
       provider: "v8",
       reporter: ["text", "html", "lcov"],
       include: ["src/workers/**/*.ts"],
-      exclude: ["src/workers/__tests__/**", "src/workers/run.ts", "src/workers/runClearpathAnalysisWorker.ts"],
+      exclude: [
+        "src/workers/__tests__/**",
+        "src/workers/run.ts",
+        "src/workers/runClearpathAnalysisWorker.ts",
+      ],
     },
   },
   resolve: {
