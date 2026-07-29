@@ -10,7 +10,7 @@ vi.mock("../../stageReporter", () => ({
 vi.mock("../../../services/ingestion/cleanText", () => ({
   cleanExtractedText: vi.fn().mockReturnValue({
     cleanText: "cleaned text content",
-    correctionsApplied: 3,
+    correctionsApplied: true,
   }),
 }));
 
@@ -37,7 +37,7 @@ describe("processCleaningStage", () => {
     vi.clearAllMocks();
     vi.mocked(cleanExtractedText).mockReturnValue({
       cleanText: "cleaned text content",
-      correctionsApplied: 3,
+      correctionsApplied: true,
     });
     vi.mocked(detectLanguage).mockReturnValue({ code: "en", name: "English" });
     vi.mocked(pgPool.query).mockResolvedValue({ rows: [], rowCount: 0 } as any);
@@ -104,7 +104,7 @@ describe("processCleaningStage", () => {
 
     expect(reportStage).toHaveBeenCalledWith(
       expect.objectContaining({
-        payload: expect.objectContaining({ correctionsApplied: 3 }),
+        payload: expect.objectContaining({ correctionsApplied: true }),
       }),
     );
   });

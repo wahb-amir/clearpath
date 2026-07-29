@@ -40,7 +40,7 @@ const mockWithTransaction = vi.fn(async (fn: any) => {
 
 vi.mock("../../../db/pool", () => ({
   pgPool: { query: vi.fn().mockResolvedValue({ rows: [], rowCount: 0 }) },
-  withTransaction: (...args: any[]) => mockWithTransaction(...args),
+  withTransaction: (fn: any) => mockWithTransaction(fn),
 }));
 
 import { processAwaitingVerificationStage } from "../../stages/awaitingVerificationStage";

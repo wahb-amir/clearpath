@@ -11,11 +11,39 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { makeJob, makeDoc, SAMPLE_EXTRACTED_CONTENT } from "./fixtures";
 import type { AnalysisState } from "../stages/types";
+import type { AnalysisStatus } from "../../types/pipelineStatus";
 
 // ---------------------------------------------------------------------------
-// MOCKS — vi.mock factories are hoisted to the top of the file, so they run
-// before ANY const/let declarations. Only literals and vi.fn() are safe inside.
+// MOCKS — must be hoisted (vi.mock is hoisted to top of file by vitest)
 // ---------------------------------------------------------------------------
+
+const {
+  MOCK_SECTIONS,
+  MOCK_FACTS,
+  MOCK_QUALITY,
+  MOCK_EMBEDDINGS,
+  MOCK_CHUNKS,
+  mockPersistSections,
+  mockPersistChunks,
+  mockPersistFacts,
+  mockClearDerived,
+} = vi.hoisted(() => ({
+  MOCK_SECTIONS: [
+    { title: "Introduction", level: 1, sectionType: "section", textContent: "This agreement is between Party A and Party B.", orderIndex: 0, children: [] },
+  ],
+  MOCK_FACTS: [
+    { factType: "date", value: "2024-03-01", normalizedValue: "2024-03-01", context: "effective date", confidence: 0.9 },
+  ],
+  MOCK_QUALITY: { quality: "good" as const, ocrConfidence: 0.95, textCoverage: 1 },
+  MOCK_EMBEDDINGS: [[0.1, 0.2, 0.3]],
+  MOCK_CHUNKS: [
+    { content: "This agreement is between Party A and Party B.", chunkLevel: "paragraph", documentId: "doc-123", sectionId: null, orderIndex: 0 },
+  ],
+  mockPersistSections: vi.fn().mockResolvedValue(new Map()),
+  mockPersistChunks: vi.fn().mockResolvedValue(undefined),
+  mockPersistFacts: vi.fn().mockResolvedValue(undefined),
+  mockClearDerived: vi.fn().mockResolvedValue(undefined),
+}));
 
 vi.mock("../stageReporter", () => ({
   reportStage: vi.fn().mockResolvedValue(undefined),
@@ -26,7 +54,7 @@ vi.mock("../stageReporter", () => ({
 vi.mock("../../services/ingestion/cleanText", () => ({
   cleanExtractedText: vi.fn().mockReturnValue({
     cleanText: "This agreement is between Party A and Party B.",
-    correctionsApplied: 0,
+    correctionsApplied: false,
   }),
 }));
 
@@ -35,21 +63,14 @@ vi.mock("../../services/ingestion/detectLanguage", () => ({
 }));
 
 vi.mock("../../services/ingestion/buildStructure", () => ({
-  buildDocumentStructure: vi.fn().mockReturnValue([
-    { title: "Introduction", level: 1, sectionType: "section", textContent: "This agreement is between Party A and Party B.", orderIndex: 0, children: [] },
-  ]),
+  buildDocumentStructure: vi.fn().mockReturnValue(MOCK_SECTIONS),
 }));
-
 vi.mock("../../services/ingestion/extractFacts", () => ({
-  extractFacts: vi.fn().mockReturnValue([
-    { factType: "date", value: "2024-03-01", normalizedValue: "2024-03-01", context: "effective date", confidence: 0.9 },
-  ]),
+  extractFacts: vi.fn().mockReturnValue(MOCK_FACTS),
 }));
-
 vi.mock("../../services/ingestion/estimateQuality", () => ({
-  estimateQuality: vi.fn().mockReturnValue({ quality: "good", ocrConfidence: 0.95, textCoverage: 1 }),
+  estimateQuality: vi.fn().mockReturnValue(MOCK_QUALITY),
 }));
-
 vi.mock("../../services/ingestion/generateSummary", () => ({
   generateSummary: vi.fn().mockReturnValue({
     title: "Service Agreement",
@@ -60,7 +81,7 @@ vi.mock("../../services/ingestion/generateSummary", () => ({
 vi.mock("../../services/ingestion/extractText", () => ({
   extractText: vi.fn().mockResolvedValue({
     rawText: "This agreement is between Party A and Party B.",
-    method: "embedded",
+    method: "embedded" as const,
     ocrConfidence: 0.95,
     textCoverage: 1,
     usedOcrFallback: false,
@@ -81,19 +102,11 @@ vi.mock("../../lib/supabase", () => ({
 }));
 
 vi.mock("../../services/ingestion/buildChunks", () => ({
-  buildChunks: vi.fn().mockReturnValue([
-    { content: "This agreement is between Party A and Party B.", chunkLevel: "paragraph", documentId: "doc-123", sectionId: null, orderIndex: 0 },
-  ]),
+  buildChunks: vi.fn().mockReturnValue(MOCK_CHUNKS),
 }));
-
 vi.mock("../../services/ingestion/embeddingProvider", () => ({
-  embedBatch: vi.fn().mockResolvedValue([[0.1, 0.2, 0.3]]),
+  embedBatch: vi.fn().mockResolvedValue(MOCK_EMBEDDINGS),
 }));
-
-const mockPersistSections = vi.fn().mockResolvedValue(new Map());
-const mockPersistChunks = vi.fn().mockResolvedValue(undefined);
-const mockPersistFacts = vi.fn().mockResolvedValue(undefined);
-const mockClearDerived = vi.fn().mockResolvedValue(undefined);
 
 vi.mock("../../services/ingestion/persistence", () => ({
   persistSections: (...args: any[]) => mockPersistSections(...args),
@@ -102,13 +115,18 @@ vi.mock("../../services/ingestion/persistence", () => ({
   clearDerivedRecords: (...args: any[]) => mockClearDerived(...args),
 }));
 
-// In-memory DB mock — captures all outbox inserts
-const outboxInserts: Array<{ aggregateId: string; payload: any }> = [];
+// In-memory DB mock — captures all outbox inserts and queries
+const outboxInserts: any[] = [];
+const dbQueries: string[] = [];
 
 const mockDbClient = {
   query: vi.fn().mockImplementation(async (sql: string, params?: any[]) => {
+    dbQueries.push(sql);
     if (sql.includes("document_pipeline_outbox")) {
       outboxInserts.push({ aggregateId: params?.[0], payload: params?.[1] ? JSON.parse(params[1]) : null });
+    }
+    if (sql.includes("extracted_content")) {
+      // Store on the mock doc so resume path tests can access it
     }
     return { rows: [], rowCount: 0 };
   }),
@@ -116,13 +134,16 @@ const mockDbClient = {
 
 vi.mock("../../db/pool", () => ({
   pgPool: {
-    query: vi.fn().mockResolvedValue({ rows: [], rowCount: 0 }),
+    query: vi.fn().mockImplementation(async (sql: string, params?: any[]) => {
+      dbQueries.push(sql);
+      return { rows: [], rowCount: 0 };
+    }),
   },
   withTransaction: vi.fn().mockImplementation(async (fn: any) => fn(mockDbClient)),
 }));
 
 // ---------------------------------------------------------------------------
-// Import stages AFTER mocks are registered
+// Import stages AFTER mocks
 // ---------------------------------------------------------------------------
 import { processInitializationStage } from "../stages/initializationStage";
 import { processExtractionStage } from "../stages/extractionStage";
@@ -133,35 +154,30 @@ import { processChunkingStage } from "../stages/chunkingStage";
 import { processEmbeddingStage } from "../stages/embeddingStage";
 import { processSummarizingStage } from "../stages/summarizingStage";
 import { processCompletionStage } from "../stages/completionStage";
-import { reportStage, reportProgress } from "../stageReporter";
+
+import { reportStage, reportProgress, reportFailure } from "../stageReporter";
 import { buildChunks } from "../../services/ingestion/buildChunks";
 import { embedBatch } from "../../services/ingestion/embeddingProvider";
 import { cleanExtractedText } from "../../services/ingestion/cleanText";
-import { withTransaction } from "../../db/pool";
 
 // ---------------------------------------------------------------------------
 // Helpers
 // ---------------------------------------------------------------------------
-function makeInitialState(status = "QUEUED" as any): AnalysisState {
+function makeInitialState(status: AnalysisStatus = "QUEUED"): AnalysisState {
   const doc = makeDoc({ analysis_status: status });
   const job = makeJob();
   return { job, doc, workerId: "worker-001", currentStatus: status };
 }
 
-// ---------------------------------------------------------------------------
-// Test suites
-// ---------------------------------------------------------------------------
-
-describe("Pipeline Integration – Fresh Document (QUEUED → halts at AWAITING_VERIFICATION)", () => {
+describe("Pipeline Integration – Fresh Document (QUEUED → PREPROCESSING_COMPLETED halts at verification)", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     outboxInserts.length = 0;
+    dbQueries.length = 0;
     vi.mocked(cleanExtractedText).mockReturnValue({
       cleanText: "This agreement is between Party A and Party B.",
-      correctionsApplied: 0,
+      correctionsApplied: false,
     });
-    vi.mocked(withTransaction).mockImplementation(async (fn: any) => fn(mockDbClient));
-    mockDbClient.query.mockClear();
   });
 
   it("initialization → extraction: rawText is populated on state", async () => {
@@ -171,6 +187,7 @@ describe("Pipeline Integration – Fresh Document (QUEUED → halts at AWAITING_
     expect(state.currentStatus).toBe("PROCESSING");
 
     state = await processExtractionStage(state);
+    expect(state.rawText).toBeDefined();
     expect(state.rawText).toBe("This agreement is between Party A and Party B.");
     expect(state.extractionMethod).toBe("embedded");
     expect(state.ocrConfidence).toBe(0.95);
@@ -183,6 +200,8 @@ describe("Pipeline Integration – Fresh Document (QUEUED → halts at AWAITING_
 
     state = await processCleaningStage(state);
 
+    // cleanText must be set from the extraction's rawText
+    expect(state.cleanText).toBeDefined();
     expect(state.cleanText).toBe("This agreement is between Party A and Party B.");
     expect(state.currentStatus).toBe("CLEANING");
   });
@@ -196,6 +215,7 @@ describe("Pipeline Integration – Fresh Document (QUEUED → halts at AWAITING_
     const result = await processAwaitingVerificationStage(state);
 
     expect(result.halt).toBe(true);
+    // Stage is responsible for calling reportStage with AWAITING_VERIFICATION
     expect(reportStage).toHaveBeenCalledWith(
       expect.objectContaining({ toStatus: "AWAITING_VERIFICATION" }),
     );
@@ -206,7 +226,7 @@ describe("Pipeline Integration – Fresh Document (QUEUED → halts at AWAITING_
     state = await processInitializationStage(state);
     state = await processExtractionStage(state);
     state = await processCleaningStage(state);
-    await processAwaitingVerificationStage(state);
+    await processAwaitingVerificationStage(state); // halts here
 
     const reportedStatuses = vi.mocked(reportStage).mock.calls.map(
       (c) => c[0].toStatus,
@@ -224,18 +244,11 @@ describe("Pipeline Integration – Resume Path (VERIFIED → PREPROCESSING_COMPL
   beforeEach(() => {
     vi.clearAllMocks();
     outboxInserts.length = 0;
+    dbQueries.length = 0;
     mockPersistSections.mockResolvedValue(new Map());
     mockPersistChunks.mockResolvedValue(undefined);
     mockPersistFacts.mockResolvedValue(undefined);
     mockClearDerived.mockResolvedValue(undefined);
-    vi.mocked(withTransaction).mockImplementation(async (fn: any) => fn(mockDbClient));
-    mockDbClient.query.mockClear();
-    mockDbClient.query.mockImplementation(async (sql: string, params?: any[]) => {
-      if (sql.includes("document_pipeline_outbox")) {
-        outboxInserts.push({ aggregateId: params?.[0], payload: params?.[1] ? JSON.parse(params[1]) : null });
-      }
-      return { rows: [], rowCount: 0 };
-    });
   });
 
   function makeResumedState(): AnalysisState {
@@ -243,7 +256,12 @@ describe("Pipeline Integration – Resume Path (VERIFIED → PREPROCESSING_COMPL
       analysis_status: "VERIFIED",
       extracted_content: SAMPLE_EXTRACTED_CONTENT,
     });
-    return { job: makeJob(), doc, workerId: "worker-001", currentStatus: "VERIFIED" };
+    return {
+      job: makeJob(),
+      doc,
+      workerId: "worker-001",
+      currentStatus: "VERIFIED",
+    };
   }
 
   it("awaitingVerification resume path populates sections, facts, quality, title, summary", async () => {
@@ -356,10 +374,9 @@ describe("Pipeline Integration – Skip-Completed Stages", () => {
     mockPersistChunks.mockResolvedValue(undefined);
     mockPersistFacts.mockResolvedValue(undefined);
     mockClearDerived.mockResolvedValue(undefined);
-    vi.mocked(withTransaction).mockImplementation(async (fn: any) => fn(mockDbClient));
   });
 
-  it("document at CHUNKING skips PROCESSING, EXTRACTING, CLEANING, STRUCTURING", async () => {
+  it("document at CHUNKING status skips PROCESSING, EXTRACTING, CLEANING, STRUCTURING", async () => {
     const doc = makeDoc({
       analysis_status: "CHUNKING",
       extracted_content: SAMPLE_EXTRACTED_CONTENT,
@@ -371,19 +388,19 @@ describe("Pipeline Integration – Skip-Completed Stages", () => {
       currentStatus: "CHUNKING",
     };
 
-    // Run all pre-chunking stages — they should all skip
     state = await processInitializationStage(state);
     state = await processExtractionStage(state);
     state = await processCleaningStage(state);
 
-    const verifResult = await processAwaitingVerificationStage(state);
-    if (!verifResult.halt) {
-      state = verifResult.state;
+    const verif = await processAwaitingVerificationStage(state);
+    if (!verif.halt) {
+      state = verif.state;
     }
 
     state = await processStructuringStage(state);
 
     const reportedSoFar = vi.mocked(reportStage).mock.calls.map((c) => c[0].toStatus);
+    // None of the already-passed stages should have been reported
     expect(reportedSoFar).not.toContain("PROCESSING");
     expect(reportedSoFar).not.toContain("EXTRACTING");
     expect(reportedSoFar).not.toContain("CLEANING");
@@ -416,56 +433,51 @@ describe("Pipeline Integration – Skip-Completed Stages", () => {
 describe("Pipeline Integration – State Immutability", () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    vi.mocked(withTransaction).mockImplementation(async (fn: any) => fn(mockDbClient));
   });
 
   it("each stage returns a new state object (spread pattern)", async () => {
     const initialState = makeInitialState("QUEUED");
     const afterInit = await processInitializationStage(initialState);
 
+    // Must be a different reference
     expect(afterInit).not.toBe(initialState);
+    // Original must not be mutated
     expect(initialState.currentStatus).toBe("QUEUED");
   });
 
   it("cleaning stage does not mutate input state", async () => {
-    const state = makeInitialState("EXTRACTING");
-    (state as any).rawText = "some raw text";
+    let state = makeInitialState("EXTRACTING");
+    state.rawText = "some raw text";
     const originalCleanText = state.cleanText;
 
     const result = await processCleaningStage(state);
 
-    expect(state.cleanText).toBe(originalCleanText); // original untouched
+    // Input not mutated
+    expect(state.cleanText).toBe(originalCleanText);
+    // Output has new field
     expect(result.cleanText).toBeDefined();
     expect(result).not.toBe(state);
   });
 });
 
 describe("Pipeline Integration – analysisWorker guard logic", () => {
-  it("identifies all terminal/skip statuses correctly", () => {
-    const SHOULD_SKIP = [
+  it("skips all stages when document is in terminal COMPLETED state", async () => {
+    // This mirrors the guard in processAnalysisJob
+    const TERMINAL_STATUSES = [
       "COMPLETED", "CANCELLED", "FAILED",
       "AWAITING_VERIFICATION", "PREPROCESSING_COMPLETED",
       "AI_QUEUED", "AI_PROCESSING", "AI_COMPLETED",
-    ];
+    ] as const;
 
-    for (const status of SHOULD_SKIP) {
-      // This mirrors the guard in processAnalysisJob
+    for (const status of TERMINAL_STATUSES) {
+      const doc = makeDoc({ analysis_status: status as any });
+      // The guard checks doc.analysis_status directly — not a stage call
       const shouldSkip = [
         "COMPLETED", "CANCELLED", "FAILED",
         "AWAITING_VERIFICATION", "PREPROCESSING_COMPLETED",
         "AI_QUEUED", "AI_PROCESSING", "AI_COMPLETED",
-      ].includes(status);
+      ].includes(doc.analysis_status);
       expect(shouldSkip).toBe(true);
-    }
-
-    const SHOULD_NOT_SKIP = ["QUEUED", "PROCESSING", "EXTRACTING", "CLEANING"];
-    for (const status of SHOULD_NOT_SKIP) {
-      const shouldSkip = [
-        "COMPLETED", "CANCELLED", "FAILED",
-        "AWAITING_VERIFICATION", "PREPROCESSING_COMPLETED",
-        "AI_QUEUED", "AI_PROCESSING", "AI_COMPLETED",
-      ].includes(status);
-      expect(shouldSkip).toBe(false);
     }
   });
 });

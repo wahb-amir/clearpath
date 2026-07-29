@@ -6,9 +6,9 @@
  */
 
 import type { Job } from "bullmq";
-import type { AnalysisJobData, DocumentRow } from "../../../types/dtos";
-import type { AnalysisState } from "../../stages/types";
-import type { AnalysisStatus } from "../../../types/pipelineStatus";
+import type { AnalysisJobData, DocumentRow } from "../../types/dtos";
+import type { AnalysisState } from "../stages/types";
+import type { AnalysisStatus } from "../../types/pipelineStatus";
 
 // ---------------------------------------------------------------------------
 // Minimal BullMQ Job mock

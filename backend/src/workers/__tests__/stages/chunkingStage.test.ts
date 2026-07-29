@@ -36,7 +36,7 @@ const mockWithTransaction = vi.fn(async (fn: any) => fn(mockTransactionClient));
 
 vi.mock("../../../db/pool", () => ({
   pgPool: { query: vi.fn().mockResolvedValue({ rows: [], rowCount: 0 }) },
-  withTransaction: (...args: any[]) => mockWithTransaction(...args),
+  withTransaction: (fn: any) => mockWithTransaction(fn),
 }));
 
 import { processChunkingStage } from "../../stages/chunkingStage";
