@@ -47,7 +47,10 @@ const Stage1Schema = z.object({
   contains_actions: z.boolean(),
   contains_risks: z.boolean(),
   needs_human_review: z.boolean(),
-  human_review_reason: z.string().min(1),
+  human_review_reason: z
+    .string()
+    .transform((v) => v.trim() || "No specific review reason provided.")
+    .pipe(z.string().min(1)),
   document_language: z.enum(["en", "es", "ur", "other", "unclear"]),
   confidence: z.number().min(0).max(1),
 });
@@ -120,7 +123,10 @@ const Stage3Schema = z.object({
     }),
   ),
   needs_human_review: z.boolean(),
-  human_review_reason: z.string().min(1),
+  human_review_reason: z
+    .string()
+    .transform((v) => v.trim() || "No specific verification concern identified.")
+    .pipe(z.string().min(1)),
   overall_confidence: z.number().min(0).max(1),
 });
 
@@ -158,25 +164,65 @@ const Stage4Schema = z.object({
     }),
   ),
   needs_human_review: z.boolean(),
-  human_review_reason: z.string().min(1),
+  human_review_reason: z
+    .string()
+    .transform((v) => v.trim() || "No specific synthesis concern identified.")
+    .pipe(z.string().min(1)),
 });
 
 const Stage5Schema = z.object({
-  pass: z.boolean(),
-  issues: z.array(
-    z.object({
-      type: z.enum([
-        "unsupported_claim",
-        "overconfidence",
-        "conflict",
-        "missing_review",
-        "unsafe_recommendation",
-      ]),
-      severity: z.enum(["low", "medium", "high"]),
-      description: z.string().min(1),
-    }),
-  ),
-  final_recommendation: z.enum(["approve", "revise", "block"]),
+  pass: z
+    .union([z.boolean(), z.string()])
+    .transform((v) => {
+      if (typeof v === "boolean") return v;
+      return v.toLowerCase().startsWith("true");
+    })
+    .pipe(z.boolean())
+    .catch(false),
+  issues: z
+    .array(
+      z.object({
+        type: z
+          .string()
+          .transform((v) => {
+            const map: Record<string, string> = {
+              unsupported_claim: "unsupported_claim",
+              overconfidence: "overconfidence",
+              conflict: "conflict",
+              missing_review: "missing_review",
+              unsafe_recommendation: "unsafe_recommendation",
+            };
+            return map[v] ?? "missing_review";
+          })
+          .pipe(
+            z.enum([
+              "unsupported_claim",
+              "overconfidence",
+              "conflict",
+              "missing_review",
+              "unsafe_recommendation",
+            ]),
+          ),
+        severity: z.enum(["low", "medium", "high"]).catch("medium"),
+        description: z
+          .string()
+          .transform((v) => v.trim() || "Issue flagged by safety reviewer.")
+          .pipe(z.string().min(1)),
+      }),
+    )
+    .catch([]),
+  final_recommendation: z
+    .string()
+    .transform((v) => {
+      // Strip parenthetical suffixes like "approve (no issues)"
+      const normalized = v.trim().toLowerCase().split(/[\s(]/)[0];
+      if (normalized === "approve" || normalized === "revise" || normalized === "block") {
+        return normalized;
+      }
+      return "revise";
+    })
+    .pipe(z.enum(["approve", "revise", "block"]))
+    .catch("revise"),
 });
 
 type ChatMessage = { role: "system" | "user" | "assistant"; content: string };
@@ -758,7 +804,7 @@ RULES (follow strictly):
             needs_human_review:
               "boolean — REQUIRED true for legal, medical, immigration, benefit-eligibility, or appeal content",
             human_review_reason:
-              "One sentence explaining WHY a human expert should review this, or 'Low-risk document, standard AI review is sufficient'",
+              "REQUIRED non-empty string. One sentence explaining WHY a human expert should review this. If low-risk, write 'Low-risk document, standard AI review is sufficient'. Never leave this blank.",
             document_language: ["en", "es", "ur", "other", "unclear"],
             confidence:
               "number 0-1 reflecting how clearly you can understand this document",
@@ -980,9 +1026,9 @@ function buildStage3Prompt(
                 confidence: 0,
               },
             ],
-            verification_notes: [{ note: "", severity: "low|medium|high" }],
+            verification_notes: [{ note: "Example: One or more deadlines could not be confirmed against official sources.", severity: "low|medium|high" }],
             needs_human_review: true,
-            human_review_reason: "",
+            human_review_reason: "REQUIRED non-empty string. Example: 'The attendance policy details require verification by a school official.' If human review is not needed, write: 'No significant concerns found; standard AI review is sufficient.'",
             overall_confidence: 0,
           },
         },
@@ -1073,7 +1119,7 @@ YOUR RULES:
             needs_human_review:
               "boolean — true if ANY action item, deadline, or eligibility decision requires professional verification",
             human_review_reason:
-              "One sentence explaining the specific concern that requires human review",
+              "REQUIRED non-empty string. One sentence explaining the specific concern that requires human review. If human review is not needed, write: 'No significant concerns; standard AI review is sufficient.'",
           },
         },
         null,
@@ -1101,12 +1147,22 @@ function buildStage5Prompt(
           document_text: buildSourceText(document),
           synthesized_output: synthesized,
           output_shape: {
-            pass: true,
+            pass: "boolean — true if no serious issues found, false if issues require revision or blocking",
             issues: [
-              { type: "unsupported_claim", severity: "low", description: "" },
+              {
+                type: "unsupported_claim|overconfidence|conflict|missing_review|unsafe_recommendation",
+                severity: "low|medium|high",
+                description: "One sentence describing the specific issue found. Must not be empty.",
+              },
             ],
-            final_recommendation: "approve|revise|block",
+            final_recommendation: "approve (no issues) | revise (minor issues) | block (serious issues)",
           },
+          critical_rules: [
+            "ALL THREE top-level fields (pass, issues, final_recommendation) are REQUIRED in your response.",
+            "pass must be a boolean (true or false), not a string.",
+            "final_recommendation must be exactly one of: approve, revise, or block.",
+            "If there are no issues, return pass=true, issues=[], final_recommendation=approve.",
+          ],
         },
         null,
         2,
