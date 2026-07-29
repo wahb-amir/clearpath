@@ -1,29 +1,21 @@
 import { ConnectionOptions, Worker, type Job } from "bullmq";
-import type { PoolClient } from "pg";
 import { createWorkerConnection } from "../redis/connection";
 import { env } from "../config/env";
-import { pgPool, withTransaction } from "../db/pool";
-import { supabase } from "../lib/supabase";
+import { pgPool } from "../db/pool";
 import type { AnalysisJobData, DocumentRow } from "../types/dtos";
 import type { AnalysisStatus } from "../types/pipelineStatus";
-import { isStageCompleteOrPast } from "../types/pipelineStatus";
-import { reportStage, reportProgress, reportFailure } from "./stageReporter";
-import { detectFileCategory } from "./stages/detectFileType";
-import { extractText } from "../services/ingestion/extractText";
-import { cleanExtractedText } from "../services/ingestion/cleanText";
-import { detectLanguage } from "../services/ingestion/detectLanguage";
-import { buildDocumentStructure } from "../services/ingestion/buildStructure";
-import { extractFacts } from "../services/ingestion/extractFacts";
-import { estimateQuality } from "../services/ingestion/estimateQuality";
-import { buildChunks } from "../services/ingestion/buildChunks";
-import { embedBatch } from "../services/ingestion/embeddingProvider";
-import { generateSummary } from "../services/ingestion/generateSummary";
-import {
-  persistSections,
-  persistChunks,
-  persistFacts,
-  clearDerivedRecords,
-} from "../services/ingestion/persistence";
+import { reportFailure } from "./stageReporter";
+
+import type { AnalysisState } from "./stages/types";
+import { processInitializationStage } from "./stages/initializationStage";
+import { processExtractionStage } from "./stages/extractionStage";
+import { processCleaningStage } from "./stages/cleaningStage";
+import { processAwaitingVerificationStage } from "./stages/awaitingVerificationStage";
+import { processStructuringStage } from "./stages/structuringStage";
+import { processChunkingStage } from "./stages/chunkingStage";
+import { processEmbeddingStage } from "./stages/embeddingStage";
+import { processSummarizingStage } from "./stages/summarizingStage";
+import { processCompletionStage } from "./stages/completionStage";
 
 export function createAnalysisWorker(): Worker<AnalysisJobData> {
   const worker = new Worker<AnalysisJobData>(
@@ -61,15 +53,8 @@ export function createAnalysisWorker(): Worker<AnalysisJobData> {
 export async function processAnalysisJob(
   job: Job<AnalysisJobData>,
 ): Promise<void> {
-  const {
-    documentId,
-    analysisRequestId,
-    userId,
-    storagePath,
-    mimeType,
-    analysisVersion,
-  } = job.data;
-  console.log("[analysis-worker] START", job.id, job.data.documentId);
+  const { documentId, analysisRequestId, userId } = job.data;
+  console.log("[analysis-worker] START", job.id, documentId);
   const workerId = env.WORKER_ID;
 
   const docResult = await pgPool.query<DocumentRow>(
@@ -103,463 +88,30 @@ export async function processAnalysisJob(
     [workerId, analysisRequestId],
   );
 
+  let state: AnalysisState = {
+    job,
+    doc,
+    workerId,
+    currentStatus: doc.analysis_status as AnalysisStatus,
+  };
+
   try {
-    let currentStatus = doc.analysis_status as AnalysisStatus;
+    state = await processInitializationStage(state);
+    state = await processExtractionStage(state);
+    state = await processCleaningStage(state);
 
-    if (!isStageCompleteOrPast(currentStatus, "PROCESSING")) {
-      await reportStage({
-        documentId,
-        userId,
-        workerId,
-        toStatus: "PROCESSING",
-        eventType: "worker_assigned",
-        message: `Worker ${workerId} picked up the job`,
-        progress: 5,
-      });
-      currentStatus = "PROCESSING";
-    }
-
-    let rawText = "";
-    let extractionMethod: "embedded" | "ocr" | "plain_text" = "plain_text";
-    let ocrConfidence = 1;
-    let textCoverage = 1;
-    let usedOcrFallback = false;
-
-    if (!isStageCompleteOrPast(currentStatus, "EXTRACTING")) {
-      await reportStage({
-        documentId,
-        userId,
-        workerId,
-        toStatus: "EXTRACTING",
-        eventType: "extraction_started",
-        message: "Detecting file type and extracting text",
-        progress: 10,
-      });
-
-      const fileBuffer = await downloadFromStorage(storagePath);
-      const category = detectFileCategory(mimeType);
-
-      const extraction = await extractText({
-        fileBuffer,
-        category,
-        mimeType,
-        onPageProgress: async (current, total) => {
-          await reportProgress({
-            documentId,
-            userId,
-            stage: "EXTRACTING",
-            eventType: "extraction_progress",
-            message: `Processed page ${current} of ${total}`,
-            progress: 10 + Math.round((current / total) * 15),
-            payload: { currentPage: current, totalPages: total },
-          });
-        },
-      });
-
-      rawText = extraction.rawText;
-      extractionMethod = extraction.method;
-      ocrConfidence = extraction.ocrConfidence;
-      textCoverage = extraction.textCoverage;
-      usedOcrFallback = extraction.usedOcrFallback;
-
-      if (usedOcrFallback) {
-        await reportProgress({
-          documentId,
-          userId,
-          stage: "EXTRACTING",
-          eventType: "ocr_fallback_started",
-          message: "Sparse embedded text detected - OCR fallback applied",
-          progress: 25,
-          payload: { ocrConfidence },
-        });
-      }
-
-      currentStatus = "EXTRACTING";
-
-      await pgPool.query(
-        `UPDATE documents SET ocr_confidence = $1 WHERE id = $2`,
-        [ocrConfidence, documentId],
-      );
-    } else {
-      const fileBuffer = await downloadFromStorage(storagePath);
-      const category = detectFileCategory(mimeType);
-      const extraction = await extractText({ fileBuffer, category, mimeType });
-      rawText = extraction.rawText;
-      extractionMethod = extraction.method;
-      ocrConfidence = extraction.ocrConfidence;
-      textCoverage = extraction.textCoverage;
-    }
-
-    const cleanResult = cleanExtractedText(rawText, ocrConfidence);
-    const cleanText = cleanResult.cleanText;
-
-    if (!isStageCompleteOrPast(currentStatus, "CLEANING")) {
-      await reportStage({
-        documentId,
-        userId,
-        workerId,
-        toStatus: "CLEANING",
-        eventType: "text_cleaned",
-        message: "Removed OCR noise and normalized whitespace",
-        progress: 35,
-        payload: { correctionsApplied: cleanResult.correctionsApplied },
-      });
-
-      const language = detectLanguage(cleanText);
-      await pgPool.query(`UPDATE documents SET language = $1 WHERE id = $2`, [
-        language.code,
-        documentId,
-      ]);
-
-      await reportProgress({
-        documentId,
-        userId,
-        stage: "CLEANING",
-        eventType: "language_detected",
-        message: `Detected language: ${language.name}`,
-        progress: 38,
-        payload: { language: language.code, languageName: language.name },
-      });
-
-      currentStatus = "CLEANING";
-    }
-
-    let sections: ReturnType<typeof buildDocumentStructure>;
-    let facts: ReturnType<typeof extractFacts>;
-    let quality: ReturnType<typeof estimateQuality>;
-    let title: string;
-    let summary: string;
-
-    if (!isStageCompleteOrPast(currentStatus, "AWAITING_VERIFICATION")) {
-      sections = buildDocumentStructure(cleanText);
-      facts = extractFacts(cleanText);
-      quality = estimateQuality({ ocrConfidence, textCoverage });
-      const generated = generateSummary({ cleanText, sections });
-      title = generated.title;
-      summary = generated.summary;
-
-      const extractedContent = {
-        title,
-        summary,
-        language: doc.language ?? detectLanguage(cleanText).name,
-        quality: quality.quality,
-        ocrConfidence,
-        extractionMethod,
-        sections: sections.map((s, i) => ({
-          index: i,
-          title: s.title ?? `Section ${i + 1}`,
-          // textContent holds the direct text of this node (headings use "")
-          // children hold the paragraph/list blocks that belong under this heading
-          content: [
-            s.textContent ?? "",
-            ...(s.children?.map((c) => c.textContent ?? "") ?? []),
-          ]
-            .filter(Boolean)
-            .join("\n\n"),
-        })),
-        dates: facts
-          .filter((f) => f.factType === "date" || f.factType === "deadline")
-          .map((f) => ({
-            value: f.value,
-            normalizedValue: f.normalizedValue,
-            factType: f.factType,
-            context: f.context,
-            confidence: f.confidence,
-          })),
-        contacts: facts
-          .filter((f) => f.factType === "email" || f.factType === "phone")
-          .map((f) => ({
-            value: f.value,
-            factType: f.factType,
-            context: f.context,
-            confidence: f.confidence,
-          })),
-        amounts: facts
-          .filter((f) => f.factType === "amount")
-          .map((f) => ({
-            value: f.value,
-            context: f.context,
-            confidence: f.confidence,
-          })),
-        referenceIds: facts
-          .filter((f) => f.factType === "reference_id")
-          .map((f) => ({
-            value: f.value,
-            context: f.context,
-            confidence: f.confidence,
-          })),
-        rawTextPreview: cleanText.slice(0, 3000),
-      };
-
-      // Step 1: persist extracted_content and keep analysis_request in PROCESSING.
-      // This is a separate transaction from the status transition below so that
-      // reportStage (step 2) can own the CLEANING→AWAITING_VERIFICATION update
-      // and the pipeline-event insert atomically — exactly as every other stage does.
-      await withTransaction(async (client) => {
-        await client.query(
-          `UPDATE documents
-              SET extracted_content = $1::jsonb
-            WHERE id = $2`,
-          [JSON.stringify(extractedContent), documentId],
-        );
-
-        await client.query(
-          `UPDATE document_analysis_requests
-              SET status = 'PROCESSING'
-            WHERE id = $1`,
-          [analysisRequestId],
-        );
-      });
-
-      // Step 2: advance status to AWAITING_VERIFICATION, insert the pipeline
-      // event, and publish the Redis notification — all via reportStage which
-      // uses the module-level warm publisher instead of a throwaway connection
-      // that can drop the message before the TCP buffer is flushed.
-      await reportStage({
-        documentId,
-        userId,
-        workerId,
-        toStatus: "AWAITING_VERIFICATION",
-        eventType: "extraction_awaiting_verification" as any,
-        message:
-          "Extraction complete — please verify and confirm the extracted content",
-        progress: 40,
-        payload: {
-          extractedContent,
-          analysisRequestId,
-          _resumeMeta: { analysisRequestId, analysisVersion },
-        },
-      });
-
+    const verificationResult = await processAwaitingVerificationStage(state);
+    if (verificationResult.halt) {
       return;
-    } else {
-      const content = doc.extracted_content as any;
-      title = content.title ?? "Untitled document";
-      summary = content.summary ?? "";
-      quality = {
-        quality: content.quality ?? "unknown",
-        ocrConfidence: content.ocrConfidence ?? doc.ocr_confidence ?? 1,
-        textCoverage: content.textCoverage ?? 1,
-      };
-
-      facts = [];
-      const addFact = (arr: any[], defaultType?: string) => {
-        if (!arr) return;
-        for (const item of arr) {
-          facts.push({
-            factType: (item.factType ?? defaultType) as any,
-            value: item.value,
-            normalizedValue: item.normalizedValue,
-            context: item.context,
-            confidence: item.confidence,
-          });
-        }
-      };
-      addFact(content.dates);
-      addFact(content.contacts);
-      addFact(content.amounts, "amount");
-      addFact(content.referenceIds, "reference_id");
-
-      sections = (content.sections || []).map((s: any) => ({
-        title: s.title,
-        level: 1,
-        sectionType: "section",
-        textContent: s.content,
-        orderIndex: s.index,
-        children: [],
-      }));
     }
+    state = verificationResult.state;
 
-    if (!isStageCompleteOrPast(currentStatus, "STRUCTURING")) {
-      await reportStage({
-        documentId,
-        userId,
-        workerId,
-        toStatus: "STRUCTURING",
-        eventType: "structure_preserved",
-        message: "Preserved document structure (sections, lists, tables)",
-        progress: 45,
-        payload: {
-          sectionCount: countSections(sections),
-          factCount: facts.length,
-        },
-      });
+    state = await processStructuringStage(state);
+    state = await processChunkingStage(state);
+    state = await processEmbeddingStage(state);
+    state = await processSummarizingStage(state);
+    await processCompletionStage(state);
 
-      await pgPool.query(`UPDATE documents SET quality = $1 WHERE id = $2`, [
-        quality.quality,
-        documentId,
-      ]);
-
-      await reportProgress({
-        documentId,
-        userId,
-        stage: "STRUCTURING",
-        eventType: "entities_extracted",
-        message: `Extracted ${facts.length} structured facts`,
-        progress: 50,
-        payload: { factCount: facts.length },
-      });
-
-      currentStatus = "STRUCTURING";
-    }
-
-    if (!isStageCompleteOrPast(currentStatus, "CHUNKING")) {
-      await reportStage({
-        documentId,
-        userId,
-        workerId,
-        toStatus: "CHUNKING",
-        eventType: "chunking_completed",
-        message:
-          "Building hierarchical chunks (document → section → paragraph → sentence)",
-        progress: 52,
-      });
-
-      const chunks = buildChunks({ documentSummary: summary, sections });
-
-      const chunksByLevel = chunks.reduce<Record<string, number>>((acc, c) => {
-        acc[c.chunkLevel] = (acc[c.chunkLevel] ?? 0) + 1;
-        return acc;
-      }, {});
-
-      await reportProgress({
-        documentId,
-        userId,
-        stage: "CHUNKING",
-        eventType: "chunking_completed",
-        message: `Planned ${chunks.length} chunks — ${chunksByLevel["section"] ?? 0} sections, ${chunksByLevel["paragraph"] ?? 0} paragraphs, ${chunksByLevel["sentence"] ?? 0} sentences`,
-        progress: 54,
-        payload: { total_chunks: chunks.length, by_level: chunksByLevel },
-      });
-
-      // ── Embedding phase (outside transaction so progress events can fire) ──
-      // Report every individual chunk as it is embedded so the frontend sees
-      // a live counter ticking up instead of one long pause.
-      const PROGRESS_EVERY = Math.max(1, Math.floor(chunks.length / 20)); // emit at most ~20 ticks
-      const embeddings = await embedBatch(
-        chunks.map((c) => c.content),
-        async (completed, total) => {
-          // Throttle to avoid flooding — fire on multiples of PROGRESS_EVERY
-          // and always fire the final chunk.
-          if (completed % PROGRESS_EVERY !== 0 && completed !== total) return;
-          const pct = 55 + Math.round((completed / total) * 13); // 55→68
-          await reportProgress({
-            documentId,
-            userId,
-            stage: "CHUNKING",
-            eventType: "embedding_completed",
-            message: `Embedding chunk ${completed}/${total} — bge-small-en-v1.5`,
-            progress: pct,
-            payload: {
-              embedded: completed,
-              total,
-              by_level: chunksByLevel,
-            },
-          });
-        },
-      );
-
-      await reportProgress({
-        documentId,
-        userId,
-        stage: "CHUNKING",
-        eventType: "embedding_completed",
-        message: `All ${chunks.length} embeddings ready — writing to database`,
-        progress: 68,
-        payload: { total_chunks: chunks.length },
-      });
-
-      // ── DB write phase (fast — embeddings already computed) ───────────────
-      await withTransaction(async (client) => {
-        await clearDerivedRecords(client, documentId);
-        const sectionIdMap = await persistSections(
-          client,
-          documentId,
-          sections,
-        );
-        await persistFacts(client, documentId, facts);
-        await persistChunks(
-          client,
-          documentId,
-          chunks,
-          sectionIdMap,
-          embeddings,
-        );
-      });
-
-      await reportProgress({
-        documentId,
-        userId,
-        stage: "CHUNKING",
-        eventType: "chunking_completed",
-        message: `Chunking complete — ${chunks.length} chunks stored with embeddings`,
-        progress: 72,
-        payload: { total_chunks: chunks.length, by_level: chunksByLevel },
-      });
-
-      currentStatus = "CHUNKING";
-    }
-
-    if (!isStageCompleteOrPast(currentStatus, "EMBEDDING")) {
-      await reportStage({
-        documentId,
-        userId,
-        workerId,
-        toStatus: "EMBEDDING",
-        eventType: "embedding_completed",
-        message: "Generated embeddings for all chunks (bge-small-en-v1.5)",
-        progress: 80,
-      });
-      currentStatus = "EMBEDDING";
-    }
-
-    if (!isStageCompleteOrPast(currentStatus, "SUMMARIZING")) {
-      await reportStage({
-        documentId,
-        userId,
-        workerId,
-        toStatus: "SUMMARIZING",
-        eventType: "summary_created",
-        message: "Generated document summary",
-        progress: 90,
-        payload: { title, summary },
-      });
-      currentStatus = "SUMMARIZING";
-    }
-
-    // Transition to PREPROCESSING_COMPLETED and hand off to AI pipeline
-    if (!isStageCompleteOrPast(currentStatus, "PREPROCESSING_COMPLETED")) {
-      await reportStage({
-        documentId,
-        userId,
-        workerId,
-        toStatus: "PREPROCESSING_COMPLETED",
-        eventType: "preprocessing_completed",
-        message: "Preprocessing complete — queuing AI analysis",
-        progress: 95,
-      });
-      currentStatus = "PREPROCESSING_COMPLETED";
-
-      // Insert outbox event so the dispatcher enqueues the AI analysis job
-      await withTransaction(async (client) => {
-        await client.query(
-          `INSERT INTO document_pipeline_outbox
-             (event_type, aggregate_type, aggregate_id, payload, status)
-           VALUES ('document.preprocessing.completed', 'document_analysis_request', $1, $2::jsonb, 'pending')`,
-          [
-            analysisRequestId,
-            JSON.stringify({
-              documentId,
-              userId,
-              analysisRequestId,
-              analysisVersion,
-            }),
-          ],
-        );
-      });
-    }
-
-    return;
   } catch (err) {
     await reportFailure({
       documentId,
@@ -570,63 +122,4 @@ export async function processAnalysisJob(
     });
     throw err;
   }
-}
-
-function countSections(
-  sections: ReturnType<typeof buildDocumentStructure>,
-): number {
-  let count = 0;
-  const visit = (nodes: typeof sections) => {
-    for (const n of nodes) {
-      count += 1;
-      visit(n.children);
-    }
-  };
-  visit(sections);
-  return count;
-}
-
-/** Downloads the uploaded file from Supabase Storage. */
-async function downloadFromStorage(storagePath: string): Promise<Buffer> {
-  const BUCKET = "documents";
-  const { data, error } = await supabase.storage
-    .from(BUCKET)
-    .download(storagePath);
-  if (error || !data) {
-    throw new Error(
-      `Failed to download ${storagePath} from storage: ${error?.message}`,
-    );
-  }
-  const arrayBuffer = await data.arrayBuffer();
-  return Buffer.from(arrayBuffer);
-}
-
-async function insertOutboxEvent(
-  client: PoolClient,
-  event: {
-    eventType: string;
-    aggregateType: string;
-    aggregateId: string;
-    payload: Record<string, unknown>;
-  },
-): Promise<void> {
-  await client.query(
-    `
-    INSERT INTO document_pipeline_outbox (
-      event_type,
-      aggregate_type,
-      aggregate_id,
-      payload,
-      status,
-      retry_count
-    )
-    VALUES ($1, $2, $3, $4::jsonb, 'pending', 0)
-    `,
-    [
-      event.eventType,
-      event.aggregateType,
-      event.aggregateId,
-      JSON.stringify(event.payload),
-    ],
-  );
 }
