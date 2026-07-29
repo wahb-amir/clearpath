@@ -39,6 +39,12 @@ yarn-error.log*
 *.tsbuildinfo
 .mcp_backups/
 
+# rust
+target/
+Cargo.lock
+*.rs.bk
+**/*.rs.bk
+
 # ignore backups file made by my Custom MCP
 .bak
 .mcp_backups/
