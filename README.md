@@ -182,6 +182,19 @@ clearpath/
 │           ├── embeddingStage.ts       # Vector embedding generation
 │           ├── summarizingStage.ts     # Summary generation
 │           └── completionStage.ts      # Handoff to AI pipeline outbox
+│       └── __tests__/                  # Unit & integration test suite
+│           ├── fixtures.ts             # Mock document data, states & helper mocks
+│           ├── pipeline.integration.test.ts # End-to-end worker pipeline tests
+│           └── stages/                 # Unit tests for preprocessing stages
+│               ├── awaitingVerificationStage.test.ts
+│               ├── chunkingStage.test.ts
+│               ├── cleaningStage.test.ts
+│               ├── completionStage.test.ts
+│               ├── detectFileType.test.ts
+│               ├── embeddingStage.test.ts
+│               ├── initializationStage.test.ts
+│               ├── structuringStage.test.ts
+│               └── summarizingStage.test.ts
 │   ├── supabase/migrations/    # SQL migration files (12 migrations)
 │   ├── scripts/                # Key generation, pipeline test scripts
 │   ├── .env.example
@@ -633,6 +646,9 @@ pnpm run worker       # BullMQ worker
 pnpm run dispatcher   # Outbox dispatcher
 pnpm run dev:all      # All three concurrently (recommended)
 pnpm run build        # TypeScript compile
+pnpm run test         # Run Vitest test suite (95 unit & integration tests)
+pnpm run test:watch   # Vitest interactive watch mode
+pnpm run test:coverage# Generate V8 coverage report
 pnpm run generate-keys # Generate RS256 JWT key pair
 pnpm run supabase:migration  # Create new migration file
 pnpm run supabase:push       # Apply migrations
@@ -645,6 +661,14 @@ pnpm run dev     # Development server (port 3000)
 pnpm run build   # Production build
 pnpm run lint    # ESLint
 ```
+
+### Testing & CI Workflow
+
+ClearPath includes a comprehensive Vitest test suite covering all document preprocessing worker stages and pipeline orchestration.
+
+- **Unit Testing**: Tests individual worker stage logic in isolation, including file type detection, status initialization, text cleaning, entity structuring, hierarchical chunking, embedding generation, summary building, verification gating, and completion handoffs.
+- **Integration Testing**: Verifies end-to-end worker execution (`pipeline.integration.test.ts`) across full document analysis lifecycles, state persistence, error propagation, and retry scenarios.
+- **Automated CI Workflow**: GitHub Actions workflow (`.github/workflows/worker-tests.yml`) executes tests on Node.js 22 & pnpm v11+ for every pull request or push targeting worker stages, generating and uploading V8 test coverage artifacts automatically.
 
 ---
 

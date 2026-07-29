@@ -1,5 +1,12 @@
 packages:
   - "."
 
+onlyBuiltDependencies:
+  - argon2
+  - esbuild
+  - msgpackr-extract
+  - protobufjs
+  - sharp
+
 overrides:
   sharp: ^0.35.1
