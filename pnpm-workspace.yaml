@@ -1,3 +1,10 @@
 packages:
   - "frontend"
   - "backend"
+
+onlyBuiltDependencies:
+  - argon2
+  - esbuild
+  - msgpackr-extract
+  - protobufjs
+  - sharp

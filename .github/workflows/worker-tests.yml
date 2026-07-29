@@ -6,7 +6,11 @@ on:
       - "backend/src/workers/**"
       - "backend/package.json"
       - "backend/pnpm-lock.yaml"
+      - "backend/pnpm-workspace.yaml"
       - "backend/vitest.config.ts"
+      - "pnpm-workspace.yaml"
+      - "pnpm.yaml"
+      - ".npmrc"
       - ".github/workflows/worker-tests.yml"
   pull_request:
     branches:
@@ -16,7 +20,11 @@ on:
       - "backend/src/workers/**"
       - "backend/package.json"
       - "backend/pnpm-lock.yaml"
+      - "backend/pnpm-workspace.yaml"
       - "backend/vitest.config.ts"
+      - "pnpm-workspace.yaml"
+      - "pnpm.yaml"
+      - ".npmrc"
       - ".github/workflows/worker-tests.yml"
   workflow_dispatch:
 
