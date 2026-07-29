@@ -2,9 +2,9 @@ packages:
   - "frontend"
   - "backend"
 
-onlyBuiltDependencies:
-  - argon2
-  - esbuild
-  - msgpackr-extract
-  - protobufjs
-  - sharp
+allowBuilds:
+  argon2: true
+  esbuild: true
+  msgpackr-extract: true
+  protobufjs: true
+  sharp: true
