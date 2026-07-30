@@ -115,7 +115,14 @@ function Particles({ count = 120 }) {
         <bufferAttribute attach="attributes-position" args={[positions, 3]} />
       </bufferGeometry>
 
-      <pointsMaterial size={0.04} color="#06b6d4" transparent opacity={0.5} />
+      <pointsMaterial 
+        size={1.5} 
+        sizeAttenuation={false} 
+        color="#06b6d4" 
+        transparent 
+        opacity={0.6} 
+        depthWrite={false} 
+      />
     </points>
   );
 }
@@ -186,7 +193,7 @@ export default function FloatingDocument({ className }) {
         <pointLight position={[3, -3, 2]} intensity={0.4} color="#1e3a8a" />
 
         <DocumentMesh hovered={hovered} />
-        <Particles count={100} />
+        <Particles count={40} />
         <GlowOrbs />
       </Canvas>
     </div>

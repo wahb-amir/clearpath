@@ -8,7 +8,7 @@ function ScanParticles({ scanning }) {
   const lineRef = useRef(null);
 
   const { positions } = useMemo(() => {
-    const count = 200;
+    const count = 60;
     const positions = new Float32Array(count * 3);
     for (let i = 0; i < count; i++) {
       positions[i * 3] = (((Math.sin(i * 123.456) * 10000) % 1) - 0.5) * 4;
@@ -41,10 +41,11 @@ function ScanParticles({ scanning }) {
           <bufferAttribute attach="attributes-position" args={[positions, 3]} />
         </bufferGeometry>
         <pointsMaterial
-          size={0.06}
+          size={1.5}
+          sizeAttenuation={false}
           transparent
-          opacity={0.3}
-          sizeAttenuation
+          opacity={0.4}
+          depthWrite={false}
           color="#2563eb"
         />
       </points>
