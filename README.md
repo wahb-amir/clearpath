@@ -70,180 +70,51 @@ For development, `pnpm run dev:all` starts all three concurrently via `concurren
 
 ```
 clearpath/
-├── backend/                    # Express + TypeScript API
-│   ├── src/
-│   │   ├── config/env.ts       # Zod-validated env schema
-│   │   ├── controllers/        # Route handler functions
-│   │   │   ├── analyzeController.ts
-│   │   │   ├── analysisHistoryController.ts
-│   │   │   ├── confirmExtractionController.ts
-│   │   │   ├── saveExtractionDraftController.ts
-│   │   │   ├── sseController.ts
-│   │   │   └── internalOutboxController.ts
-│   │   ├── db/pool.ts          # Raw pg connection pool + withTransaction()
-│   │   ├── lib/
-│   │   │   ├── supabase.ts     # Supabase client (Storage + REST)
-│   │   │   └── llm/groqClient.ts
-│   │   ├── middlewares/
-│   │   │   ├── auth.ts         # JWT cookie validation
-│   │   │   ├── rateLimiter.ts
-│   │   │   ├── errorHandler.ts
-│   │   │   └── internalOnly.ts # x-internal-api-key guard
-│   │   ├── models/             # (empty - types live in types/)
-│   │   ├── outbox/
-│   │   │   ├── dispatcher.ts   # Transactional outbox dispatcher
-│   │   │   └── run.ts          # Standalone dispatcher entry point
-│   │   ├── queue/
-│   │   │   └── analysisQueue.ts # BullMQ queue + enqueue helpers
-│   │   ├── redis/connection.ts  # ioredis factory functions
-│   │   ├── routes/
-│   │   │   ├── auth.ts         # /auth/*
-│   │   │   ├── upload.ts       # /uploads/*
-│   │   │   └── documentAnalysis.ts # /analysis/*
-│   │   ├── services/
-│   │   │   ├── analysisRequestService.ts   # Atomic trigger + outbox insert
-│   │   │   ├── documentAnalysisOrchestrator.ts  # AI pipeline coordinator
-│   │   │   ├── documentAnalysisPipeline.ts      # 5-stage LLM pipeline
-│   │   │   ├── documentAnalysisResultRepository.ts
-│   │   │   ├── officialSourceSearch.ts     # Tavily grounding search
-│   │   │   ├── sessionService.ts
-│   │   │   └── ingestion/                  # Preprocessing stages
-│   │   │       ├── extractText.ts
-│   │   │       ├── cleanText.ts
-│   │   │       ├── detectLanguage.ts
-│   │   │       ├── buildStructure.ts
-│   │   │       ├── extractFacts.ts
-│   │   │       ├── estimateQuality.ts
-│   │   │       ├── buildChunks.ts
-│   ├── config/env.ts       # Zod-validated env schema
-│   ├── controllers/        # Route handler functions
-│   │   ├── analyzeController.ts
-│   │   ├── analysisHistoryController.ts
-│   │   ├── confirmExtractionController.ts
-│   │   ├── saveExtractionDraftController.ts
-│   │   ├── sseController.ts
-│   │   └── internalOutboxController.ts
-│   ├── db/pool.ts          # Raw pg connection pool + withTransaction()
-│   ├── lib/
-│   │   ├── supabase.ts     # Supabase client (Storage + REST)
-│   │   └── llm/groqClient.ts
-│   ├── middlewares/
-│   │   ├── auth.ts         # JWT cookie validation
-│   │   ├── rateLimiter.ts
-│   │   ├── errorHandler.ts
-│   │   └── internalOnly.ts # x-internal-api-key guard
-│   ├── models/             # (empty - types live in types/)
-│   ├── outbox/
-│   │   ├── dispatcher.ts   # Transactional outbox dispatcher
-│   │   └── run.ts          # Standalone dispatcher entry point
-│   ├── queue/
-│   │   └── analysisQueue.ts # BullMQ queue + enqueue helpers
-│   ├── redis/connection.ts  # ioredis factory functions
-│   ├── routes/
-│   │   ├── auth.ts         # /auth/*
-│   │   ├── upload.ts       # /uploads/*
-│   │   └── documentAnalysis.ts # /analysis/*
-│   ├── services/
-│   │   ├── analysisRequestService.ts   # Atomic trigger + outbox insert
-│   │   ├── documentAnalysisOrchestrator.ts  # AI pipeline coordinator
-│   │   ├── documentAnalysisPipeline.ts      # 5-stage LLM pipeline
-│   │   ├── documentAnalysisResultRepository.ts
-│   │   ├── officialSourceSearch.ts     # Tavily grounding search
-│   │   ├── sessionService.ts
-│   │   └── ingestion/                  # Preprocessing stages
-│   │       ├── extractText.ts
-│   │       ├── cleanText.ts
-│   │       ├── detectLanguage.ts
-│   │       ├── buildStructure.ts
-│   │       ├── extractFacts.ts
-│   │       ├── estimateQuality.ts
-│   │       ├── buildChunks.ts
-│   │       ├── generateSummary.ts
-│   │       └── persistence.ts
-│   ├── sse/sseService.ts   # SSE replay + Redis pub/sub + heartbeat
-│   ├── types/              # Shared TypeScript types and DTOs
-│   ├── utils/idempotency.ts
-│   ├── validators/documentAnalysis.ts  # Zod request validators
-│   └── workers/
-│       ├── analysisWorker.ts           # Preprocessing BullMQ worker (orchestrator)
-│       ├── aiAnalysisWorker.ts         # AI pipeline BullMQ worker
-│       ├── documentAnalysisWorker.ts   # Worker dispatcher/router
-│       ├── stageReporter.ts            # Atomic stage update + Redis notify
-│       ├── run.ts                      # Worker entry point
-│       └── stages/                     # Modular stage handlers for preprocessing
-│           ├── types.ts                # Shared AnalysisState interface
-│           ├── detectFileType.ts       # File category & MIME detection
-│           ├── initializationStage.ts  # Worker assignment & status setup
-│           ├── extractionStage.ts      # Text extraction & OCR fallback
-│           ├── cleaningStage.ts        # Noise removal & language detection
-│           ├── awaitingVerificationStage.ts # Human review gate preparation
-│           ├── structuringStage.ts     # Document structure & entity extraction
-│           ├── chunkingStage.ts        # Hierarchical chunking & DB persistence
-│           ├── embeddingStage.ts       # Vector embedding generation
-│           ├── summarizingStage.ts     # Summary generation
-│           └── completionStage.ts      # Handoff to AI pipeline outbox
-│       └── __tests__/                  # Unit & integration test suite
-│           ├── fixtures.ts             # Mock document data, states & helper mocks
-│           ├── pipeline.integration.test.ts # End-to-end worker pipeline tests
-│           └── stages/                 # Unit tests for preprocessing stages
-│               ├── awaitingVerificationStage.test.ts
-│               ├── chunkingStage.test.ts
-│               ├── cleaningStage.test.ts
-│               ├── completionStage.test.ts
-│               ├── detectFileType.test.ts
-│               ├── embeddingStage.test.ts
-│               ├── initializationStage.test.ts
-│               ├── structuringStage.test.ts
-│               └── summarizingStage.test.ts
-│   ├── supabase/migrations/    # SQL migration files (12 migrations)
-│   ├── scripts/                # Key generation, pipeline test scripts
-│   ├── .env.example
-│   ├── nodemon.json
-│   ├── package.json
-│   └── tsconfig.json
+├── app/
+│   ├── backend/                # Express + TypeScript API
+│   │   ├── src/
+│   │   │   ├── config/env.ts       # Zod-validated env schema
+│   │   │   ├── controllers/        # Route handler functions
+│   │   │   ├── db/pool.ts          # Raw pg connection pool
+│   │   │   ├── lib/                # Supabase & Groq clients
+│   │   │   ├── middlewares/        # Auth, rateLimiter, errorHandler
+│   │   │   ├── outbox/             # Transactional outbox dispatcher
+│   │   │   ├── queue/              # BullMQ queue & enqueue helpers
+│   │   │   ├── redis/ connection.ts # ioredis connection factory
+│   │   │   ├── routes/             # Express route modules
+│   │   │   ├── services/           # Orchestrator, pipeline & ingestion
+│   │   │   ├── sse/                # Real-time SSE service
+│   │   │   ├── types/              # TypeScript interfaces & DTOs
+│   │   │   ├── validators/         # Zod request validators
+│   │   │   └── workers/            # BullMQ worker handlers & stage processors
+│   │   ├── supabase/migrations/    # SQL migration files
+│   │   ├── scripts/                # Key generation & test scripts
+│   │   ├── .env.example
+│   │   ├── DockerFile
+│   │   ├── docker-compose.yml
+│   │   ├── package.json
+│   │   └── tsconfig.json
+│   │
+│   └── frontend/               # Next.js App Router (JavaScript)
+│       ├── src/
+│       │   ├── app/            # App router pages (dashboard, auth, marketing)
+│       │   ├── components/     # App UI, verification panel, results cards
+│       │   └── lib/            # apiFetch, auth helpers & SWR hooks
+│       ├── .env.example
+│       ├── next.config.mjs
+│       └── package.json
 │
-└── frontend/                   # Next.js 14 App Router (JavaScript)
-    ├── src/
-    │   ├── app/
-    │   │   ├── (auth)/         # /login, /register
-    │   │   ├── (dashboard)/    # Protected app routes
-    │   │   │   ├── analyze/    # Main document upload + analysis view
-    │   │   │   ├── history/    # Paginated analysis history
-    │   │   │   ├── saved/      # Bookmarked documents
-    │   │   │   ├── profile/    # User profile + activity stats
-    │   │   │   └── settings/
-    │   │   ├── (marketing)/    # Landing page, about, etc.
-    │   │   ├── feedback/
-    │   │   ├── help-center/
-    │   │   └── safety/
-    │   ├── components/
-    │   │   ├── app/            # App-level wrappers
-    │   │   ├── app-shell/      # Sidebar, navigation
-    │   │   ├── auth/           # Login/register forms & AuthProvider.jsx
-    │   │   ├── document-intelligence/   # Core upload & analysis UI
-    │   │   │   ├── ExtractionVerificationPanel.jsx  # Full-screen modal editor
-    │   │   │   ├── AiResultCard.js
-    │   │   │   ├── ExecutionStatusCard.jsx
-    │   │   │   ├── FileUploadDropzone.jsx
-    │   │   │   ├── PanelActions.jsx
-    │   │   │   ├── SampleSelector.jsx
-    │   │   │   ├── TimelineFeed.jsx
-    │   │   │   └── constants.js
-    │   │   ├── landing/        # Marketing page components
-    │   │   ├── layout/         # Page layout primitives
-    │   │   ├── results/        # AI result display cards
-    │   │   │   ├── SummaryCard.jsx
-    │   │   │   ├── ChecklistCard.jsx
-    │   │   │   ├── DeadlinesCard.jsx
-    │   │   │   ├── QuestionsCard.jsx
-    │   │   │   ├── SourcesCard.jsx
-    │   │   │   └── ConfidenceCard.jsx
-    │   │   └── ui/             # Generic UI primitives
-    │   └── lib/
-    │       ├── api/documentAnalysis.js   # API call wrappers
-    │       └── auth/                     # Client-side auth helpers (apiFetch.js)
-    ├── .env.local (not committed)
-    └── package.json
+├── services/
+│   └── chunker/                # Rust document chunking service
+│       ├── src/
+│       └── Cargo.toml
+│
+├── .github/
+│   └── workflows/
+│       └── worker-tests.yml    # CI test runner for backend workers
+├── package.json
+├── pnpm-workspace.yaml
+└── README.md
 ```
 
 ---
@@ -415,7 +286,7 @@ The frontend proxy middleware (`src/proxy.js`) was removed as part of an auth re
 All schema changes are managed via SQL migration files in `backend/supabase/migrations/`. Apply them with:
 
 ```bash
-cd backend && pnpm run supabase:push
+cd app/backend && pnpm run supabase:push
 ```
 
 ### Core Tables
@@ -612,7 +483,7 @@ ppnpm install   # installs both backend and frontend
 docker run -d -p 6379:6379 redis:alpine
 
 # 3. Configure backend
-cd backend
+cd app/backend
 cp .env.example .env
 # Fill in SUPABASE_URL, SUPABASE_SECRET_KEY, SUPABASE_PUBLISHABLE_KEY,
 # DATABASE_URL, GROQ_API_KEY, TAVILY_API_KEY, INTERNAL_API_KEY
@@ -628,7 +499,7 @@ pnpm run supabase:push
 pnpm run dev:all
 
 # 7. Configure and start frontend (in a new terminal)
-cd ../frontend
+cd app/frontend
 cp .env.example .env.local
 # Set NEXT_PUBLIC_BACKEND_URL=http://localhost:3001
 pnpm run dev

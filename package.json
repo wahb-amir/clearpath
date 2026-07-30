@@ -1,4 +1,11 @@
 {
-  "name": "clearpath",
-  "private": true
+  "name": "clearpath-workspace",
+  "private": true,
+  "scripts": {
+    "dev:backend": "pnpm --filter backend dev",
+    "dev:frontend": "pnpm --filter clearpath dev",
+    "build:backend": "pnpm --filter backend build",
+    "build:frontend": "pnpm --filter clearpath build",
+    "test:backend": "pnpm --filter backend test"
+  }
 }

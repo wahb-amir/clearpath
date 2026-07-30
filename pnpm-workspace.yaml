@@ -1,6 +1,6 @@
 packages:
-  - "frontend"
-  - "backend"
+  - "app/*"
+  - "services/*"
 
 allowBuilds:
   argon2: true
