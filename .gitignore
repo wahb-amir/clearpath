@@ -49,3 +49,8 @@ Cargo.lock
 # ignore backups file made by my Custom MCP
 .bak
 .mcp_backups/
+
+# todo task 
+todo.md
+# keeping the rust service on hold for now, as we are not using it in the current implementation.
+services
