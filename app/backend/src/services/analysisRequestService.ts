@@ -152,9 +152,9 @@ export async function triggerAnalysis(
       `UPDATE documents
          SET analysis_status = 'QUEUED',
              current_stage = 'QUEUED',
-             worker_id = NULL
-       WHERE id = $1
-       RETURNING *`,
+             
+       RETURNING worker_id = NULL
+       WHERE id = $1*`,
       [params.documentId],
     );
 
