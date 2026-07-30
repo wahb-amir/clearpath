@@ -13,7 +13,7 @@ import type {
   DocumentRow,
 } from "../types/dtos";
 import { deriveIdempotencyKey } from "../utils/idempotency";
-import { isInFlight, isTerminal } from "../types/pipelineStatus";
+import { isInFlight } from "../types/pipelineStatus";
 
 interface TriggerAnalysisParams {
   documentId: string;
