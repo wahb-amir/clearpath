@@ -5,10 +5,8 @@ on:
     paths:
       - "app/backend/src/workers/**"
       - "app/backend/package.json"
-      - "app/backend/pnpm-lock.yaml"
-      - "app/backend/vitest.config.ts"
+      - "pnpm-lock.yaml"
       - "pnpm-workspace.yaml"
-      - "pnpm.yaml"
       - ".npmrc"
       - ".github/workflows/worker-tests.yml"
   pull_request:
@@ -18,10 +16,8 @@ on:
     paths:
       - "app/backend/src/workers/**"
       - "app/backend/package.json"
-      - "app/backend/pnpm-lock.yaml"
-      - "app/backend/vitest.config.ts"
+      - "pnpm-lock.yaml"
       - "pnpm-workspace.yaml"
-      - "pnpm.yaml"
       - ".npmrc"
       - ".github/workflows/worker-tests.yml"
   workflow_dispatch:
@@ -31,9 +27,11 @@ jobs:
     name: Worker Stage Tests
     runs-on: ubuntu-latest
 
-    defaults:
-      run:
-        working-directory: app/backend
+    env:
+      # Ensures pnpm v11 runs fully non-interactively (no TTY prompts for
+      # build-script approval) and strictly honors allowBuilds in
+      # pnpm-workspace.yaml instead of hanging/failing on unapproved builds.
+      CI: "true"
 
     steps:
       - name: Checkout code
@@ -49,15 +47,33 @@ jobs:
         with:
           node-version: "22"
           cache: "pnpm"
-          cache-dependency-path: "app/backend/pnpm-lock.yaml"
+          # The workspace lockfile lives at the repo root (pnpm-workspace.yaml
+          # covers app/* and services/*) -- there is no separate lockfile
+          # inside app/backend.
+          cache-dependency-path: "pnpm-lock.yaml"
 
       - name: Install dependencies
-        run: pnpm ci
+        # Must run from the repo root: pnpm resolves the workspace root via
+        # pnpm-workspace.yaml, and --frozen-lockfile + retry guards against
+        # the transient registry/network flakiness that's been failing this
+        # step intermittently.
+        run: |
+          for attempt in 1 2 3; do
+            pnpm install --frozen-lockfile && break
+            if [ "$attempt" -eq 3 ]; then
+              echo "pnpm install failed after 3 attempts" >&2
+              exit 1
+            fi
+            echo "pnpm install failed (attempt $attempt/3), retrying in 10s..."
+            sleep 10
+          done
 
       - name: Run worker tests
+        working-directory: app/backend
         run: pnpm test
 
       - name: Run tests with coverage
+        working-directory: app/backend
         run: pnpm test:coverage
 
       - name: Upload coverage report
