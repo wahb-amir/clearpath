@@ -80,7 +80,7 @@ export function makeState(
 }
 
 // ---------------------------------------------------------------------------
-// Sample extracted content stored in doc.extracted_content after verification
+// Sample extracted content stored in doc.extracted_content after cleaning
 // ---------------------------------------------------------------------------
 export const SAMPLE_EXTRACTED_CONTENT = {
   title: "Service Agreement",

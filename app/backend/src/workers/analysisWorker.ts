@@ -10,7 +10,6 @@ import type { AnalysisState } from "./stages/types";
 import { processInitializationStage } from "./stages/initializationStage";
 import { processExtractionStage } from "./stages/extractionStage";
 import { processCleaningStage } from "./stages/cleaningStage";
-import { processAwaitingVerificationStage } from "./stages/awaitingVerificationStage";
 import { processStructuringStage } from "./stages/structuringStage";
 import { processChunkingStage } from "./stages/chunkingStage";
 import { processEmbeddingStage } from "./stages/embeddingStage";
@@ -70,7 +69,6 @@ export async function processAnalysisJob(
     doc.analysis_status === "COMPLETED" ||
     doc.analysis_status === "CANCELLED" ||
     doc.analysis_status === "FAILED" ||
-    doc.analysis_status === "AWAITING_VERIFICATION" ||
     doc.analysis_status === "PREPROCESSING_COMPLETED" ||
     doc.analysis_status === "AI_QUEUED" ||
     doc.analysis_status === "AI_PROCESSING" ||
@@ -100,11 +98,6 @@ export async function processAnalysisJob(
     state = await processExtractionStage(state);
     state = await processCleaningStage(state);
 
-    const verificationResult = await processAwaitingVerificationStage(state);
-    if (verificationResult.halt) {
-      return;
-    }
-    state = verificationResult.state;
 
     state = await processStructuringStage(state);
     state = await processChunkingStage(state);

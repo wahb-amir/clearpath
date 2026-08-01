@@ -7,10 +7,7 @@ import { motion, AnimatePresence } from "framer-motion";
 import { Loader2, ArrowLeft, Terminal, Info, AlertOctagon } from "lucide-react";
 import { apiFetch } from "@/lib/auth/apiFetch";
 import useSWR from "swr";
-import ExtractionVerificationPanel from "@/components/document-intelligence/ExtractionVerificationPanel";
 import {
-  fetchExtractedContent,
-  confirmExtraction,
   openAnalysisStream,
 } from "@/lib/api/documentAnalysis";
 
@@ -58,9 +55,6 @@ export default function RunDetailPage() {
   );
 
   const [events, setEvents] = useState([]);
-  const [extractedContent, setExtractedContent] = useState(null);
-  const [fetchingExtractedContent, setFetchingExtractedContent] =
-    useState(false);
 
   const terminalEndRef = useRef(null);
 
@@ -107,12 +101,6 @@ export default function RunDetailPage() {
             return [...prev, newEvent];
           });
 
-          if (
-            eventName === "extraction_draft_updated" &&
-            data.payload?.extractedContent
-          ) {
-            setExtractedContent(data.payload.extractedContent);
-          }
 
           // Update local SWR cache for run stages
           mutate(
@@ -130,11 +118,10 @@ export default function RunDetailPage() {
           // Scroll terminal to latest trace
           terminalEndRef.current?.scrollIntoView({ behavior: "smooth" });
 
-          // Refresh detailed DB parameters when a phase changes to verification or terminal state
+          // Refresh detailed DB parameters when a phase changes to a terminal state
           if (
             nextStage === "COMPLETED" ||
-            nextStage === "FAILED" ||
-            nextStage === "AWAITING_VERIFICATION"
+            nextStage === "FAILED"
           ) {
             mutate();
           }
@@ -152,34 +139,6 @@ export default function RunDetailPage() {
     };
   }, [run?.status, documentId]);
 
-  // Fetch extracted content when verification is required
-  useEffect(() => {
-    if (
-      run?.docAnalysisStatus === "AWAITING_VERIFICATION" &&
-      !extractedContent &&
-      !fetchingExtractedContent
-    ) {
-      setFetchingExtractedContent(true);
-      fetchExtractedContent(documentId)
-        .then((data) => {
-          if (data && data.extracted_content) {
-            setExtractedContent(data.extracted_content);
-          }
-        })
-        .catch((err) =>
-          console.error(
-            "Failed to fetch extracted content on history page:",
-            err,
-          ),
-        )
-        .finally(() => setFetchingExtractedContent(false));
-    }
-  }, [
-    run?.docAnalysisStatus,
-    extractedContent,
-    fetchingExtractedContent,
-    documentId,
-  ]);
 
   // FIX: Concurrently track active status before focusing terminal window
   // Keeps historical views stationary on mount while maintaining tracking parameters for active processing tasks
@@ -392,43 +351,6 @@ export default function RunDetailPage() {
         <div className="lg:col-span-2 space-y-4">
           <AnimatePresence mode="wait">
             {run.status === "running" ? (
-              run.docAnalysisStatus === "AWAITING_VERIFICATION" ? (
-                extractedContent ? (
-                  <motion.div
-                    key="verification-pane"
-                    initial={{ opacity: 0, y: 10 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    exit={{ opacity: 0 }}
-                    transition={{ duration: 0.3 }}
-                  >
-                    <ExtractionVerificationPanel
-                      documentId={documentId}
-                      fileName={run.fileName || "Document"}
-                      extractedContent={extractedContent}
-                      onConfirm={confirmExtraction}
-                      onConfirmed={() => {
-                        mutate();
-                      }}
-                    />
-                  </motion.div>
-                ) : (
-                  <motion.div
-                    key="loading-verification-pane"
-                    initial={{ opacity: 0 }}
-                    animate={{ opacity: 1 }}
-                    exit={{ opacity: 0 }}
-                    className="bg-slate-900/40 border border-slate-800/80 rounded-2xl p-8 text-center"
-                  >
-                    <Loader2
-                      className="animate-spin text-cyan-500 mx-auto mb-3"
-                      size={28}
-                    />
-                    <p className="text-sm text-slate-400">
-                      Loading extracted content for review...
-                    </p>
-                  </motion.div>
-                )
-              ) : (
                 <motion.div
                   key="running-pane"
                   initial={{ opacity: 0, y: 10 }}
@@ -448,7 +370,6 @@ export default function RunDetailPage() {
                     right now. Content maps will initialize dynamically below.
                   </p>
                 </motion.div>
-              )
             ) : run.status === "failed" ? (
               <motion.div
                 key="failed-pane"

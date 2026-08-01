@@ -43,10 +43,6 @@ export interface TrustedSource {
   url: string;
 }
 
-export interface HumanReview {
-  required: boolean;
-  reason: string;
-}
 
 export interface AiConfidence {
   overall: number;
@@ -59,7 +55,6 @@ export interface FinalDocumentAnalysisResult {
   questions_to_ask: string[];
   ai_confidence: AiConfidence;
   trusted_sources: TrustedSource[];
-  human_review: HumanReview;
 }
 
 export interface PipelineStageOutputs {
@@ -73,7 +68,7 @@ export interface PipelineStageOutputs {
 
 export interface DocumentAnalysisPipelineResult extends FinalDocumentAnalysisResult {
   stage_outputs: PipelineStageOutputs;
-  status: "completed" | "review_required";
+  status: "completed";
 }
 
 export interface DocumentAnalysisJobData {

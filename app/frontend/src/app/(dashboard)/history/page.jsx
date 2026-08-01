@@ -144,7 +144,6 @@ export default function HistoryPage() {
             <option value="all">All Statuses</option>
             <option value="running">In Progress (Running)</option>
             <option value="completed">Completed</option>
-            <option value="review_required">Review Required</option>
             <option value="failed">Failed</option>
           </select>
 
@@ -293,12 +292,6 @@ export default function HistoryPage() {
                       {item.status === "completed" && (
                         <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-md text-xs font-medium bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">
                           <CheckCircle size={12} /> Done
-                        </span>
-                      )}
-
-                      {item.status === "review_required" && (
-                        <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-md text-xs font-medium bg-blue-500/10 text-blue-400 border border-blue-500/20">
-                          <AlertTriangle size={12} /> Review
                         </span>
                       )}
 

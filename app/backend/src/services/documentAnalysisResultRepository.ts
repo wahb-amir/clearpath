@@ -10,7 +10,7 @@ export interface PersistedDocumentAnalysisRow extends FinalDocumentAnalysisResul
   analysis_request_id: string;
   document_id: string;
   user_id: string;
-  status: "pending" | "processing" | "completed" | "review_required" | "failed";
+  status: "pending" | "processing" | "completed" | "failed";
   model: string;
   stage_outputs: Record<string, unknown>;
   error_message: string | null;
@@ -102,9 +102,6 @@ export async function finalizeAnalysisResult(
   client: PoolClient,
   input: UpsertAnalysisResultInput,
 ): Promise<void> {
-  const status =
-    input.result.status === "review_required" ? "review_required" : "completed";
-
   await client.query(
     `INSERT INTO document_analysis_results (
       analysis_request_id,
@@ -118,14 +115,13 @@ export async function finalizeAnalysisResult(
       questions_to_ask,
       ai_confidence,
       trusted_sources,
-      human_review,
       stage_outputs,
       error_message,
       updated_at
     )
     VALUES (
-      $1, $2, $3, $4, $5,
-      $6, $7::jsonb, $8::jsonb, $9::jsonb, $10::jsonb, $11::jsonb, $12::jsonb, $13::jsonb,
+      $1, $2, $3, $4, 'completed',
+      $5, $6::jsonb, $7::jsonb, $8::jsonb, $9::jsonb, $10::jsonb, $11::jsonb,
       NULL,
       now()
     )
@@ -141,7 +137,6 @@ export async function finalizeAnalysisResult(
       questions_to_ask = EXCLUDED.questions_to_ask,
       ai_confidence = EXCLUDED.ai_confidence,
       trusted_sources = EXCLUDED.trusted_sources,
-      human_review = EXCLUDED.human_review,
       stage_outputs = EXCLUDED.stage_outputs,
       error_message = NULL,
       updated_at = now()`,
@@ -150,14 +145,12 @@ export async function finalizeAnalysisResult(
       input.documentId,
       input.userId,
       input.model,
-      status,
       input.result.summary,
       JSON.stringify(input.result.action_items),
       JSON.stringify(input.result.key_deadlines),
       JSON.stringify(input.result.questions_to_ask),
       JSON.stringify(input.result.ai_confidence),
       JSON.stringify(input.result.trusted_sources),
-      JSON.stringify(input.result.human_review),
       JSON.stringify(input.result.stage_outputs),
     ],
   );

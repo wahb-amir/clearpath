@@ -81,17 +81,7 @@ export async function runAiPipeline(
       language: doc.language,
     });
 
-    if (result.human_review.required) {
-      await reportProgress({
-        documentId,
-        userId,
-        stage: "AI_PROCESSING",
-        eventType: "ai_human_review_required",
-        message: result.human_review.reason,
-        progress: 90,
-        payload: { reason: result.human_review.reason },
-      });
-    }
+
 
     await reportStage({
       documentId,
@@ -109,8 +99,6 @@ export async function runAiPipeline(
         questionsToAsk: result.questions_to_ask,
         aiConfidence: result.ai_confidence,
         trustedSources: result.trusted_sources,
-        humanReview: result.human_review,
-        status: result.status,
       },
     });
 
@@ -120,10 +108,7 @@ export async function runAiPipeline(
       workerId: env.WORKER_ID,
       toStatus: "COMPLETED",
       eventType: "analysis_completed",
-      message:
-        result.status === "review_required"
-          ? "Analysis completed - human review recommended"
-          : "Analysis completed",
+      message: "Analysis completed",
       progress: 100,
       payload: {
         analysisVersion,
@@ -133,8 +118,6 @@ export async function runAiPipeline(
         questionsToAsk: result.questions_to_ask,
         aiConfidence: result.ai_confidence,
         trustedSources: result.trusted_sources,
-        humanReview: result.human_review,
-        status: result.status,
       },
     });
   } catch (error) {

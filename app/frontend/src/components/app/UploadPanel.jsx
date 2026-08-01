@@ -21,10 +21,7 @@ import { useIsMobile } from "@/lib/useIsMobile";
 import {
   openAnalysisStream,
   startAnalysisRequest,
-  fetchExtractedContent,
-  confirmExtraction,
 } from "@/lib/api/documentAnalysis";
-import ExtractionVerificationPanel from "../document-intelligence/ExtractionVerificationPanel";
 import { apiFetch } from "@/lib/auth/apiFetch";
 import {
   EVENT_LABELS,
@@ -95,28 +92,6 @@ function normalizeStage(stage) {
   return stage || "IDLE";
 }
 
-/**
- * Fetch extracted content with exponential back-off retries.
- * On heavy documents the server may not have written the extraction record
- * yet when the AWAITING_VERIFICATION event fires, so the first request can
- * return 404/empty. We retry up to `maxAttempts` times before giving up.
- */
-async function fetchExtractedContentWithRetry(documentId, maxAttempts = 5) {
-  let delay = 1500; // ms
-  for (let attempt = 1; attempt <= maxAttempts; attempt++) {
-    try {
-      const data = await fetchExtractedContent(documentId);
-      if (data?.extracted_content) return data.extracted_content;
-    } catch {
-      // swallow – will retry
-    }
-    if (attempt < maxAttempts) {
-      await new Promise((res) => setTimeout(res, delay));
-      delay = Math.min(delay * 1.8, 10000); // cap at 10 s
-    }
-  }
-  return null;
-}
 
 async function uploadDocumentFile(file) {
   const baseUrl = process.env.NEXT_PUBLIC_BACKEND_URL?.replace(/\/$/, "") || "";
@@ -513,7 +488,6 @@ export default function DocumentIntelligencePanel({
   const [progress, setProgress] = useState(0);
   const [workerId, setWorkerId] = useState(null);
   const [analysisRequestId, setAnalysisRequestId] = useState(null);
-  const [extractedContent, setExtractedContent] = useState(null);
   const [error, setError] = useState(null);
   const [timeline, setTimeline] = useState([]);
   const [latestEventId, setLatestEventId] = useState(null);
@@ -558,24 +532,6 @@ export default function DocumentIntelligencePanel({
   const serverFileName = serverDocument?.fileName ?? null;
   const serverStage = normalizeStage(serverDocument?.analysisStatus);
 
-  useEffect(() => {
-    if (
-      stage === "AWAITING_VERIFICATION" &&
-      !extractedContent &&
-      (activeSession?.documentId || serverDocumentId)
-    ) {
-      const docId = activeSession?.documentId || serverDocumentId;
-      if (docId) {
-        fetchExtractedContentWithRetry(docId)
-          .then((content) => {
-            if (content) setExtractedContent(content);
-          })
-          .catch((err) =>
-            console.error("Failed to fetch extracted content", err),
-          );
-      }
-    }
-  }, [stage, extractedContent, activeSession?.documentId, serverDocumentId]);
 
   const busy = Boolean(analyzing || isAnalyzing || serverRunning);
   const isFileBusy = busy && !completed && !failed;
@@ -619,7 +575,6 @@ export default function DocumentIntelligencePanel({
       setAnalysisRequestId(null);
       setTimeline([]);
       setLatestEventId(null);
-      setExtractedContent(null);
       onAiResult?.(null);
 
       seenEventIdsRef.current = new Set();
@@ -773,12 +728,10 @@ export default function DocumentIntelligencePanel({
 
       const applyEvent = (eventName, data, eventId) => {
         // The backend always sends a `snapshot` event first with id=0.
-        // It carries the current document state but never has extractedContent
-        // in its payload. We handle it specially:
+        // Handle it specially:
         //  - Do NOT add id 0 to seenEventIds (would block future snapshots)
         //  - Do NOT update lastEventIdRef (snapshot is not a real pipeline event)
-        //  - Update stage/workerId from payload fields, then trigger the
-        //    extractedContent fetch via state if stage is AWAITING_VERIFICATION
+        //  - Update stage/workerId from payload fields
         if (eventName === "snapshot") {
           const snapshotStage = normalizeStage(
             data.stage ||
@@ -796,25 +749,7 @@ export default function DocumentIntelligencePanel({
           if (data.payload && typeof data.payload.workerId === "string") {
             setWorkerId(data.payload.workerId);
           }
-          // If the document is already AWAITING_VERIFICATION, kick off
-          // the extractedContent fetch immediately (the fallback useEffect
-          // may not fire fast enough because activeSession state is async)
-          if (snapshotStage === "AWAITING_VERIFICATION" && activeDocId) {
-            fetchExtractedContentWithRetry(activeDocId)
-              .then((content) => {
-                if (content) setExtractedContent(content);
-                else
-                  console.warn(
-                    "[syncStream] snapshot: extracted_content not available after retries",
-                  );
-              })
-              .catch((err) =>
-                console.error(
-                  "[syncStream] snapshot: Failed to fetch extracted content",
-                  err,
-                ),
-              );
-          }
+
           return;
         }
 
@@ -852,37 +787,6 @@ export default function DocumentIntelligencePanel({
           setWorkerId(data.payload.workerId);
         }
 
-        // Handle extractedContent from AWAITING_VERIFICATION pipeline events
-        if (
-          nextStage === "AWAITING_VERIFICATION" &&
-          data.payload?.extractedContent
-        ) {
-          setExtractedContent(data.payload.extractedContent);
-        }
-        // If stage is AWAITING_VERIFICATION but extractedContent wasn't in
-        // the payload (e.g. a status-only pipeline event), fetch it from the API
-        // with retries — on heavy docs the record may not be written yet.
-        if (
-          nextStage === "AWAITING_VERIFICATION" &&
-          !data.payload?.extractedContent &&
-          activeDocId
-        ) {
-          fetchExtractedContentWithRetry(activeDocId)
-            .then((content) => {
-              if (content) setExtractedContent(content);
-              else
-                console.warn(
-                  "[syncStream] pipeline: extracted_content not available after retries",
-                );
-            })
-            .catch((err) =>
-              console.error(
-                "[syncStream] Failed to fetch extracted content",
-                err,
-              ),
-            );
-        }
-
         if (
           (eventName === "ai_completed" ||
             eventName === "analysis_completed") &&
@@ -896,8 +800,6 @@ export default function DocumentIntelligencePanel({
             questionsToAsk: data.payload.questionsToAsk ?? [],
             aiConfidence: data.payload.aiConfidence ?? null,
             trustedSources: data.payload.trustedSources ?? [],
-            humanReview: data.payload.humanReview ?? null,
-            status: data.payload.status ?? null,
           });
         }
 
@@ -1060,7 +962,6 @@ export default function DocumentIntelligencePanel({
       setAnalysisRequestId(null);
       setTimeline([]);
       setLatestEventId(null);
-      setExtractedContent(null);
       onAiResult?.(null);
 
       seenEventIdsRef.current = new Set();
@@ -1119,7 +1020,6 @@ export default function DocumentIntelligencePanel({
     setFailed(false);
     setCompleted(false);
     setTimeline([]);
-    setExtractedContent(null);
     setMessage("Uploading document...");
     setProgress(0);
     setStage("QUEUED");
@@ -1194,22 +1094,6 @@ export default function DocumentIntelligencePanel({
             if (data.payload && typeof data.payload.workerId === "string") {
               setWorkerId(data.payload.workerId);
             }
-            if (snapshotStage === "AWAITING_VERIFICATION") {
-              fetchExtractedContentWithRetry(documentId)
-                .then((content) => {
-                  if (content) setExtractedContent(content);
-                  else
-                    console.warn(
-                      "[handleAnalyze] snapshot: extracted_content not available after retries",
-                    );
-                })
-                .catch((err) =>
-                  console.error(
-                    "[handleAnalyze] snapshot: Failed to fetch extracted content",
-                    err,
-                  ),
-                );
-            }
             return;
           }
 
@@ -1247,34 +1131,6 @@ export default function DocumentIntelligencePanel({
           }
 
           if (
-            nextStage === "AWAITING_VERIFICATION" &&
-            data.payload?.extractedContent
-          ) {
-            setExtractedContent(data.payload.extractedContent);
-          }
-          // Fallback: stage is AWAITING_VERIFICATION but extractedContent not in payload.
-          // Use retries — on heavy docs the server may not have written the record yet.
-          if (
-            nextStage === "AWAITING_VERIFICATION" &&
-            !data.payload?.extractedContent
-          ) {
-            fetchExtractedContentWithRetry(documentId)
-              .then((content) => {
-                if (content) setExtractedContent(content);
-                else
-                  console.warn(
-                    "[handleAnalyze] extracted_content not available after retries",
-                  );
-              })
-              .catch((err) =>
-                console.error(
-                  "[handleAnalyze] Failed to fetch extracted content",
-                  err,
-                ),
-              );
-          }
-
-          if (
             (eventName === "ai_completed" ||
               eventName === "analysis_completed") &&
             data.payload &&
@@ -1287,9 +1143,7 @@ export default function DocumentIntelligencePanel({
               questionsToAsk: data.payload.questionsToAsk ?? [],
               aiConfidence: data.payload.aiConfidence ?? null,
               trustedSources: data.payload.trustedSources ?? [],
-              humanReview: data.payload.humanReview ?? null,
-              status: data.payload.status ?? null,
-            });
+                });
           }
 
           if (nextStage === "COMPLETED") {
@@ -1540,44 +1394,23 @@ export default function DocumentIntelligencePanel({
             )}
           </AnimatePresence>
 
-          {stage === "AWAITING_VERIFICATION" ? (
-            extractedContent ? (
-              <div className="mt-4">
-                <ExtractionVerificationPanel
-                  documentId={activeSession?.documentId || serverDocumentId}
-                  fileName={currentDocument?.name || "Document"}
-                  extractedContent={extractedContent}
-                  onConfirm={confirmExtraction}
-                  onConfirmed={() => {
-                    setStage("VERIFIED");
-                    setMessage("Extraction confirmed. Continuing analysis...");
-                  }}
-                />
-              </div>
-            ) : (
-              <div className="mt-8 flex justify-center p-12">
-                <Loader2 className="animate-spin text-cyan-500" size={32} />
-              </div>
-            )
-          ) : (
-            <StatusCard
-              message={message}
-              statusMeta={statusMeta}
-              progress={progress}
-              progressFillClass={progressFillClass}
-              stage={stage}
-              completed={completed}
-              failed={failed}
-              reconnecting={reconnecting}
-              isConnected={isConnected}
-              timeline={timeline}
-              latestEventId={latestEventId}
-              analysisRequestId={analysisRequestId}
-              workerId={workerId}
-              error={error}
-              onRetry={handleRetry}
-            />
-          )}
+          <StatusCard
+            message={message}
+            statusMeta={statusMeta}
+            progress={progress}
+            progressFillClass={progressFillClass}
+            stage={stage}
+            completed={completed}
+            failed={failed}
+            reconnecting={reconnecting}
+            isConnected={isConnected}
+            timeline={timeline}
+            latestEventId={latestEventId}
+            analysisRequestId={analysisRequestId}
+            workerId={workerId}
+            error={error}
+            onRetry={handleRetry}
+          />
         </div>
       </div>
 

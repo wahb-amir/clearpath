@@ -29,7 +29,7 @@ A user uploads a document → the system runs a multi-stage preprocessing and AI
 │                        Frontend (Next.js)                     │
 │   /analyze  /history  /saved  /profile  /settings            │
 │                                                              │
-│   Upload → SSE stream → Verification Panel → Results Panel  │
+│   Upload → SSE stream → Results Panel                       │
 └────────────────────────────┬─────────────────────────────────┘
                              │ HTTPS (httpOnly cookies)
                              ▼
@@ -98,7 +98,7 @@ clearpath/
 │   └── frontend/               # Next.js App Router (JavaScript)
 │       ├── src/
 │       │   ├── app/            # App router pages (dashboard, auth, marketing)
-│       │   ├── components/     # App UI, verification panel, results cards
+│       │   ├── components/     # App UI, upload panel, results cards
 │       │   └── lib/            # apiFetch, auth helpers & SWR hooks
 │       ├── .env.example
 │       ├── next.config.mjs
@@ -152,7 +152,7 @@ clearpath/
 
 ## How the Pipeline Works
 
-The analysis of a single document goes through **two separate BullMQ workers** and a **human verification gate** in between.
+The analysis of a single document goes through **two separate BullMQ workers** in a continuous flow — preprocessing runs straight into AI analysis with no manual pause.
 
 ### Phase 1 — Preprocessing Worker (`analysisWorker.ts`)
 
@@ -163,29 +163,15 @@ QUEUED
   └─► PROCESSING        (worker picks up job)
         └─► EXTRACTING  (PDF/image text extraction, OCR fallback)
               └─► CLEANING  (noise removal, whitespace normalisation)
-                    └─► AWAITING_VERIFICATION  ← pipeline pauses here
+                    └─► STRUCTURING → CHUNKING → EMBEDDING → SUMMARIZING
+                          └─► PREPROCESSING_COMPLETED
 ```
 
-At `AWAITING_VERIFICATION`, the worker has extracted and structured the raw text from the document and stored it in `documents.extracted_content` (a JSONB column). The pipeline then **stops** and waits for human confirmation.
-
-### Human Verification Gate
-
-The frontend shows the `ExtractionVerificationPanel` — a full-screen modal that lets the user:
-
-1. Review the extracted text, sections, dates, and contacts
-2. Edit any incorrect or missing values
-3. Click **Confirm** to resume the pipeline
-
-`POST /analysis/documents/:id/confirm-extraction` handles the confirmation:
-
-- Saves the (possibly edited) `extracted_content` back to the DB
-- Transitions the document status to `PREPROCESSING_COMPLETED`
-- Inserts a `document.extraction.verified` outbox event
-- Notifies SSE clients immediately via Redis PUBLISH
+After cleaning, the worker structures sections/facts, builds hierarchical chunks, generates embeddings, and writes a document summary. Extracted content is stored in `documents.extracted_content` (JSONB). On `PREPROCESSING_COMPLETED`, an outbox event enqueues the AI analysis job automatically.
 
 ### Phase 2 — AI Analysis Worker (`aiAnalysisWorker.ts`)
 
-The dispatcher picks up the `document.extraction.verified` outbox event and enqueues an `ai-analysis` BullMQ job. The AI worker runs the 5-stage LLM pipeline:
+The dispatcher picks up the preprocessing-completed outbox event and enqueues an `ai-analysis` BullMQ job. The AI worker runs the 5-stage LLM pipeline:
 
 ```
 AI_PROCESSING
@@ -197,13 +183,13 @@ AI_PROCESSING
   └─► AI_COMPLETED → COMPLETED
 ```
 
-Results are saved to `document_analysis_results` and broadcast to any connected SSE clients.
+Results are saved to `document_analysis_results` with status `completed` and broadcast to any connected SSE clients.
 
 ### The 5 LLM Stages in Detail
 
 | Stage                                  | Role                                                                                                        | Output                                                                                        |
 | -------------------------------------- | ----------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------- |
-| **Stage 1** — Document Understanding   | Classifies the document type, audience, language; flags high-stakes content needing human review            | `document_type`, `intended_audience`, `needs_human_review`                                    |
+| **Stage 1** — Document Understanding   | Classifies the document type, audience, language; flags high-stakes content for cautious phrasing           | `document_type`, `intended_audience`, `needs_human_review`                                    |
 | **Stage 2** — Candidate Extraction     | Extracts all deadlines, required actions, risks, and contacts as structured objects with evidence citations | `deadlines[]`, `actions[]`, `risks[]`, `contacts[]`, `missing_info[]`                         |
 | **Stage 3** — Grounding & Verification | Searches official `.gov`/`.edu` sources via Tavily; cross-checks extracted items against official sources   | `verified_items[]` with status: `verified`, `partially_verified`, `unverified`, `conflicting` |
 | **Stage 4** — User-Facing Synthesis    | Writes the final plain-English output in language accessible to non-native speakers                         | `ai_summary`, `action_items[]`, `key_deadlines[]`, `questions_to_ask[]`, `trusted_sources[]`  |
@@ -313,13 +299,15 @@ PENDING_UPLOAD
               └─► PROCESSING
                     └─► EXTRACTING
                           └─► CLEANING
-                                └─► AWAITING_VERIFICATION  ◄── human review gate
-                                      └─► PREPROCESSING_COMPLETED
-                                            └─► AI_QUEUED
-                                                  └─► AI_PROCESSING
-                                                        └─► AI_COMPLETED
-                                                              └─► COMPLETED
-                                                              └─► (review_required)
+                                └─► STRUCTURING
+                                      └─► CHUNKING
+                                            └─► EMBEDDING
+                                                  └─► SUMMARIZING
+                                                        └─► PREPROCESSING_COMPLETED
+                                                              └─► AI_QUEUED
+                                                                    └─► AI_PROCESSING
+                                                                          └─► AI_COMPLETED
+                                                                                └─► COMPLETED
                     └─► FAILED (any stage)
 ```
 
@@ -353,9 +341,6 @@ All endpoints are relative to the backend base URL (default `http://localhost:30
 | ------ | --------------------------------------------------------- | ------------ | --------------------------------------------------------------- |
 | POST   | `/analysis/documents/:id/analyze`                         | cookie       | Start or re-use analysis. Returns SSE URL.                      |
 | GET    | `/analysis/documents/:id/events`                          | cookie       | **SSE stream** of pipeline events                               |
-| GET    | `/analysis/documents/:id/extracted-content`               | cookie       | Fetch stored extracted content for verification                 |
-| PATCH  | `/analysis/documents/:id/extracted-content`               | cookie       | Auto-save draft edits to extracted content                      |
-| POST   | `/analysis/documents/:id/confirm-extraction`              | cookie       | Confirm extraction → resume AI pipeline                         |
 | POST   | `/analysis/documents/:id/toggle-save`                     | cookie       | Toggle bookmark status                                          |
 | GET    | `/analysis/history`                                       | cookie       | Paginated analysis history. Query: `page`, `pageSize`, `status` |
 | GET    | `/analysis/runs/:documentId`                              | cookie       | Full run detail including pipeline events                       |
@@ -374,29 +359,28 @@ All endpoints are relative to the backend base URL (default `http://localhost:30
 
 The SSE stream at `/analysis/documents/:id/events` emits these events:
 
-| Event                              | Stage                 | Description                                     |
-| ---------------------------------- | --------------------- | ----------------------------------------------- |
-| `snapshot`                         | any                   | Initial state replay on connect                 |
-| `worker_assigned`                  | PROCESSING            | Worker picked up the job                        |
-| `extraction_started`               | EXTRACTING            | File type detected, extraction beginning        |
-| `extraction_progress`              | EXTRACTING            | Per-page progress                               |
-| `ocr_fallback_started`             | EXTRACTING            | Sparse text detected, OCR fallback active       |
-| `text_cleaned`                     | CLEANING              | OCR noise removed                               |
-| `language_detected`                | CLEANING              | Language identified                             |
-| `extraction_awaiting_verification` | AWAITING_VERIFICATION | Extraction done, human review required          |
-| `extraction_verified`              | VERIFIED              | User confirmed extraction, AI pipeline resuming |
-| `structure_preserved`              | STRUCTURING           | Sections and facts extracted                    |
-| `entities_extracted`               | STRUCTURING           | Structured facts count                          |
-| `chunking_completed`               | CHUNKING              | Hierarchical chunks built                       |
-| `embedding_completed`              | EMBEDDING             | Embeddings generated                            |
-| `summary_created`                  | SUMMARIZING           | Document summary generated                      |
-| `ai_analysis_started`              | AI_PROCESSING         | AI worker started                               |
-| `ai_understanding_started`         | AI_PROCESSING         | Stage 1 (LLM) in progress                       |
-| `ai_synthesis_started`             | AI_PROCESSING         | Stage 4 (LLM synthesis) in progress             |
-| `ai_human_review_required`         | AI_PROCESSING         | Review flag raised                              |
-| `ai_completed`                     | AI_COMPLETED          | AI pipeline done                                |
-| `analysis_completed`               | COMPLETED             | Full pipeline done, results available           |
-| `failed`                           | FAILED                | Pipeline error                                  |
+| Event                      | Stage         | Description                              |
+| -------------------------- | ------------- | ---------------------------------------- |
+| `snapshot`                 | any           | Initial state replay on connect          |
+| `worker_assigned`          | PROCESSING    | Worker picked up the job                 |
+| `extraction_started`       | EXTRACTING    | File type detected, extraction beginning |
+| `extraction_progress`      | EXTRACTING    | Per-page progress                        |
+| `ocr_fallback_started`     | EXTRACTING    | Sparse text detected, OCR fallback active|
+| `text_cleaned`             | CLEANING      | OCR noise removed                        |
+| `language_detected`        | CLEANING      | Language identified                      |
+| `structure_preserved`      | STRUCTURING   | Sections and facts extracted             |
+| `entities_extracted`       | STRUCTURING   | Structured facts count                   |
+| `chunking_completed`       | CHUNKING      | Hierarchical chunks built                |
+| `embedding_completed`      | EMBEDDING     | Embeddings generated                     |
+| `summary_created`          | SUMMARIZING   | Document summary generated               |
+| `preprocessing_completed`  | PREPROCESSING_COMPLETED | Preprocessing done, AI queued  |
+| `ai_analysis_started`      | AI_PROCESSING | AI worker started                        |
+| `ai_understanding_started` | AI_PROCESSING | Stage 1 (LLM) in progress                |
+| `ai_synthesis_started`     | AI_PROCESSING | Stage 4 (LLM synthesis) in progress      |
+| `ai_safety_started`        | AI_PROCESSING | Stage 5 safety review in progress        |
+| `ai_completed`             | AI_COMPLETED  | AI pipeline done                         |
+| `analysis_completed`       | COMPLETED     | Full pipeline done, results available    |
+| `failed`                   | FAILED        | Pipeline error                           |
 
 ---
 
@@ -428,17 +412,7 @@ The main analysis UI. Handles:
 - File drag-and-drop upload (`FileUploadDropzone.jsx`)
 - SSE connection management with automatic session restore on page load
 - Real-time pipeline progress display (`TimelineFeed.jsx`)
-- Showing the `ExtractionVerificationPanel` at the `AWAITING_VERIFICATION` gate
 - Displaying results via `ResultsPanel.jsx`
-
-#### `ExtractionVerificationPanel.jsx` (`src/components/document-intelligence/`)
-
-Full-screen modal for the human verification gate. Allows users to:
-
-- Read the extracted raw text preview
-- Review and edit extracted sections, dates, contacts
-- Auto-save drafts via `PATCH /analysis/documents/:id/extracted-content`
-- Confirm and resume the AI pipeline via `POST /analysis/documents/:id/confirm-extraction`
 
 #### `ResultsPanel.jsx` (`src/components/app/`)
 
@@ -537,7 +511,7 @@ pnpm run lint    # ESLint
 
 ClearPath includes a comprehensive Vitest test suite covering all document preprocessing worker stages and pipeline orchestration.
 
-- **Unit Testing**: Tests individual worker stage logic in isolation, including file type detection, status initialization, text cleaning, entity structuring, hierarchical chunking, embedding generation, summary building, verification gating, and completion handoffs.
+- **Unit Testing**: Tests individual worker stage logic in isolation, including file type detection, status initialization, text cleaning, entity structuring, hierarchical chunking, embedding generation, summary building, and completion handoffs.
 - **Integration Testing**: Verifies end-to-end worker execution (`pipeline.integration.test.ts`) across full document analysis lifecycles, state persistence, error propagation, and retry scenarios.
 - **Automated CI Workflow**: GitHub Actions workflow (`.github/workflows/worker-tests.yml`) executes tests on Node.js 22 & pnpm v11+ for every pull request or push targeting worker stages, generating and uploading V8 test coverage artifacts automatically.
 
@@ -611,3 +585,55 @@ For production, use a managed Redis service (Upstash, Redis Cloud) and configure
 - Storage bucket `documents` must exist with appropriate RLS policies
 - The `DATABASE_URL` must use the Session pooler connection string for LISTEN/NOTIFY support
 - Run all migrations via `pnpm run supabase:push` before deploying
+
+---
+
+## Recent Changes — Human Verification Removed
+
+The interactive human verification gate has been removed. Document analysis now runs continuously from upload through AI results.
+
+### What changed
+
+**Backend**
+- Removed `AWAITING_VERIFICATION` / `VERIFIED` from `analysis_status`; `CLEANING` transitions directly to `STRUCTURING`
+- Deleted `awaitingVerificationStage`, `confirmExtractionController`, and `saveExtractionDraftController`
+- Removed routes: `POST .../confirm-extraction`, `GET/PATCH .../extracted-content`
+- Analysis results always finalize as `completed` (no `review_required` status)
+- Dropped `human_review` from `document_analysis_results` and from the pipeline result DTO
+- Migration `20260801000000_remove_human_verification.sql` migrates stuck docs, recreates enums, and updates activity counters
+
+**Frontend**
+- Deleted `ExtractionVerificationPanel` and `HumanReviewPanel`
+- `UploadPanel` and history detail no longer pause for extraction review
+- Removed confirm/fetch extracted-content API helpers and related SSE handling
+- History filter no longer includes “Review Required”
+- Marketing/auth copy updated to reflect continuous AI processing
+
+**Still present (by design)**
+- Stage 3 “Grounding & Verification” (Tavily + LLM source cross-check) remains part of the AI pipeline
+- Internal LLM `needs_human_review` signals still influence cautious phrasing in summaries; they are not a user-facing gate
+
+---
+
+## Recent Changes — Human Verification Removal
+
+The interactive human verification gate has been removed. Document analysis now runs end-to-end without pausing for user confirmation of extracted content.
+
+### What changed
+
+| Area | Change |
+| ---- | ------ |
+| **Pipeline** | `CLEANING` transitions directly to `STRUCTURING` (statuses `AWAITING_VERIFICATION` / `VERIFIED` removed) |
+| **Workers** | Deleted `awaitingVerificationStage`; preprocessing no longer halts before structuring |
+| **API** | Removed `GET/PATCH …/extracted-content` and `POST …/confirm-extraction` |
+| **Results** | Analysis results always finalize as `completed`; `review_required` status and `human_review` column removed |
+| **Frontend** | Removed `ExtractionVerificationPanel` / `HumanReviewPanel`; upload + history flows stream continuously to results |
+| **Migration** | `20260801000000_remove_human_verification.sql` recreates enums, migrates stuck docs, drops `human_review` |
+
+### Apply the migration
+
+```bash
+cd app/backend && pnpm run supabase:push
+```
+
+Internal LLM stage fields such as `needs_human_review` remain in stage outputs for safety phrasing and uncertainty language — they no longer surface as a separate product status or UI gate.

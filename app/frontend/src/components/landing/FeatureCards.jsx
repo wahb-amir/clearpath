@@ -53,7 +53,7 @@ const features = [
     icon: ShieldCheck,
     title: "Confidence Flags",
     description:
-      "Every extracted item is rated for AI confidence. Low-confidence items are flagged for human verification.",
+      "Every extracted item is rated for AI confidence. Low-confidence items are clearly flagged in the results.",
     color: "hsl(191, 70%, 72%)",
     bg: "hsla(221, 83%, 53%, 0.08)",
     border: "hsla(221, 83%, 53%, 0.15)",

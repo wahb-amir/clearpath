@@ -2,6 +2,7 @@ import { isStageCompleteOrPast } from "../../types/pipelineStatus";
 import { reportStage, reportProgress } from "../stageReporter";
 import { detectFileCategory } from "./detectFileType";
 import { extractText } from "../../services/ingestion/extractText";
+import { estimateQuality } from "../../services/ingestion/estimateQuality";
 import { pgPool } from "../../db/pool";
 import { supabase } from "../../lib/supabase";
 import type { AnalysisState } from "./types";
@@ -107,5 +108,6 @@ export async function processExtractionStage(
     ocrConfidence,
     textCoverage,
     usedOcrFallback,
+    quality: estimateQuality({ ocrConfidence, textCoverage }),
   };
 }

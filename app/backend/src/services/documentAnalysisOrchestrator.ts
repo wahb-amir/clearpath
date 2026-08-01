@@ -180,10 +180,7 @@ export async function runAndPersistDocumentAnalysis(
   const existing = await loadAnalysisResultByRequestId(
     jobData.analysisRequestId,
   );
-  if (
-    existing?.status === "completed" ||
-    existing?.status === "review_required"
-  ) {
+  if (existing?.status === "completed") {
     return existing;
   }
 

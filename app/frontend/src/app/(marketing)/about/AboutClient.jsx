@@ -17,8 +17,6 @@ import {
   CheckCircle2,
   FileText,
   Terminal,
-  UserCheck,
-  HelpCircle,
 } from "lucide-react";
 
 export default function AboutPage() {
@@ -149,24 +147,23 @@ export default function AboutPage() {
               </div>
             </div>
 
-            {/* Step 2 (The Gate) */}
+            {/* Step 2 */}
             <div className="relative">
-              <div className="absolute -left-[35px] mt-1 bg-amber-500/10 p-1.5 rounded-full border border-amber-500/30 text-amber-400">
-                <UserCheck size={16} />
+              <div className="absolute -left-[35px] mt-1 bg-slate-950 p-1.5 rounded-full border border-slate-800 text-cyan-400">
+                <Cpu size={16} />
               </div>
-              <div className="bg-amber-500/5 border border-amber-500/10 p-4 rounded-xl max-w-3xl">
-                <h4 className="text-base font-bold text-amber-400 flex items-center gap-2">
-                  The Crucial Human Verification Gate
+              <div className="bg-slate-900/40 border border-slate-800 p-4 rounded-xl max-w-3xl">
+                <h4 className="text-base font-bold text-slate-200 flex items-center gap-2">
+                  Continuous Structuring & Embedding
                 </h4>
                 <p className="text-sm text-slate-300 mt-1 leading-relaxed">
-                  The system purposely **freezes execution** at the{" "}
-                  <code className="text-amber-300 font-mono bg-slate-950/80 px-1 py-0.5 rounded text-xs">
-                    AWAITING_VERIFICATION
-                  </code>{" "}
-                  stage. We display a comprehensive full-screen confirmation
-                  interface allowing users or case workers to edit, correct, or
-                  refine parsed dates, names, or structural contact blocks
-                  before an AI ever synthesizes text.
+                  After cleaning, the pipeline continues without interruption
+                  through{" "}
+                  <code className="text-cyan-300 font-mono bg-slate-950/80 px-1 py-0.5 rounded text-xs">
+                    STRUCTURING
+                  </code>
+                  , chunking, and embedding so documents move straight into AI
+                  analysis with no manual gate.
                 </p>
               </div>
             </div>
@@ -180,10 +177,9 @@ export default function AboutPage() {
                 Phase 2: 5-Stage Orchestrated LLM Pipeline
               </h4>
               <p className="text-sm text-slate-400 mt-1 max-w-3xl leading-relaxed">
-                Upon confirmation, an independent background queue consumer
-                initializes a multi-agent orchestration architecture utilizing
-                advanced large language models to construct safe, context-aware
-                user resources.
+                An independent background queue consumer initializes a
+                multi-agent orchestration architecture utilizing advanced large
+                language models to construct safe, context-aware user resources.
               </p>
               <div className="flex gap-2 mt-2 flex-wrap">
                 <span className="text-[11px] bg-slate-900 px-2 py-0.5 border border-slate-800 rounded font-mono text-slate-400">

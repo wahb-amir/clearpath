@@ -281,7 +281,7 @@ export default function Navbar() {
                 }}
               >
                 <Shield size={14} />
-                <span>AI-assisted · Human verified · Always private</span>
+                <span>AI-assisted · Source-grounded · Always private</span>
               </div>
             </div>
           </motion.div>

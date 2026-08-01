@@ -21,9 +21,7 @@ export const PIPELINE_EVENT_TYPES = [
 
   "preprocessing_completed",
 
-  "extraction_awaiting_verification",
-  "extraction_draft_updated",
-  "extraction_verified",
+
 
   "ai_analysis_queued",
   "ai_analysis_started",
@@ -49,7 +47,7 @@ export const PIPELINE_EVENT_TYPES = [
 
   "ai_summary_delta",
 
-  "ai_human_review_required",
+
 
   "ai_completed",
 

@@ -176,7 +176,6 @@ vi.mock("../../db/pool", () => ({
 import { processInitializationStage } from "../stages/initializationStage";
 import { processExtractionStage } from "../stages/extractionStage";
 import { processCleaningStage } from "../stages/cleaningStage";
-import { processAwaitingVerificationStage } from "../stages/awaitingVerificationStage";
 import { processStructuringStage } from "../stages/structuringStage";
 import { processChunkingStage } from "../stages/chunkingStage";
 import { processEmbeddingStage } from "../stages/embeddingStage";
@@ -197,7 +196,7 @@ function makeInitialState(status: AnalysisStatus = "QUEUED"): AnalysisState {
   return { job, doc, workerId: "worker-001", currentStatus: status };
 }
 
-describe("Pipeline Integration – Fresh Document (QUEUED → PREPROCESSING_COMPLETED halts at verification)", () => {
+describe("Pipeline Integration – Fresh Document (QUEUED → STRUCTURING continuous flow)", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     outboxInserts.length = 0;
@@ -238,19 +237,15 @@ describe("Pipeline Integration – Fresh Document (QUEUED → PREPROCESSING_COMP
     expect(state.currentStatus).toBe("CLEANING");
   });
 
-  it("cleaning → awaitingVerification: returns halt:true on first pass", async () => {
+  it("cleaning → structuring: flows into structuring", async () => {
     let state = makeInitialState("QUEUED");
     state = await processInitializationStage(state);
     state = await processExtractionStage(state);
     state = await processCleaningStage(state);
 
-    const result = await processAwaitingVerificationStage(state);
+    const structured = await processStructuringStage(state);
 
-    expect(result.halt).toBe(true);
-    // Stage is responsible for calling reportStage with AWAITING_VERIFICATION
-    expect(reportStage).toHaveBeenCalledWith(
-      expect.objectContaining({ toStatus: "AWAITING_VERIFICATION" }),
-    );
+    expect(structured.currentStatus).toBe("STRUCTURING");
   });
 
   it("pipeline flow produces correct sequence of stage transitions", async () => {
@@ -258,7 +253,7 @@ describe("Pipeline Integration – Fresh Document (QUEUED → PREPROCESSING_COMP
     state = await processInitializationStage(state);
     state = await processExtractionStage(state);
     state = await processCleaningStage(state);
-    await processAwaitingVerificationStage(state); // halts here
+    await processStructuringStage(state);
 
     const reportedStatuses = vi
       .mocked(reportStage)
@@ -267,145 +262,11 @@ describe("Pipeline Integration – Fresh Document (QUEUED → PREPROCESSING_COMP
       "PROCESSING",
       "EXTRACTING",
       "CLEANING",
-      "AWAITING_VERIFICATION",
+      "STRUCTURING",
     ]);
   });
 });
 
-describe("Pipeline Integration – Resume Path (VERIFIED → PREPROCESSING_COMPLETED)", () => {
-  beforeEach(() => {
-    vi.clearAllMocks();
-    outboxInserts.length = 0;
-    dbQueries.length = 0;
-    mockPersistSections.mockResolvedValue(new Map());
-    mockPersistChunks.mockResolvedValue(undefined);
-    mockPersistFacts.mockResolvedValue(undefined);
-    mockClearDerived.mockResolvedValue(undefined);
-  });
-
-  function makeResumedState(): AnalysisState {
-    const doc = makeDoc({
-      analysis_status: "VERIFIED",
-      extracted_content: SAMPLE_EXTRACTED_CONTENT,
-    });
-    return {
-      job: makeJob(),
-      doc,
-      workerId: "worker-001",
-      currentStatus: "VERIFIED",
-    };
-  }
-
-  it("awaitingVerification resume path populates sections, facts, quality, title, summary", async () => {
-    const state = makeResumedState();
-
-    const result = await processAwaitingVerificationStage(state);
-
-    expect(result.halt).toBe(false);
-    expect(result.state.sections).toBeDefined();
-    expect(result.state.facts).toBeDefined();
-    expect(result.state.quality).toBeDefined();
-    expect(result.state.title).toBe("Service Agreement");
-    expect(result.state.summary).toBe("A contract between two parties");
-  });
-
-  it("sections from resume path flow into structuring stage correctly", async () => {
-    const state = makeResumedState();
-    const { state: hydratedState } =
-      await processAwaitingVerificationStage(state);
-
-    const structured = await processStructuringStage(hydratedState);
-
-    expect(structured.sections).toBe(hydratedState.sections);
-    expect(structured.currentStatus).toBe("STRUCTURING");
-  });
-
-  it("facts and sections from resume flow into chunking stage", async () => {
-    const state = makeResumedState();
-    const { state: hydratedState } =
-      await processAwaitingVerificationStage(state);
-    const structured = await processStructuringStage(hydratedState);
-
-    const chunked = await processChunkingStage(structured);
-
-    expect(buildChunks).toHaveBeenCalledWith(
-      expect.objectContaining({ sections: hydratedState.sections }),
-    );
-    expect(chunked.currentStatus).toBe("CHUNKING");
-  });
-
-  it("chunking stage calls embedBatch and persists all data", async () => {
-    const state = makeResumedState();
-    const { state: hydratedState } =
-      await processAwaitingVerificationStage(state);
-    const structured = await processStructuringStage(hydratedState);
-    await processChunkingStage(structured);
-
-    expect(embedBatch).toHaveBeenCalledOnce();
-    expect(mockPersistSections).toHaveBeenCalledOnce();
-    expect(mockPersistFacts).toHaveBeenCalledOnce();
-    expect(mockPersistChunks).toHaveBeenCalledOnce();
-  });
-
-  it("full post-verification pipeline reaches PREPROCESSING_COMPLETED", async () => {
-    const state = makeResumedState();
-    const { state: hydratedState } =
-      await processAwaitingVerificationStage(state);
-    let s = await processStructuringStage(hydratedState);
-    s = await processChunkingStage(s);
-    s = await processEmbeddingStage(s);
-    s = await processSummarizingStage(s);
-    await processCompletionStage(s);
-
-    const statuses = vi
-      .mocked(reportStage)
-      .mock.calls.map((c) => c[0].toStatus);
-    expect(statuses).toContain("STRUCTURING");
-    expect(statuses).toContain("CHUNKING");
-    expect(statuses).toContain("EMBEDDING");
-    expect(statuses).toContain("SUMMARIZING");
-    expect(statuses).toContain("PREPROCESSING_COMPLETED");
-  });
-
-  it("completionStage inserts outbox event with correct payload", async () => {
-    const state = makeResumedState();
-    const { state: hydratedState } =
-      await processAwaitingVerificationStage(state);
-    let s = await processStructuringStage(hydratedState);
-    s = await processChunkingStage(s);
-    s = await processEmbeddingStage(s);
-    s = await processSummarizingStage(s);
-    await processCompletionStage(s);
-
-    expect(outboxInserts).toHaveLength(1);
-    expect(outboxInserts[0].payload).toEqual({
-      documentId: "doc-123",
-      userId: "user-789",
-      analysisRequestId: "req-456",
-      analysisVersion: "v1",
-    });
-  });
-
-  it("title and summary from resume path flow into summarizing stage payload", async () => {
-    const state = makeResumedState();
-    const { state: hydratedState } =
-      await processAwaitingVerificationStage(state);
-    let s = await processStructuringStage(hydratedState);
-    s = await processChunkingStage(s);
-    s = await processEmbeddingStage(s);
-    await processSummarizingStage(s);
-
-    expect(reportStage).toHaveBeenCalledWith(
-      expect.objectContaining({
-        toStatus: "SUMMARIZING",
-        payload: {
-          title: "Service Agreement",
-          summary: "A contract between two parties",
-        },
-      }),
-    );
-  });
-});
 
 describe("Pipeline Integration – Skip-Completed Stages", () => {
   beforeEach(() => {
@@ -432,11 +293,6 @@ describe("Pipeline Integration – Skip-Completed Stages", () => {
     state = await processExtractionStage(state);
     state = await processCleaningStage(state);
 
-    const verif = await processAwaitingVerificationStage(state);
-    if (!verif.halt) {
-      state = verif.state;
-    }
-
     state = await processStructuringStage(state);
 
     const reportedSoFar = vi
@@ -446,7 +302,6 @@ describe("Pipeline Integration – Skip-Completed Stages", () => {
     expect(reportedSoFar).not.toContain("PROCESSING");
     expect(reportedSoFar).not.toContain("EXTRACTING");
     expect(reportedSoFar).not.toContain("CLEANING");
-    expect(reportedSoFar).not.toContain("AWAITING_VERIFICATION");
     expect(reportedSoFar).not.toContain("STRUCTURING");
   });
 
@@ -511,7 +366,6 @@ describe("Pipeline Integration – analysisWorker guard logic", () => {
       "COMPLETED",
       "CANCELLED",
       "FAILED",
-      "AWAITING_VERIFICATION",
       "PREPROCESSING_COMPLETED",
       "AI_QUEUED",
       "AI_PROCESSING",
@@ -525,7 +379,6 @@ describe("Pipeline Integration – analysisWorker guard logic", () => {
         "COMPLETED",
         "CANCELLED",
         "FAILED",
-        "AWAITING_VERIFICATION",
         "PREPROCESSING_COMPLETED",
         "AI_QUEUED",
         "AI_PROCESSING",

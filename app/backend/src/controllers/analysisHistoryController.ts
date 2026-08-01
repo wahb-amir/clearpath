@@ -18,7 +18,6 @@ const IN_FLIGHT_ANALYSIS_STATUSES = [
   "CHUNKING",
   "EMBEDDING",
   "SUMMARIZING",
-  "AWAITING_VERIFICATION",
   "PREPROCESSING_COMPLETED",
   "AI_QUEUED",
   "AI_PROCESSING",
@@ -31,7 +30,7 @@ const IN_FLIGHT_ANALYSIS_STATUSES = [
  * Query params:
  *   page     (number, default 1)
  *   pageSize (number, default 20, max 100)
- *   status   ("completed" | "review_required" | "failed" | "running" | "all", default "all")
+ *   status   ("completed" | "failed" | "running" | "all", default "all")
  *
  * Returns:
  *   { items: AnalysisHistoryItem[], total: number, page: number, pageSize: number, totalPages: number }
@@ -62,8 +61,6 @@ export async function getAnalysisHistoryController(
       statusClause = `AND d.analysis_status IN (${IN_FLIGHT_ANALYSIS_STATUSES.map((s) => `'${s}'`).join(", ")})`;
     } else if (statusFilter === "completed") {
       statusClause = `AND dar.status = 'completed'`;
-    } else if (statusFilter === "review_required") {
-      statusClause = `AND dar.status = 'review_required'`;
     } else if (statusFilter === "failed") {
       statusClause = `AND dar.status = 'failed'`;
     } else {
@@ -100,7 +97,6 @@ export async function getAnalysisHistoryController(
           '[]'::jsonb                 AS questions_to_ask,
           NULL                        AS ai_confidence,
           '[]'::jsonb                 AS trusted_sources,
-          NULL                        AS human_review,
           NULL                        AS model,
           d.created_at,
           d.updated_at,
@@ -126,7 +122,7 @@ export async function getAnalysisHistoryController(
       countSql = `
         SELECT (
           (SELECT COUNT(*) FROM document_analysis_results dar
-           WHERE dar.user_id = $1 AND dar.status IN ('completed','review_required','failed'))
+           WHERE dar.user_id = $1 AND dar.status IN ('completed','failed'))
           +
           (SELECT COUNT(*) FROM documents d
            WHERE d.user_id = $1 AND d.analysis_status IN (${IN_FLIGHT_ANALYSIS_STATUSES.map((s) => `'${s}'`).join(", ")}))
@@ -139,14 +135,13 @@ export async function getAnalysisHistoryController(
             dar.id,
             dar.analysis_request_id,
             dar.document_id,
-            dar.status,
+            dar.status::text AS status,
             dar.summary,
             dar.action_items,
             dar.key_deadlines,
             dar.questions_to_ask,
             dar.ai_confidence,
             dar.trusted_sources,
-            dar.human_review,
             dar.model,
             dar.created_at,
             dar.updated_at,
@@ -160,7 +155,7 @@ export async function getAnalysisHistoryController(
           FROM document_analysis_results dar
           LEFT JOIN documents d ON d.id = dar.document_id
           WHERE dar.user_id = $1
-            AND dar.status IN ('completed','review_required','failed')
+            AND dar.status IN ('completed','failed')
 
           UNION ALL
 
@@ -168,14 +163,13 @@ export async function getAnalysisHistoryController(
             gen_random_uuid()           AS id,
             dar_req.id                  AS analysis_request_id,
             d.id                        AS document_id,
-            'running'                   AS status,
+            'running'::text             AS status,
             NULL                        AS summary,
             '[]'::jsonb                 AS action_items,
             '[]'::jsonb                 AS key_deadlines,
             '[]'::jsonb                 AS questions_to_ask,
             NULL                        AS ai_confidence,
             '[]'::jsonb                 AS trusted_sources,
-            NULL                        AS human_review,
             NULL                        AS model,
             d.created_at,
             d.updated_at,
@@ -216,7 +210,6 @@ export async function getAnalysisHistoryController(
           dar.questions_to_ask,
           dar.ai_confidence,
           dar.trusted_sources,
-          dar.human_review,
           dar.model,
           dar.created_at,
           dar.updated_at,
@@ -254,7 +247,6 @@ export async function getAnalysisHistoryController(
       questionsToAsk: row.questions_to_ask ?? [],
       aiConfidence: row.ai_confidence ?? null,
       trustedSources: row.trusted_sources ?? [],
-      humanReview: row.human_review ?? null,
       model: row.model ?? null,
       createdAt: row.created_at,
       updatedAt: row.updated_at,
@@ -317,7 +309,6 @@ export async function getAnalysisRunDetailController(
         dar.questions_to_ask,
         dar.ai_confidence,
         dar.trusted_sources,
-        dar.human_review,
         dar.model,
         dar.error_message,
         dar.analysis_request_id
@@ -377,7 +368,6 @@ export async function getAnalysisRunDetailController(
       questionsToAsk: row.questions_to_ask ?? [],
       aiConfidence: row.ai_confidence ?? null,
       trustedSources: row.trusted_sources ?? [],
-      humanReview: row.human_review ?? null,
       model: row.model ?? null,
       errorMessage: row.error_message ?? null,
       analysisRequestId: row.analysis_request_id ?? null,

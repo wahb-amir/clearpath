@@ -72,7 +72,7 @@ describe("processStructuringStage", () => {
 
   it("reports STRUCTURING stage when not yet past it", async () => {
     const state = makeState({
-      status: "VERIFIED",
+      status: "CLEANING",
       sections: mockSections as any,
       facts: mockFacts as any,
       quality: mockQuality,
@@ -92,7 +92,7 @@ describe("processStructuringStage", () => {
   it("includes correct sectionCount (recursive) and factCount in reportStage payload", async () => {
     // mockSections has 1 parent + 1 child = 2 sections total
     const state = makeState({
-      status: "VERIFIED",
+      status: "CLEANING",
       sections: mockSections as any,
       facts: mockFacts as any,
       quality: mockQuality,
@@ -109,7 +109,7 @@ describe("processStructuringStage", () => {
 
   it("updates documents.quality in DB", async () => {
     const state = makeState({
-      status: "VERIFIED",
+      status: "CLEANING",
       sections: mockSections as any,
       facts: mockFacts as any,
       quality: mockQuality,
@@ -125,7 +125,7 @@ describe("processStructuringStage", () => {
 
   it("emits entities_extracted progress event with factCount", async () => {
     const state = makeState({
-      status: "VERIFIED",
+      status: "CLEANING",
       sections: mockSections as any,
       facts: mockFacts as any,
       quality: mockQuality,
@@ -143,7 +143,7 @@ describe("processStructuringStage", () => {
 
   it("updates currentStatus to STRUCTURING", async () => {
     const state = makeState({
-      status: "VERIFIED",
+      status: "CLEANING",
       sections: [] as any,
       facts: [] as any,
       quality: mockQuality,
@@ -172,7 +172,7 @@ describe("processStructuringStage", () => {
 
   it("handles empty sections and facts without crashing", async () => {
     const state = makeState({
-      status: "VERIFIED",
+      status: "CLEANING",
       sections: undefined,
       facts: undefined,
       quality: undefined,
@@ -190,7 +190,7 @@ describe("processStructuringStage", () => {
 
   it("passes sections and facts through unchanged on returned state", async () => {
     const state = makeState({
-      status: "VERIFIED",
+      status: "CLEANING",
       sections: mockSections as any,
       facts: mockFacts as any,
       quality: mockQuality,

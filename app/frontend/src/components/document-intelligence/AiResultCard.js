@@ -9,7 +9,6 @@ import {
   HelpCircle,
   ShieldCheck,
   Link as LinkIcon,
-  UserCheck,
   Info,
 } from "lucide-react";
 
@@ -153,16 +152,6 @@ export default function AiResultCard({ result }) {
                 )}
                 %
               </span>
-            </div>
-          )}
-
-          {result.humanReview?.required && (
-            <div
-              className="flex items-center gap-1.5"
-              title={result.humanReview.reason}
-            >
-              <UserCheck className="w-3.5 h-3.5 text-blue-400" />
-              <span>Human Review Recommended</span>
             </div>
           )}
 

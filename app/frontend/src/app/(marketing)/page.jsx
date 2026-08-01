@@ -47,7 +47,7 @@ const softwareAppJsonLd = {
     "AI plain-language document summaries",
     "Automated deadline extraction",
     "Action plan generation",
-    "Human verification gate before AI processing",
+    "Continuous end-to-end AI processing",
     "OCR support for scanned documents",
     "Multi-language document support",
     "Trusted official source linking",
@@ -84,7 +84,7 @@ const faqJsonLd = {
       name: "How does ClearPath analyze documents?",
       acceptedAnswer: {
         "@type": "Answer",
-        text: "ClearPath uses a multi-stage AI pipeline: it first securely ingests and extracts text from your document (including scanned images via OCR), then pauses for a human verification step before running a 5-stage LLM analysis that produces plain-language summaries, deadlines, action items, and trusted source links.",
+        text: "ClearPath uses a multi-stage AI pipeline: it first securely ingests and extracts text from your document (including scanned images via OCR), then runs a continuous preprocessing and 5-stage LLM analysis that produces plain-language summaries, deadlines, action items, and trusted source links.",
       },
     },
     {

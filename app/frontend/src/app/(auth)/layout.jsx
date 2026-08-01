@@ -39,7 +39,7 @@ export default function AuthLayout({ children }) {
 
         {/* FOOTER */}
         <div className="mx-auto pb-2 text-center text-sm text-[#9399A6]">
-          AI-assisted · Human verified · Always private
+          AI-assisted · Source-grounded · Always private
         </div>
       </main>
     </div>

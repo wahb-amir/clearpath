@@ -10,6 +10,7 @@ import type {
   NormalizedDocument,
 } from "../types/documentAnalysis";
 
+
 export const CLEARPATH_PIPELINE_VERSION = "2026-06-17";
 
 type PipelineEventEmitter = (input: {
@@ -348,7 +349,7 @@ function withTimeout<T>(
     clearTimeout(timer!);
   });
 }
-
+// todo: Unused function call be removed after we have a better way to handle the fallback for the Groq client.
 async function askGroqJson<T>(
   messages: ChatMessage[],
   schema: z.ZodType<T>,
@@ -359,6 +360,7 @@ async function askGroqJson<T>(
   const client = getGroqClient();
   const model = getGroqModel();
   const hasFallback = typeof fallbackOrTemperature !== "number";
+
   const requestTemperature =
     typeof fallbackOrTemperature === "number"
       ? fallbackOrTemperature
@@ -447,11 +449,13 @@ async function askGroqJsonStreaming<T>(
   temperature = 0,
   stageLabel = "LLM stage",
   onToken?: (tokensReceived: number, partial: string) => void | Promise<void>,
+
 ): Promise<T> {
   const client = getGroqClient();
   const model = getGroqModel();
 
   console.log(`[${stageLabel}] streaming start`);
+
 
   let content = "";
   let tokenCount = 0;
@@ -533,6 +537,7 @@ async function askGroqJsonStreaming<T>(
     return fallback;
   }
 }
+
 
 function buildSourceText(document: NormalizedDocument): string {
   const sections = (document.sections ?? [])
@@ -1326,6 +1331,7 @@ export async function runClearPathPipeline(
         payload: { stage: 1, total: 5, tokens_received: tokens },
       });
     },
+
   );
 
   await emit?.({
@@ -1376,6 +1382,7 @@ export async function runClearPathPipeline(
         payload: { stage: 2, total: 5, tokens_received: tokens },
       });
     },
+
   );
 
   await emit?.({
@@ -1448,6 +1455,7 @@ export async function runClearPathPipeline(
         payload: { stage: 3, total: 5, tokens_received: tokens },
       });
     },
+ 
   );
 
   await emit?.({
@@ -1505,6 +1513,7 @@ export async function runClearPathPipeline(
         payload: { stage: 4, total: 5, tokens_received: tokens },
       });
     },
+   
   );
 
   await emit?.({
@@ -1530,7 +1539,7 @@ export async function runClearPathPipeline(
   await emit?.({
     documentId: document.document_id,
     userId: document.user_id,
-    eventType: "ai_human_review_required",
+    eventType: "ai_safety_started",
     stage: "AI_PROCESSING",
     message: "Stage 5/5 — Running safety guardrails review",
     progress: 87,
@@ -1547,13 +1556,14 @@ export async function runClearPathPipeline(
       await emit?.({
         documentId: document.document_id,
         userId: document.user_id,
-        eventType: "ai_human_review_required",
+        eventType: "ai_safety_started",
         stage: "AI_PROCESSING",
         message: `Checking for unsupported claims and safety issues (${tokens} chars)`,
         progress: 87 + Math.min(5, Math.floor(tokens / 120)),
         payload: { stage: 5, total: 5, tokens_received: tokens },
       });
     },
+
   );
 
   const guardrails = buildStage5Guardrails(
@@ -1612,10 +1622,6 @@ export async function runClearPathPipeline(
     humanReviewReason,
   );
 
-  const status: DocumentAnalysisPipelineResult["status"] = humanReviewRequired
-    ? "review_required"
-    : "completed";
-
   const result: DocumentAnalysisPipelineResult = {
     summary,
     action_items: stage4Raw.action_items,
@@ -1623,10 +1629,6 @@ export async function runClearPathPipeline(
     questions_to_ask: questions,
     ai_confidence: stage4Raw.ai_confidence,
     trusted_sources: trustedSources,
-    human_review: {
-      required: humanReviewRequired,
-      reason: humanReviewReason,
-    },
     stage_outputs: {
       stage1,
       stage2,
@@ -1645,7 +1647,7 @@ export async function runClearPathPipeline(
         official_source_count: officialSnippets.length,
       },
     },
-    status,
+    status: "completed",
   };
 
   await emit?.({
@@ -1653,13 +1655,10 @@ export async function runClearPathPipeline(
     userId: document.user_id,
     eventType: "ai_completed",
     stage: "AI_PROCESSING",
-    message: humanReviewRequired
-      ? "AI analysis complete — human review recommended"
-      : "AI analysis complete",
+    message: "AI analysis complete",
     progress: 100,
     payload: {
       status: result.status,
-      human_review_required: humanReviewRequired,
       action_item_count: result.action_items.length,
       deadline_count: result.key_deadlines.length,
       trusted_source_count: result.trusted_sources.length,
