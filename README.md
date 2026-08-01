@@ -493,7 +493,7 @@ pnpm run dev:all      # All three concurrently (recommended)
 pnpm run build        # TypeScript compile
 pnpm run test         # Run Vitest test suite (95 unit & integration tests)
 pnpm run test:watch   # Vitest interactive watch mode
-pnpm run test:coverage# Generate V8 coverage report
+pnpm run test:coverage # Generate V8 coverage report
 pnpm run generate-keys # Generate RS256 JWT key pair
 pnpm run supabase:migration  # Create new migration file
 pnpm run supabase:push       # Apply migrations
