@@ -4,6 +4,92 @@ node_modules/
 .pnp.*
 app/backend/supabase/.temp
 
+# Python
+# Byte-compiled / optimized / DLL files
+__pycache__/
+*.py[cod]
+*$py.class
+
+# C extensions
+*.so
+
+# Distribution / packaging
+build/
+dist/
+*.egg-info/
+*.egg
+.eggs/
+*.whl
+
+# Installer logs
+pip-log.txt
+pip-delete-this-directory.txt
+
+# Unit test / coverage reports
+.pytest_cache/
+.coverage
+.coverage.*
+coverage/
+htmlcov/
+
+# Translations
+*.mo
+*.pot
+
+# Django stuff:
+*.log
+local_settings.py
+db.sqlite3
+db.sqlite3-journal
+
+# Flask stuff:
+instance/
+.webassets-cache
+
+# Scrapy stuff:
+.scrapy
+
+# Sphinx documentation
+docs/_build/
+
+# PyBuilder
+target/
+
+# Jupyter Notebook
+.ipynb_checkpoints
+
+# IPython
+profile_default/
+ipython_config.py
+
+# pyenv
+.python-version
+
+# pipenv
+# Pipfile.lock
+Pipfile.lock
+
+# Poetry
+poetry.lock
+
+# virtualenv
+venv/
+ENV/
+env/
+.venv/
+venv.bak/
+venv/*
+
+# Spyder project settings
+.spyproject
+
+# Rope project settings
+.ropeproject
+
+# mypy
+.mypy_cache/
+
+
 # testing
 coverage/
 app/backend/coverage/
@@ -52,5 +138,4 @@ Cargo.lock
 
 # todo task 
 todo.md
-# keeping the rust service on hold for now, as we are not using it in the current implementation.
-services
+
