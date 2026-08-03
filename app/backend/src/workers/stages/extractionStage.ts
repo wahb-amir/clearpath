@@ -48,7 +48,7 @@ export async function processExtractionStage(
 
     const fileBuffer = await downloadFromStorage(storagePath);
     const category = detectFileCategory(mimeType);
-
+    
     const extraction = await extractText({
       fileBuffer,
       category,

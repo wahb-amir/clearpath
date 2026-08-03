@@ -11,6 +11,7 @@ import {
 } from "../types/pipelineStatus";
 import { InvalidStateTransitionError } from "../types/errors";
 import type { PipelineEventType } from "../types/pipelineEvents";
+import { sanitizeErrorMessage } from "../utils/sanitizeErrorMessage";
 
 const publisher = createPublisherConnection();
 
@@ -139,8 +140,7 @@ export async function reportFailure(params: {
   workerId: string;
   error: unknown;
 }): Promise<void> {
-  const message =
-    params.error instanceof Error ? params.error.message : String(params.error);
+  const message = sanitizeErrorMessage(params.error);
 
   await withTransaction(async (client) => {
     await client.query(

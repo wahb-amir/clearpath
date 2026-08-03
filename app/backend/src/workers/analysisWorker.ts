@@ -77,6 +77,8 @@ export async function processAnalysisJob(
     return;
   }
 
+  // Mark the analysis request as processing, record which worker picked it up,
+  // and set the started_at timestamp if it has not already been set.
   await pgPool.query(
     `UPDATE document_analysis_requests
        SET status = 'PROCESSING',

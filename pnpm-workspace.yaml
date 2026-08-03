@@ -2,6 +2,9 @@ packages:
   - "app/*"
   - "services/*"
 
+overrides:
+  sharp: 0.35.3
+
 allowBuilds:
   argon2: true
   esbuild: true
