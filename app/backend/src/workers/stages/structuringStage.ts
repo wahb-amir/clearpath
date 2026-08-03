@@ -3,6 +3,7 @@ import { reportStage, reportProgress } from "../stageReporter";
 import { pgPool } from "../../db/pool";
 import type { AnalysisState } from "./types";
 import { buildDocumentStructure } from "../../services/ingestion/buildStructure";
+import { extractFacts } from "../../services/ingestion/extractFacts";
 
 function countSections(
   sections: ReturnType<typeof buildDocumentStructure>,
@@ -21,9 +22,12 @@ function countSections(
 export async function processStructuringStage(
   state: AnalysisState,
 ): Promise<AnalysisState> {
-  const { job, workerId, sections, facts, quality } = state;
+  const { job, workerId, cleanText, quality } = state;
   let { currentStatus } = state;
   const { documentId, userId } = job.data;
+
+  const sections = buildDocumentStructure(cleanText || "");
+  const facts = extractFacts(cleanText || "");
 
   if (!isStageCompleteOrPast(currentStatus, "STRUCTURING")) {
     await reportStage({
@@ -58,5 +62,5 @@ export async function processStructuringStage(
     currentStatus = "STRUCTURING";
   }
 
-  return { ...state, currentStatus };
+  return { ...state, currentStatus, sections, facts };
 }

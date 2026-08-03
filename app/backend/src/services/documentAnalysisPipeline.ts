@@ -449,7 +449,7 @@ async function askGroqJsonStreaming<T>(
   temperature = 0,
   stageLabel = "LLM stage",
   onToken?: (tokensReceived: number, partial: string) => void | Promise<void>,
-
+  timeoutMs = 30000,
 ): Promise<T> {
   const client = getGroqClient();
   const model = getGroqModel();
@@ -468,7 +468,7 @@ async function askGroqJsonStreaming<T>(
         messages,
         stream: true,
       }),
-      30000,
+      timeoutMs,
       stageLabel,
     );
 
@@ -513,7 +513,7 @@ async function askGroqJsonStreaming<T>(
           temperature: 0,
           messages: repairMessages,
         }),
-        25000,
+        Math.max(timeoutMs, 25000),
         `${stageLabel}-repair`,
       );
       const repairContent = repairCompletion.choices[0]?.message?.content ?? "";
@@ -540,18 +540,11 @@ async function askGroqJsonStreaming<T>(
 
 
 function buildSourceText(document: NormalizedDocument): string {
-  const sections = (document.sections ?? [])
-    .map((section) =>
-      [section.title, section.content].filter(Boolean).join("\n"),
-    )
-    .filter(Boolean);
-
-  const body = [document.source_text, ...sections]
-    .map((part) => part.trim())
-    .filter(Boolean)
-    .join("\n\n");
-
-  return body.trim();
+  // document.source_text is already the concatenation of every section's
+  // title+content plus extracted facts (see loadNormalizedDocument /
+  // buildSourceTextFromRows). Re-appending document.sections here used to
+  // duplicate the entire document body a second time in every prompt.
+  return (document.source_text ?? "").trim();
 }
 
 function isHighStakesDocument(document: NormalizedDocument): boolean {
@@ -1455,7 +1448,7 @@ export async function runClearPathPipeline(
         payload: { stage: 3, total: 5, tokens_received: tokens },
       });
     },
- 
+    60000,
   );
 
   await emit?.({
@@ -1513,7 +1506,7 @@ export async function runClearPathPipeline(
         payload: { stage: 4, total: 5, tokens_received: tokens },
       });
     },
-   
+    75000,
   );
 
   await emit?.({
@@ -1563,7 +1556,7 @@ export async function runClearPathPipeline(
         payload: { stage: 5, total: 5, tokens_received: tokens },
       });
     },
-
+    60000,
   );
 
   const guardrails = buildStage5Guardrails(

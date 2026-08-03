@@ -14,14 +14,20 @@ vi.mock("../../../db/pool", () => ({
   }),
 }));
 
-// buildDocumentStructure is imported inside structuringStage — mock it
+// buildDocumentStructure and extractFacts are imported inside structuringStage — mock them
 vi.mock("../../../services/ingestion/buildStructure", () => ({
   buildDocumentStructure: vi.fn().mockReturnValue([]),
+}));
+
+vi.mock("../../../services/ingestion/extractFacts", () => ({
+  extractFacts: vi.fn().mockReturnValue([]),
 }));
 
 import { processStructuringStage } from "../../stages/structuringStage";
 import { reportStage, reportProgress } from "../../stageReporter";
 import { pgPool } from "../../../db/pool";
+import { buildDocumentStructure } from "../../../services/ingestion/buildStructure";
+import { extractFacts } from "../../../services/ingestion/extractFacts";
 
 const mockSections = [
   {
@@ -68,13 +74,30 @@ describe("processStructuringStage", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     vi.mocked(pgPool.query).mockResolvedValue({ rows: [], rowCount: 0 } as any);
+    vi.mocked(buildDocumentStructure).mockReturnValue([] as any);
+    vi.mocked(extractFacts).mockReturnValue([] as any);
+  });
+
+  it("builds sections/facts from cleanText via buildDocumentStructure and extractFacts", async () => {
+    vi.mocked(buildDocumentStructure).mockReturnValue(mockSections as any);
+    vi.mocked(extractFacts).mockReturnValue(mockFacts as any);
+
+    const state = makeState({
+      status: "CLEANING",
+      cleanText: "Intro\n\ntext",
+      quality: mockQuality,
+    });
+
+    await processStructuringStage(state);
+
+    expect(buildDocumentStructure).toHaveBeenCalledWith("Intro\n\ntext");
+    expect(extractFacts).toHaveBeenCalledWith("Intro\n\ntext");
   });
 
   it("reports STRUCTURING stage when not yet past it", async () => {
     const state = makeState({
       status: "CLEANING",
-      sections: mockSections as any,
-      facts: mockFacts as any,
+      cleanText: "some text",
       quality: mockQuality,
     });
 
@@ -91,10 +114,12 @@ describe("processStructuringStage", () => {
 
   it("includes correct sectionCount (recursive) and factCount in reportStage payload", async () => {
     // mockSections has 1 parent + 1 child = 2 sections total
+    vi.mocked(buildDocumentStructure).mockReturnValue(mockSections as any);
+    vi.mocked(extractFacts).mockReturnValue(mockFacts as any);
+
     const state = makeState({
       status: "CLEANING",
-      sections: mockSections as any,
-      facts: mockFacts as any,
+      cleanText: "some text",
       quality: mockQuality,
     });
 
@@ -110,8 +135,7 @@ describe("processStructuringStage", () => {
   it("updates documents.quality in DB", async () => {
     const state = makeState({
       status: "CLEANING",
-      sections: mockSections as any,
-      facts: mockFacts as any,
+      cleanText: "some text",
       quality: mockQuality,
     });
 
@@ -124,10 +148,11 @@ describe("processStructuringStage", () => {
   });
 
   it("emits entities_extracted progress event with factCount", async () => {
+    vi.mocked(extractFacts).mockReturnValue(mockFacts as any);
+
     const state = makeState({
       status: "CLEANING",
-      sections: mockSections as any,
-      facts: mockFacts as any,
+      cleanText: "some text",
       quality: mockQuality,
     });
 
@@ -144,8 +169,7 @@ describe("processStructuringStage", () => {
   it("updates currentStatus to STRUCTURING", async () => {
     const state = makeState({
       status: "CLEANING",
-      sections: [] as any,
-      facts: [] as any,
+      cleanText: "",
       quality: mockQuality,
     });
 
@@ -154,11 +178,13 @@ describe("processStructuringStage", () => {
     expect(result.currentStatus).toBe("STRUCTURING");
   });
 
-  it("skips all side-effects when already past STRUCTURING", async () => {
+  it("skips reporting side-effects when already past STRUCTURING, but still computes sections/facts", async () => {
+    vi.mocked(buildDocumentStructure).mockReturnValue(mockSections as any);
+    vi.mocked(extractFacts).mockReturnValue(mockFacts as any);
+
     const state = makeState({
       status: "CHUNKING",
-      sections: mockSections as any,
-      facts: mockFacts as any,
+      cleanText: "some text",
       quality: mockQuality,
     });
 
@@ -168,18 +194,23 @@ describe("processStructuringStage", () => {
     expect(reportProgress).not.toHaveBeenCalled();
     expect(pgPool.query).not.toHaveBeenCalled();
     expect(result.currentStatus).toBe("CHUNKING");
+    // even when the stage's own status transition is skipped, downstream
+    // stages (chunking) still need sections/facts on the returned state
+    expect(result.sections).toEqual(mockSections);
+    expect(result.facts).toEqual(mockFacts);
   });
 
-  it("handles empty sections and facts without crashing", async () => {
+  it("handles empty/missing cleanText without crashing", async () => {
     const state = makeState({
       status: "CLEANING",
-      sections: undefined,
-      facts: undefined,
+      cleanText: undefined,
       quality: undefined,
     });
 
     const result = await processStructuringStage(state);
 
+    expect(buildDocumentStructure).toHaveBeenCalledWith("");
+    expect(extractFacts).toHaveBeenCalledWith("");
     expect(result.currentStatus).toBe("STRUCTURING");
     expect(reportStage).toHaveBeenCalledWith(
       expect.objectContaining({
@@ -188,17 +219,19 @@ describe("processStructuringStage", () => {
     );
   });
 
-  it("passes sections and facts through unchanged on returned state", async () => {
+  it("carries freshly computed sections and facts on the returned state", async () => {
+    vi.mocked(buildDocumentStructure).mockReturnValue(mockSections as any);
+    vi.mocked(extractFacts).mockReturnValue(mockFacts as any);
+
     const state = makeState({
       status: "CLEANING",
-      sections: mockSections as any,
-      facts: mockFacts as any,
+      cleanText: "some text",
       quality: mockQuality,
     });
 
     const result = await processStructuringStage(state);
 
-    expect(result.sections).toBe(mockSections);
-    expect(result.facts).toBe(mockFacts);
+    expect(result.sections).toEqual(mockSections);
+    expect(result.facts).toEqual(mockFacts);
   });
 });
