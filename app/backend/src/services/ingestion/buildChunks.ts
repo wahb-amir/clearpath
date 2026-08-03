@@ -11,7 +11,6 @@ import { contentHash } from "./embeddingProvider";
  *               └─ sentence (chunk_level='sentence', OPTIONAL fallback,
  *                            only generated for long/dense paragraphs)
  *
- * This is the "smarter than basic RAG" design: instead of flat
  * fixed-size chunks, retrieval can route by query type (see
  * services/retrieval/router.ts):
  *   - broad questions      -> document + section chunks
