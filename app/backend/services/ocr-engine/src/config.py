@@ -35,7 +35,7 @@ class Settings(BaseSettings):
     )
     BULLMQ_JOB_NAME: str | None = Field(
         default=None,
-        env=["BULLMQ_JOB_NAME", "OCR_BULLMQ_JOB_NAME"],
+        env=["BULLMQ_JOB_NAME", "extract-layout-and-ocr"],
     )
     BULLMQ_CONCURRENCY: int = Field(default=2, ge=1)
 

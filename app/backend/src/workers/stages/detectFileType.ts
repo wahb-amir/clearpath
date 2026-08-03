@@ -1,36 +1,56 @@
+import { fileTypeFromBuffer } from "file-type";
 import { UnsupportedFileTypeError } from "../../types/errors";
 
 export type DetectedFileCategory =
-  "pdf" | "screenshot_or_scan" | "photo" | "text" | "unsupported";
+  | "pdf"
+  | "screenshot_or_scan"
+  | "photo"
+  | "text";
 
 const TEXT_MIME_TYPES = new Set([
   "text/plain",
   "text/markdown",
   "text/csv",
+  "text/html",
   "application/json",
+  "application/msword",
+  "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+  "application/vnd.ms-excel",
+  "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
 ]);
 
 const IMAGE_MIME_TYPES = new Set([
   "image/png",
   "image/jpeg",
-  "image/jpg",
   "image/webp",
   "image/tiff",
   "image/bmp",
+  "application/vnd.ms-powerpoint",
+  "application/vnd.openxmlformats-officedocument.presentationml.presentation",
 ]);
 
-/**
- * Detects the broad file category from MIME type (and, for images,
- * leaves the screenshot-vs-photo distinction to the OCR stage, which
- * can use heuristics like aspect ratio / text density after a quick
- * OCR pass - both ultimately go through the OCR path here).
- */
-export function detectFileCategory(mimeType: string): DetectedFileCategory {
-  const mime = mimeType.toLowerCase();
+export async function detectFileCategory(
+  buffer: Buffer,
+): Promise<DetectedFileCategory> {
+  const detected = await fileTypeFromBuffer(buffer);
 
-  if (mime === "application/pdf") return "pdf";
-  if (TEXT_MIME_TYPES.has(mime)) return "text";
-  if (IMAGE_MIME_TYPES.has(mime)) return "screenshot_or_scan";
+  if (!detected) {
+    throw new UnsupportedFileTypeError("Unknown file type");
+  }
 
-  throw new UnsupportedFileTypeError(mimeType);
+  switch (detected.mime) {
+    case "application/pdf":
+      return "pdf";
+
+    default:
+      if (TEXT_MIME_TYPES.has(detected.mime)) {
+        return "text";
+      }
+
+      if (IMAGE_MIME_TYPES.has(detected.mime)) {
+        return "screenshot_or_scan";
+      }
+
+      throw new UnsupportedFileTypeError(detected.mime);
+  }
 }
