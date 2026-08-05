@@ -77,3 +77,56 @@ export interface AnalysisRequestedOutboxPayload {
   mimeType: string;
   analysisVersion: string;
 }
+
+/* ------------------------------------------------------------------ */
+/* Atomic per-stage pipeline payloads                                  */
+/* ------------------------------------------------------------------ */
+/**
+ * Every stage job/outbox event carries these identifying + source-file
+ * fields forward, plus whatever the previous stage produced. Nothing is
+ * held in worker memory between stages - it all flows through the
+ * outbox payload (small/structured data) or Supabase Storage (raw text
+ * blobs), matching the transactional-outbox pipeline design.
+ */
+export interface StagePipelineBase {
+  documentId: string;
+  analysisRequestId: string;
+  userId: string;
+  storagePath: string;
+  mimeType: string;
+  analysisVersion: string;
+}
+
+/** Emitted by `stage-initialization`; consumed by the Python OCR service. */
+export type InitializationCompletedPayload = StagePipelineBase;
+
+/** Emitted by the Python `extract-layout-and-ocr` worker. */
+export interface ExtractionCompletedPayload extends StagePipelineBase {
+  markdownStoragePath: string;
+  ocrConfidence: number;
+  textCoverage: number;
+}
+
+/** Emitted by `stage-cleaning`. */
+export interface CleaningCompletedPayload extends StagePipelineBase {
+  cleanText: string;
+  quality?: {
+    quality: string;
+    ocrConfidence: number;
+    textCoverage: number;
+  };
+}
+
+/** Emitted by `stage-structuring`. */
+export interface StructuringCompletedPayload extends CleaningCompletedPayload {
+  sections: unknown;
+  facts: unknown;
+}
+
+/** Emitted by `stage-chunking`, `stage-embedding`, `stage-summarizing`. */
+export type ChunkingCompletedPayload = StagePipelineBase;
+export type EmbeddingCompletedPayload = StagePipelineBase;
+export interface SummarizingCompletedPayload extends StagePipelineBase {
+  title?: string;
+  summary?: string;
+}
