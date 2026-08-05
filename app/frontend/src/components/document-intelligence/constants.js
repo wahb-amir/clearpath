@@ -29,7 +29,7 @@ export const EVENT_LABELS = {
   heartbeat: "Heartbeat",
 };
 
-export const MAX_UPLOAD_BYTES = 50 * 1024 * 1024;
+export const MAX_UPLOAD_BYTES = 20 * 1024 * 1024;
 export const ACCEPTED_EXTENSIONS = [".pdf", ".doc", ".docx", ".txt"];
 export const ACCEPTED_MIME_TYPES = [
   "application/pdf",
