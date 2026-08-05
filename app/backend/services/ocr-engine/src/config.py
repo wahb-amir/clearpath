@@ -29,15 +29,30 @@ class Settings(BaseSettings):
     )
 
     # BullMQ Configuration
+    # ISOLATED queue - must match the Node backend's OCR_QUEUE_NAME
+    # (default "document-ocr"). This service is the ONLY consumer of
+    # this queue; the Node worker never connects to it, so there's no
+    # possibility of the two runtimes claiming each other's jobs.
     BULLMQ_QUEUE_NAME: str = Field(
-        default="clearpath-ai-analysis",
-        env=["BULLMQ_QUEUE_NAME", "CLEARPATH_ANALYSIS_QUEUE_NAME"],
+        default="document-ocr",
+        env=["BULLMQ_QUEUE_NAME", "OCR_QUEUE_NAME"],
     )
-    BULLMQ_JOB_NAME: str | None = Field(
-        default=None,
-        env=["BULLMQ_JOB_NAME", "extract-layout-and-ocr"],
+    BULLMQ_JOB_NAME: str = Field(
+        default="extract-layout-and-ocr",
+        env="BULLMQ_JOB_NAME",
     )
     BULLMQ_CONCURRENCY: int = Field(default=2, ge=1)
+
+
+    # Storage buckets
+    RAW_BUCKET: str = Field(
+        default="documents",
+        description="Bucket the Node backend uploads original files to.",
+    )
+    PARSED_BUCKET: str = Field(
+        default="parsed-documents",
+        description="Bucket this service uploads Docling markdown output to.",
+    )
 
     model_config = SettingsConfigDict(
         env_file=".env",
