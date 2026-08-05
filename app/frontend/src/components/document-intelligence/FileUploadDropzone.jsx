@@ -49,7 +49,7 @@ export default function FileUploadDropzone({
         ref={inputRef}
         type="file"
         hidden
-        accept=".pdf,.doc,.docx,.txt,application/pdf,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document,text/plain"
+        accept=".pdf,.doc,.docx,.txt,application/pdf,image/png,image/jpeg,image/webp,text/plain,text/markdown,text/csv,text/html,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document,application/vnd.ms-excel,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,application/vnd.ms-powerpoint,application/vnd.openxmlformats-officedocument.presentationml.presentation"
         onChange={handleFileChange}
         disabled={busy}
       />
