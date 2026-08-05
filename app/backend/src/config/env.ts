@@ -41,6 +41,14 @@ const envSchema = z.object({
   ANALYSIS_JOB_ATTEMPTS: z.coerce.number().default(5),
   ANALYSIS_VERSION: z.string().default("v1"),
 
+  // ─── OCR Pipeline Stage (isolated queue, Python consumer) ─
+  // Deliberately a SEPARATE BullMQ queue from ANALYSIS_QUEUE_NAME so
+  // the Node worker and the Python ocr-engine service are never
+  // competing consumers on the same queue - each only ever sees jobs
+  // meant for it.
+  OCR_QUEUE_NAME: z.string().default("document-ocr"),
+  OCR_JOB_ATTEMPTS: z.coerce.number().default(500),
+
   // ─── Worker ────────────────────────────────────────────
   WORKER_ID: z.string().default("worker-1"),
 
