@@ -19,12 +19,6 @@ const worker = new Worker(
     switch (job.name) {
       case "ai-analysis":
         return runAiPipeline(job as Job<AiAnalysisJobData>);
-
-      // Atomic pipeline stages. Stage 2 (extraction/OCR) is NOT here -
-      // it runs on the isolated OCR_QUEUE_NAME queue, consumed only by
-      // the Python ocr-engine service (see queue/ocrQueue.ts). This
-      // worker never connects to that queue, so it structurally cannot
-      // claim a job that isn't its own.
       case "stage-initialization":
         return handleStageInitialization(job as any);
       case "stage-cleaning":
