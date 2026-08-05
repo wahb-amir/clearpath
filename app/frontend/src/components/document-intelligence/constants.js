@@ -30,13 +30,42 @@ export const EVENT_LABELS = {
 };
 
 export const MAX_UPLOAD_BYTES = 20 * 1024 * 1024;
-export const ACCEPTED_EXTENSIONS = [".pdf", ".doc", ".docx", ".txt"];
+
 export const ACCEPTED_MIME_TYPES = [
   "application/pdf",
+  "image/png",
+  "image/jpeg",
+  "image/webp",
+  "text/plain",
+  "text/markdown",
+  "text/csv",
+  "text/html",
   "application/msword",
   "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
-  "text/plain",
+  "application/vnd.ms-excel",
+  "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+  "application/vnd.ms-powerpoint",
+  "application/vnd.openxmlformats-officedocument.presentationml.presentation",
 ];
+
+const MIME_TYPE_TO_EXTENSIONS = {
+  "application/pdf": [".pdf"],
+  "image/png": [".png"],
+  "image/jpeg": [".jpeg", ".jpg"],
+  "image/webp": [".webp"],
+  "text/plain": [".txt"],
+  "text/markdown": [".md", ".markdown"],
+  "text/csv": [".csv"],
+  "text/html": [".html", ".htm"],
+  "application/msword": [".doc"],
+  "application/vnd.openxmlformats-officedocument.wordprocessingml.document": [".docx"],
+  "application/vnd.ms-excel": [".xls"],
+  "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet": [".xlsx"],
+  "application/vnd.ms-powerpoint": [".ppt"],
+  "application/vnd.openxmlformats-officedocument.presentationml.presentation": [".pptx"],
+};
+
+export const ACCEPTED_EXTENSIONS = Object.values(MIME_TYPE_TO_EXTENSIONS).flat();
 
 export function stageToProgress(stage) {
   switch (stage) {
