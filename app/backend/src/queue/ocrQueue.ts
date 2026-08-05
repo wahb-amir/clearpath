@@ -20,8 +20,8 @@ export const ocrQueue = new Queue<InitializationCompletedPayload, unknown, "extr
     defaultJobOptions: {
       attempts: env.OCR_JOB_ATTEMPTS,
       backoff: {
-        type: "fixed",
-        delay: 15000,
+        type: "exponential",
+        delay: 5000,
       },
       removeOnComplete: {
         age: 24 * 60 * 60,

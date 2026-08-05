@@ -54,15 +54,16 @@ A user uploads a document → the system runs a multi-stage preprocessing and AI
    └─────────────┘   └─────────────┘   └─────────────────┘
 ```
 
-### Three Backend Processes
+### Four Backend Processes
 
-| Process    | Command               | Responsibility                                  |
-| ---------- | --------------------- | ----------------------------------------------- |
-| API Server | `pnpm run dev`        | HTTP routes, SSE streaming, auth                |
-| Worker     | `pnpm run worker`     | BullMQ job consumer — preprocessing + AI stages |
-| Dispatcher | `pnpm run dispatcher` | Outbox poller → enqueues BullMQ jobs            |
+| Process        | Command                                          | Responsibility                                          |
+| -------------- | ------------------------------------------------- | -------------------------------------------------------- |
+| API Server     | `pnpm run dev`                                     | HTTP routes, SSE streaming, auth                          |
+| Worker         | `pnpm run worker`                                  | BullMQ job consumer — atomic pipeline stages + AI stages |
+| Dispatcher     | `pnpm run dispatcher`                              | Outbox poller → enqueues BullMQ jobs                      |
+| OCR Service    | `python src/main.py` (in `services/ocr-engine/`)   | Python/Docling worker — Stage 2 (layout parsing + OCR)    |
 
-For development, `pnpm run dev:all` starts all three concurrently via `concurrently`.
+For development, `pnpm run dev:all` starts the first three concurrently via `concurrently`. The OCR service is a **separate Python process** (not part of the Node workspace) and must be started independently — see [How the Pipeline Works](#how-the-pipeline-works) and [Running Locally](#running-locally).
 
 ---
 
@@ -79,14 +80,23 @@ clearpath/
 │   │   │   ├── lib/                # Supabase & Groq clients
 │   │   │   ├── middlewares/        # Auth, rateLimiter, errorHandler
 │   │   │   ├── outbox/             # Transactional outbox dispatcher
-│   │   │   ├── queue/              # BullMQ queue & enqueue helpers
+│   │   │   ├── queue/              # BullMQ queues & enqueue helpers (analysisQueue, ocrQueue)
 │   │   │   ├── redis/ connection.ts # ioredis connection factory
 │   │   │   ├── routes/             # Express route modules
 │   │   │   ├── services/           # Orchestrator, pipeline & ingestion
 │   │   │   ├── sse/                # Real-time SSE service
 │   │   │   ├── types/              # TypeScript interfaces & DTOs
 │   │   │   ├── validators/         # Zod request validators
-│   │   │   └── workers/            # BullMQ worker handlers & stage processors
+│   │   │   └── workers/            # BullMQ worker handlers & atomic stage processors
+│   │   ├── services/
+│   │   │   └── ocr-engine/         # Python/Docling OCR worker (Stage 2, isolated queue)
+│   │   │       ├── src/
+│   │   │       │   ├── main.py         # Worker entrypoint - runs Docling, writes outbox event
+│   │   │       │   ├── config.py       # Settings (queue name, buckets, Supabase)
+│   │   │       │   └── bullmq_config.py
+│   │   │       ├── requirements.txt
+│   │   │       ├── Dockerfile
+│   │   │       └── .env.example
 │   │   ├── supabase/migrations/    # SQL migration files
 │   │   ├── scripts/                # Key generation & test scripts
 │   │   ├── .env.example
@@ -152,22 +162,71 @@ clearpath/
 
 ## How the Pipeline Works
 
-The analysis of a single document goes through **two separate BullMQ workers** in a continuous flow — preprocessing runs straight into AI analysis with no manual pause.
-
-### Phase 1 — Preprocessing Worker (`analysisWorker.ts`)
-
-Triggered when a user clicks "Analyze". The preprocessing worker (`analysisWorker.ts`) acts as a lightweight orchestrator composing modular stage processors under `backend/src/workers/stages/`. It runs these stages in order, reporting each to the SSE stream in real-time:
+Document analysis flows through **8 atomic pipeline stages + a 5-stage AI pipeline**, all driven by the transactional outbox. Nothing runs as one long in-memory job: each stage is a standalone BullMQ job that loads what it needs, does its work, writes an outbox event, and exits. The **OutboxDispatcher** reads each event and enqueues exactly the next stage's job. This means any stage can crash, restart, or scale independently without losing pipeline state — state lives in Postgres and Supabase Storage, not in a worker's memory.
 
 ```
-QUEUED
-  └─► PROCESSING        (worker picks up job)
-        └─► EXTRACTING  (PDF/image text extraction, OCR fallback)
-              └─► CLEANING  (noise removal, whitespace normalisation)
-                    └─► STRUCTURING → CHUNKING → EMBEDDING → SUMMARIZING
-                          └─► PREPROCESSING_COMPLETED
+analysis.requested
+  └─► stage-initialization        (Node)   validates the doc, sets PROCESSING
+        └─► document.initialized
+              └─► extract-layout-and-ocr   (Python/Docling, isolated queue) OCR + layout parsing
+                    └─► document.extracted
+                          └─► stage-cleaning        (Node)  noise removal, language detection
+                                └─► stage-structuring   (Node)  sections, facts, quality
+                                      └─► stage-chunking     (Node)  hierarchical chunks + embeddings
+                                            └─► stage-embedding    (Node)  status marker
+                                                  └─► stage-summarizing  (Node)  title/summary
+                                                        └─► stage-completion   (Node)
+                                                              └─► document.preprocessing.completed
+                                                                    └─► ai-analysis (see Phase 2)
 ```
 
-After cleaning, the worker structures sections/facts, builds hierarchical chunks, generates embeddings, and writes a document summary. Extracted content is stored in `documents.extracted_content` (JSONB). On `PREPROCESSING_COMPLETED`, an outbox event enqueues the AI analysis job automatically.
+### Stage 1 — Initialization (`stage-initialization`, Node)
+
+Triggered when a user clicks "Analyze" (via the `analysis.requested` outbox event). Validates the uploaded file and transitions `documents.analysis_status` from `QUEUED` to `PROCESSING`. Writes a `document.initialized` outbox event carrying the document's storage path forward.
+
+### Stage 2 — OCR & Layout Extraction (Python `ocr-engine` service)
+
+This is the only non-Node stage, and it runs as a **separate Python process** (`app/backend/services/ocr-engine/`), not inside the Node worker.
+
+**How it's triggered:** the dispatcher reads the `document.initialized` event and enqueues an `extract-layout-and-ocr` job onto `OCR_QUEUE_NAME` — a **BullMQ queue dedicated to this service** (default `document-ocr`, separate from the Node worker's `ANALYSIS_QUEUE_NAME`). The Node worker never connects to this queue, so there's no possibility of the two runtimes claiming each other's jobs.
+
+**What it does:**
+
+1. Downloads the original uploaded file from the `documents` Supabase Storage bucket
+2. Runs [Docling](https://github.com/DS4SD/docling) (with RapidOCR) to parse layout and extract text, including OCR for scanned/image-based content
+3. Uploads the resulting Markdown to the `parsed-documents` bucket at `parsed/{documentId}.md`
+4. Updates `documents.analysis_status` to `EXTRACTING` and inserts a `document_pipeline_events` row (so the SSE feed reflects progress)
+5. Writes a `document.extracted` outbox row directly to Postgres (via the Supabase client) — the same `document_pipeline_outbox` table the Node side writes to. Postgres's `AFTER INSERT` trigger fires regardless of which client performed the insert, so the dispatcher's `LISTEN/NOTIFY` picks this row up exactly as if a Node stage had written it.
+
+The dispatcher then routes `document.extracted` to `stage-cleaning`, and Node picks the pipeline back up from there.
+
+**Running it:**
+
+```bash
+cd app/backend/services/ocr-engine
+python3 -m venv .venv
+.venv/bin/pip install -r requirements.txt
+cp .env.example .env   # fill in SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY
+.venv/bin/python src/main.py
+```
+
+It must be running (in addition to `pnpm run dev:all`) for any document to get past Stage 2 — without it, documents will sit at `EXTRACTING`/`PROCESSING` indefinitely.
+
+### Stages 3–7 — Cleaning, Structuring, Chunking, Embedding, Summarizing (Node)
+
+Back on the Node side (`stagePipeline.ts`), each remaining preprocessing stage is its own atomic job on `ANALYSIS_QUEUE_NAME`:
+
+- **`stage-cleaning`** — downloads the parsed Markdown, strips OCR noise, detects language
+- **`stage-structuring`** — builds document sections and extracts structured facts
+- **`stage-chunking`** — builds hierarchical chunks (document → section → paragraph → sentence) and generates embeddings, persisting both to Postgres
+- **`stage-embedding`** — status/event marker (embeddings are generated during chunking)
+- **`stage-summarizing`** — generates the document title/summary
+
+Each stage writes its own outbox event (`document.cleaned`, `document.structured`, etc.) which the dispatcher routes to the next stage.
+
+### Stage 8 — Completion (`stage-completion`, Node)
+
+Sets `documents.analysis_status` to `PREPROCESSING_COMPLETED` and writes the `document.preprocessing.completed` outbox event, which the dispatcher routes into Phase 2 below.
 
 ### Phase 2 — AI Analysis Worker (`aiAnalysisWorker.ts`)
 
@@ -207,11 +266,12 @@ untrusted_user_document_text: "--- BEGIN UNTRUSTED USER INPUT ---\n...\n--- END 
 
 ### Outbox Pattern (Reliability)
 
-Rather than calling BullMQ directly from the API request, the system writes an outbox event to `document_pipeline_outbox` inside the same database transaction as the status update. The **OutboxDispatcher** process then reads pending rows and enqueues the BullMQ jobs. This ensures:
+Rather than calling BullMQ directly from the API request (or from within a stage), every stage transition writes an outbox event to `document_pipeline_outbox` — Node stages do this inside the same database transaction as their status update; the Python OCR stage does it via a direct Supabase insert after its own status update. The **OutboxDispatcher** process then reads pending rows and enqueues the corresponding BullMQ job (on the correct queue - `ANALYSIS_QUEUE_NAME` for Node stages, `OCR_QUEUE_NAME` for the OCR stage). This ensures:
 
 - No jobs are lost if Redis is temporarily unavailable
-- No duplicate jobs are created (BullMQ deduplication via `jobId`)
-- No inconsistent states if the API server crashes between the DB write and the Redis push
+- No duplicate jobs are created (BullMQ deduplication via a deterministic `jobId` per `(analysisRequestId, stage)`)
+- No inconsistent states if a process crashes between the DB write and the Redis push
+- Each stage is independently retryable — a failure in `stage-chunking` doesn't re-run OCR
 
 The dispatcher uses both **PostgreSQL `LISTEN/NOTIFY`** (low latency) and a **polling fallback** (safety net).
 
@@ -228,6 +288,7 @@ The frontend uses `@microsoft/fetch-event-source` which automatically reconnects
 ---
 
 ## Authentication System
+
 
 ClearPath uses **custom JWT authentication** (not Supabase Auth) with httpOnly cookies.
 

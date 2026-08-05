@@ -47,14 +47,10 @@ const envSchema = z.object({
   // competing consumers on the same queue - each only ever sees jobs
   // meant for it.
   OCR_QUEUE_NAME: z.string().default("document-ocr"),
-  OCR_JOB_ATTEMPTS: z.coerce.number().default(500),
+  OCR_JOB_ATTEMPTS: z.coerce.number().default(5),
 
   // ─── Worker ────────────────────────────────────────────
   WORKER_ID: z.string().default("worker-1"),
-
-  // ─── OCR / Tesseract ───────────────────────────────────
-  TESSERACT_LANGS: z.string().default("eng+urd"),
-  OCR_MIN_TEXT_CONFIDENCE: z.coerce.number().min(0).max(1).default(0.6),
 
   // ─── Transformers Cache ────────────────────────────────
   TRANSFORMERS_CACHE: z.string().default("/var/cache/transformers"),
