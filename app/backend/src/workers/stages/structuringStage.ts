@@ -65,7 +65,7 @@ export async function processStructuringStage(
       if (error) {
         console.warn(`[structuringStage] Failed to delete original document ${storagePath} from bucket:`, error);
       } else {
-        await pgPool.query(`UPDATE documents SET storage_path = NULL WHERE id = $1`, [documentId]);
+        await pgPool.query(`UPDATE documents SET storage_path = 'DELETED' WHERE id = $1`, [documentId]);
       }
     }
 

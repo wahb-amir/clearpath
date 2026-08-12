@@ -119,10 +119,21 @@ def process_local_file(file_path: str, output_path: str | None = None) -> None:
     print(f"✅ Successfully extracted {len(markdown_text)} characters and saved to '{destination_path}'")
 
 
-def _report_extracting(document_id: str) -> None:
+def _report_extracting(document_id: str, user_id: str) -> None:
     supabase.table("documents").update(
         {"analysis_status": "EXTRACTING", "current_stage": "EXTRACTING", "worker_id": WORKER_ID}
     ).eq("id", document_id).eq("analysis_status", "PROCESSING").execute()
+
+    supabase.table("document_pipeline_events").insert(
+        {
+            "document_id": document_id,
+            "user_id": user_id,
+            "event_type": "extraction_started",
+            "stage": "EXTRACTING",
+            "message": "Extracting text and layout from document...",
+            "progress": 15,
+        }
+    ).execute()
 
 
 def _insert_pipeline_event(document_id: str, user_id: str, message: str) -> None:
@@ -183,7 +194,7 @@ def _process_job_sync(job_id: str, job_name: str, job_data: dict):
     print(f"[OCR Worker] Processing job {job_id} for path: {storage_path} ({mime_type})")
 
     try:
-        _report_extracting(document_id)
+        _report_extracting(document_id, user_id)
 
         # 1. Download file bytes from Supabase Storage
         file_bytes = supabase.storage.from_(settings.RAW_BUCKET).download(storage_path)
