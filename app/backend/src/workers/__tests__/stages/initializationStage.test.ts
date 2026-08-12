@@ -58,8 +58,7 @@ describe("processInitializationStage", () => {
   it("preserves all other state fields unchanged", async () => {
     const state = makeState({
       status: "QUEUED",
-      rawText: "some text",
-      cleanText: "clean text",
+      markdownContent: "some text",
     });
 
     const result = await processInitializationStage(state);
@@ -67,8 +66,7 @@ describe("processInitializationStage", () => {
     expect(result.job).toBe(state.job);
     expect(result.doc).toBe(state.doc);
     expect(result.workerId).toBe(state.workerId);
-    expect(result.rawText).toBe("some text");
-    expect(result.cleanText).toBe("clean text");
+    expect(result.markdownContent).toBe("some text");
   });
 
   it("includes workerId in reportStage message", async () => {

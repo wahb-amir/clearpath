@@ -190,6 +190,9 @@ export class OutboxDispatcher {
       /* ---------------------------------------------------------- */
       case "document.extracted": {
         const payload = row.payload as ExtractionCompletedPayload;
+        await enqueueStageJob(
+          "stage-node-pipeline",
+          `${payload.analysisRequestId}-stage-node-pipeline`,
           payload,
         );
         await this.markSent(row.id);

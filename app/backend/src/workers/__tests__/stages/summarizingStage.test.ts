@@ -84,14 +84,12 @@ describe("processSummarizingStage", () => {
   it("preserves all other state fields", async () => {
     const state = makeState({
       status: "EMBEDDING",
-      rawText: "raw",
-      cleanText: "clean",
+      markdownContent: "raw",
     });
 
     const result = await processSummarizingStage(state);
 
-    expect(result.rawText).toBe("raw");
-    expect(result.cleanText).toBe("clean");
+    expect(result.markdownContent).toBe("raw");
     expect(result.job).toBe(state.job);
   });
 });

@@ -6,6 +6,26 @@ vi.mock("../../stageReporter", () => ({
   reportProgress: vi.fn().mockResolvedValue(undefined),
 }));
 
+vi.mock("../../../lib/supabase", () => ({
+  supabase: {
+    storage: {
+      from: vi.fn().mockReturnValue({
+        remove: vi.fn().mockResolvedValue({ error: null }),
+      }),
+    },
+  },
+}));
+
+vi.mock("../../../services/ingestion/detectLanguage", () => ({
+  detectLanguage: vi.fn().mockReturnValue({ code: "en", name: "English" }),
+}));
+
+vi.mock("../../../services/ingestion/persistence", () => ({
+  persistSections: vi.fn().mockResolvedValue(new Map()),
+  persistFacts: vi.fn().mockResolvedValue(undefined),
+  clearDerivedRecords: vi.fn().mockResolvedValue(undefined),
+}));
+
 vi.mock("../../../db/pool", () => ({
   pgPool: { query: vi.fn().mockResolvedValue({ rows: [], rowCount: 0 }) },
   withTransaction: vi.fn(async (fn: any) => {
@@ -84,7 +104,7 @@ describe("processStructuringStage", () => {
 
     const state = makeState({
       status: "CLEANING",
-      cleanText: "Intro\n\ntext",
+      markdownContent: "Intro\n\ntext",
       quality: mockQuality,
     });
 
@@ -97,7 +117,7 @@ describe("processStructuringStage", () => {
   it("reports STRUCTURING stage when not yet past it", async () => {
     const state = makeState({
       status: "CLEANING",
-      cleanText: "some text",
+      markdownContent: "some text",
       quality: mockQuality,
     });
 
@@ -119,7 +139,7 @@ describe("processStructuringStage", () => {
 
     const state = makeState({
       status: "CLEANING",
-      cleanText: "some text",
+      markdownContent: "some text",
       quality: mockQuality,
     });
 
@@ -132,18 +152,18 @@ describe("processStructuringStage", () => {
     );
   });
 
-  it("updates documents.quality in DB", async () => {
+  it("updates documents.quality and language in DB", async () => {
     const state = makeState({
       status: "CLEANING",
-      cleanText: "some text",
+      markdownContent: "some text",
       quality: mockQuality,
     });
 
     await processStructuringStage(state);
 
     expect(pgPool.query).toHaveBeenCalledWith(
-      expect.stringContaining("UPDATE documents SET quality"),
-      expect.arrayContaining(["good", "doc-123"]),
+      expect.stringContaining("UPDATE documents SET quality = $1, language = $2"),
+      expect.arrayContaining(["good", "en", "doc-123"]),
     );
   });
 
@@ -152,7 +172,7 @@ describe("processStructuringStage", () => {
 
     const state = makeState({
       status: "CLEANING",
-      cleanText: "some text",
+      markdownContent: "some text",
       quality: mockQuality,
     });
 
@@ -169,7 +189,7 @@ describe("processStructuringStage", () => {
   it("updates currentStatus to STRUCTURING", async () => {
     const state = makeState({
       status: "CLEANING",
-      cleanText: "",
+      markdownContent: "",
       quality: mockQuality,
     });
 
@@ -184,7 +204,7 @@ describe("processStructuringStage", () => {
 
     const state = makeState({
       status: "CHUNKING",
-      cleanText: "some text",
+      markdownContent: "some text",
       quality: mockQuality,
     });
 
@@ -203,7 +223,7 @@ describe("processStructuringStage", () => {
   it("handles empty/missing cleanText without crashing", async () => {
     const state = makeState({
       status: "CLEANING",
-      cleanText: undefined,
+      markdownContent: undefined,
       quality: undefined,
     });
 
@@ -225,7 +245,7 @@ describe("processStructuringStage", () => {
 
     const state = makeState({
       status: "CLEANING",
-      cleanText: "some text",
+      markdownContent: "some text",
       quality: mockQuality,
     });
 
