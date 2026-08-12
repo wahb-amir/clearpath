@@ -106,27 +106,3 @@ export interface ExtractionCompletedPayload extends StagePipelineBase {
   ocrConfidence: number;
   textCoverage: number;
 }
-
-/** Emitted by `stage-cleaning`. */
-export interface CleaningCompletedPayload extends StagePipelineBase {
-  cleanText: string;
-  quality?: {
-    quality: string;
-    ocrConfidence: number;
-    textCoverage: number;
-  };
-}
-
-/** Emitted by `stage-structuring`. */
-export interface StructuringCompletedPayload extends CleaningCompletedPayload {
-  sections: unknown;
-  facts: unknown;
-}
-
-/** Emitted by `stage-chunking`, `stage-embedding`, `stage-summarizing`. */
-export type ChunkingCompletedPayload = StagePipelineBase;
-export type EmbeddingCompletedPayload = StagePipelineBase;
-export interface SummarizingCompletedPayload extends StagePipelineBase {
-  title?: string;
-  summary?: string;
-}

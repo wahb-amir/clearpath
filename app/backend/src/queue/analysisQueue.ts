@@ -5,11 +5,7 @@ import type {
   AiAnalysisJobData,
   AnalysisJobData,
   InitializationCompletedPayload,
-  CleaningCompletedPayload,
-  StructuringCompletedPayload,
-  ChunkingCompletedPayload,
-  EmbeddingCompletedPayload,
-  SummarizingCompletedPayload,
+  ExtractionCompletedPayload,
 } from "../types/dtos";
 
 /**
@@ -20,21 +16,13 @@ import type {
 export type AnalysisQueueJobName =
   | "ai-analysis"
   | "stage-initialization"
-  | "stage-cleaning"
-  | "stage-structuring"
-  | "stage-chunking"
-  | "stage-embedding"
-  | "stage-summarizing"
-  | "stage-completion";
+  | "stage-node-pipeline";
 
 export type AnalysisQueueJobData =
   | AiAnalysisJobData
   | InitializationCompletedPayload // == AnalysisJobData shape, used by stage-initialization
-  | CleaningCompletedPayload // consumed by stage-structuring (Stage-2/extraction payload shape is Python-only)
-  | StructuringCompletedPayload
-  | ChunkingCompletedPayload
-  | EmbeddingCompletedPayload
-  | SummarizingCompletedPayload;
+  | ExtractionCompletedPayload; // consumed by stage-node-pipeline
+
 
 export const analysisQueue = new Queue<
   AnalysisQueueJobData,

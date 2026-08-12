@@ -12,14 +12,9 @@ export interface AnalysisState {
   currentStatus: AnalysisStatus;
 
   // Extracted values
-  rawText?: string;
-  extractionMethod?: "embedded" | "ocr" | "plain_text";
   ocrConfidence?: number;
   textCoverage?: number;
-  usedOcrFallback?: boolean;
-
-  // Cleaned values
-  cleanText?: string;
+  markdownContent?: string;
 
   // Verification/Structured values
   sections?: ReturnType<typeof buildDocumentStructure>;
