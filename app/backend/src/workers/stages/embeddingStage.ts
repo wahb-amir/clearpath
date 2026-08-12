@@ -9,6 +9,9 @@ export async function processEmbeddingStage(
   let { currentStatus } = state;
   const { documentId, userId } = job.data;
 
+  // EMBEDDING STAGE — commented out in pipeline (not currently used).
+  // Kept here for future RAG implementation.
+  /*
   if (!isStageCompleteOrPast(currentStatus, "EMBEDDING")) {
     await reportStage({
       documentId,
@@ -21,6 +24,7 @@ export async function processEmbeddingStage(
     });
     currentStatus = "EMBEDDING";
   }
+  */
 
   return { ...state, currentStatus };
 }

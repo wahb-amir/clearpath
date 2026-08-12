@@ -1,9 +1,13 @@
 import { isStageCompleteOrPast } from "../../types/pipelineStatus";
 import { reportStage, reportProgress } from "../stageReporter";
-import { pgPool } from "../../db/pool";
+import { pgPool, withTransaction } from "../../db/pool";
+import { persistSections, persistFacts, clearDerivedRecords } from "../../services/ingestion/persistence";
 import type { AnalysisState } from "./types";
 import { buildDocumentStructure } from "../../services/ingestion/buildStructure";
 import { extractFacts } from "../../services/ingestion/extractFacts";
+import { estimateQuality } from "../../services/ingestion/estimateQuality";
+import { detectLanguage } from "../../services/ingestion/detectLanguage";
+import { supabase } from "../../lib/supabase";
 
 function countSections(
   sections: ReturnType<typeof buildDocumentStructure>,
@@ -22,12 +26,14 @@ function countSections(
 export async function processStructuringStage(
   state: AnalysisState,
 ): Promise<AnalysisState> {
-  const { job, workerId, cleanText, quality } = state;
+  const { job, workerId, markdownContent, ocrConfidence = 1, textCoverage = 1 } = state;
   let { currentStatus } = state;
   const { documentId, userId } = job.data;
 
-  const sections = buildDocumentStructure(cleanText || "");
-  const facts = extractFacts(cleanText || "");
+  const content = markdownContent || "";
+  const sections = buildDocumentStructure(content);
+  const facts = extractFacts(content);
+  const quality = estimateQuality({ ocrConfidence, textCoverage });
 
   if (!isStageCompleteOrPast(currentStatus, "STRUCTURING")) {
     await reportStage({
@@ -44,10 +50,24 @@ export async function processStructuringStage(
       },
     });
 
-    await pgPool.query(`UPDATE documents SET quality = $1 WHERE id = $2`, [
-      quality?.quality,
-      documentId,
-    ]);
+    const language = detectLanguage(content);
+
+    await pgPool.query(
+      `UPDATE documents SET quality = $1, language = $2 WHERE id = $3`,
+      [quality.quality, language.code, documentId]
+    );
+
+    // After successfully downloading the markdown and persisting the sections/facts, we delete the original document file
+    const docRes = await pgPool.query(`SELECT storage_path FROM documents WHERE id = $1`, [documentId]);
+    const storagePath = docRes.rows[0]?.storage_path;
+    if (storagePath) {
+      const { error } = await supabase.storage.from("documents").remove([storagePath]);
+      if (error) {
+        console.warn(`[structuringStage] Failed to delete original document ${storagePath} from bucket:`, error);
+      } else {
+        await pgPool.query(`UPDATE documents SET storage_path = NULL WHERE id = $1`, [documentId]);
+      }
+    }
 
     await reportProgress({
       documentId,
@@ -59,8 +79,14 @@ export async function processStructuringStage(
       payload: { factCount: (facts || []).length },
     });
 
+    await withTransaction(async (client) => {
+      await clearDerivedRecords(client, documentId);
+      await persistSections(client, documentId, sections || []);
+      await persistFacts(client, documentId, facts || []);
+    });
+
     currentStatus = "STRUCTURING";
   }
 
-  return { ...state, currentStatus, sections, facts };
+  return { ...state, currentStatus, sections, facts, quality };
 }

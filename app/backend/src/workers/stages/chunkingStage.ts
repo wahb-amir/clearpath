@@ -14,10 +14,13 @@ import type { AnalysisState } from "./types";
 export async function processChunkingStage(
   state: AnalysisState,
 ): Promise<AnalysisState> {
-  const { job, workerId, summary, sections, facts } = state;
+  const { job, workerId } = state;
   let { currentStatus } = state;
   const { documentId, userId } = job.data;
 
+  // CHUNKING STAGE — commented out in pipeline (not currently used in AI path).
+  // The code is kept here for future RAG implementation.
+  /*
   if (!isStageCompleteOrPast(currentStatus, "CHUNKING")) {
     await reportStage({
       documentId,
@@ -105,6 +108,7 @@ export async function processChunkingStage(
 
     currentStatus = "CHUNKING";
   }
+  */
 
   return { ...state, currentStatus };
 }
