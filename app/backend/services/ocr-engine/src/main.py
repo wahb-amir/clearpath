@@ -17,7 +17,10 @@ from bullmq_config import (
     get_bullmq_queue_name,
     get_worker_options,
     assert_should_process_job,
+    get_redis_connection_config,
 )
+import redis
+import json
 from config import settings
 
 SUPABASE_URL = settings.SUPABASE_URL
@@ -27,6 +30,12 @@ EXPECTED_JOB_NAME = get_bullmq_job_name()
 WORKER_ID = "ocr-engine"
 
 supabase: Client = create_client(str(SUPABASE_URL), SUPABASE_KEY)
+
+_redis_conf = get_redis_connection_config()
+if isinstance(_redis_conf, str):
+    redis_client = redis.Redis.from_url(_redis_conf)
+else:
+    redis_client = redis.Redis(**_redis_conf)
 
 # Initialize Docling once at service startup (pre-loads ONNX models)
 pipeline_options = PdfPipelineOptions()
@@ -123,7 +132,7 @@ def _report_extracting(document_id: str, user_id: str) -> None:
     supabase.table("documents").update(
         {"analysis_status": "EXTRACTING", "current_stage": "EXTRACTING", "worker_id": WORKER_ID}
     ).eq("id", document_id).eq("analysis_status", "PROCESSING").execute()
-
+    
     supabase.table("document_pipeline_events").insert(
         {
             "document_id": document_id,
@@ -134,6 +143,11 @@ def _report_extracting(document_id: str, user_id: str) -> None:
             "progress": 15,
         }
     ).execute()
+
+    try:
+        redis_client.publish(f"doc-pipeline:{document_id}", json.dumps({"documentId": document_id}))
+    except Exception as e:
+        print(f"⚠️ Failed to publish extraction_started to Redis: {e}")
 
 
 def _insert_pipeline_event(document_id: str, user_id: str, message: str) -> None:
@@ -147,6 +161,11 @@ def _insert_pipeline_event(document_id: str, user_id: str, message: str) -> None
             "progress": 30,
         }
     ).execute()
+
+    try:
+        redis_client.publish(f"doc-pipeline:{document_id}", json.dumps({"documentId": document_id}))
+    except Exception as e:
+        print(f"⚠️ Failed to publish extraction_completed to Redis: {e}")
 
 
 def _write_outbox_extracted(
