@@ -8,11 +8,6 @@ import type {
   AnalysisRequestedOutboxPayload,
   InitializationCompletedPayload,
   ExtractionCompletedPayload,
-  CleaningCompletedPayload,
-  StructuringCompletedPayload,
-  ChunkingCompletedPayload,
-  EmbeddingCompletedPayload,
-  SummarizingCompletedPayload,
 } from "../types/dtos";
 
 interface OutboxRow {
@@ -34,15 +29,10 @@ interface OutboxRow {
  * leaves status='pending' (or moves to 'failed' after max retries for
  * manual inspection / DLQ).
  *
- * Pipeline stage routing (see docs/pipeline architecture):
- *   analysis.requested        -> stage-initialization        (Node, queue=ANALYSIS_QUEUE_NAME)
- *   document.initialized      -> extract-layout-and-ocr       (Python/Docling, queue=OCR_QUEUE_NAME - isolated)
- *   document.extracted        -> stage-cleaning               (Node, queue=ANALYSIS_QUEUE_NAME)
- *   document.cleaned          -> stage-structuring            (Node)
- *   document.structured       -> stage-chunking               (Node)
- *   document.chunked          -> stage-embedding               (Node)
- *   document.embedded         -> stage-summarizing            (Node)
- *   document.summarized       -> stage-completion             (Node)
+ * Pipeline stage routing:
+ *   analysis.requested        -> stage-initialization        (Node)
+ *   document.initialized      -> extract-layout-and-ocr       (Python/Docling, OCR_QUEUE_NAME)
+ *   document.extracted        -> stage-node-pipeline          (Node monolithic job)
  *   document.preprocessing.completed -> ai-analysis           (Node)
  *
  * Each stage job is atomic: it loads what it needs, does its work, and
@@ -196,83 +186,10 @@ export class OutboxDispatcher {
       }
 
       /* ---------------------------------------------------------- */
-      /* Stage 2 -> Stage 3 (written by the Python service itself)   */
+      /* Stage 2 -> Monolithic Node pipeline                         */
       /* ---------------------------------------------------------- */
       case "document.extracted": {
         const payload = row.payload as ExtractionCompletedPayload;
-        await enqueueStageJob(
-          "stage-cleaning",
-          `${payload.analysisRequestId}-stage-cleaning`,
-          payload,
-        );
-        await this.markSent(row.id);
-        break;
-      }
-
-      /* ---------------------------------------------------------- */
-      /* Stage 3 -> Stage 4                                          */
-      /* ---------------------------------------------------------- */
-      case "document.cleaned": {
-        const payload = row.payload as CleaningCompletedPayload;
-        await enqueueStageJob(
-          "stage-structuring",
-          `${payload.analysisRequestId}-stage-structuring`,
-          payload,
-        );
-        await this.markSent(row.id);
-        break;
-      }
-
-      /* ---------------------------------------------------------- */
-      /* Stage 4 -> Stage 5                                          */
-      /* ---------------------------------------------------------- */
-      case "document.structured": {
-        const payload = row.payload as StructuringCompletedPayload;
-        await enqueueStageJob(
-          "stage-chunking",
-          `${payload.analysisRequestId}-stage-chunking`,
-          payload,
-        );
-        await this.markSent(row.id);
-        break;
-      }
-
-      /* ---------------------------------------------------------- */
-      /* Stage 5 -> Stage 6                                          */
-      /* ---------------------------------------------------------- */
-      case "document.chunked": {
-        const payload = row.payload as ChunkingCompletedPayload;
-        await enqueueStageJob(
-          "stage-embedding",
-          `${payload.analysisRequestId}-stage-embedding`,
-          payload,
-        );
-        await this.markSent(row.id);
-        break;
-      }
-
-      /* ---------------------------------------------------------- */
-      /* Stage 6 -> Stage 7                                          */
-      /* ---------------------------------------------------------- */
-      case "document.embedded": {
-        const payload = row.payload as EmbeddingCompletedPayload;
-        await enqueueStageJob(
-          "stage-summarizing",
-          `${payload.analysisRequestId}-stage-summarizing`,
-          payload,
-        );
-        await this.markSent(row.id);
-        break;
-      }
-
-      /* ---------------------------------------------------------- */
-      /* Stage 7 -> Stage 8                                          */
-      /* ---------------------------------------------------------- */
-      case "document.summarized": {
-        const payload = row.payload as SummarizingCompletedPayload;
-        await enqueueStageJob(
-          "stage-completion",
-          `${payload.analysisRequestId}-stage-completion`,
           payload,
         );
         await this.markSent(row.id);

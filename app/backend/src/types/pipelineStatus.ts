@@ -91,10 +91,10 @@ const ALLOWED_TRANSITIONS: Record<AnalysisStatus, AnalysisStatus[]> = {
   NOT_STARTED: ["QUEUED"],
   QUEUED: ["PROCESSING"],
   PROCESSING: ["EXTRACTING"],
-  EXTRACTING: ["OCRING", "CLEANING"],
-  OCRING: ["CLEANING"],
-  CLEANING: ["STRUCTURING"],
-  STRUCTURING: ["CHUNKING"],
+  EXTRACTING: ["STRUCTURING"], // Skipped CLEANING since OCR gives markdown directly
+  OCRING: ["CLEANING"], // Legacy
+  CLEANING: ["STRUCTURING"], // Legacy status, kept for in-flight docs
+  STRUCTURING: ["SUMMARIZING"], // Skipped CHUNKING and EMBEDDING for now (not used in AI path)
   CHUNKING: ["EMBEDDING"],
   EMBEDDING: ["SUMMARIZING"],
   SUMMARIZING: ["PREPROCESSING_COMPLETED"],
