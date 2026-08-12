@@ -122,14 +122,14 @@ in `documentAnalysisWorker.ts` dispatches to the correct handler by job name.
 ## Full Document Analysis Status Lifecycle
 
 ```
-PENDING_UPLOAD
+PPROCESSING
   └─► UPLOADED              (upload complete, file in Supabase Storage)
         └─► QUEUED          (analyze request accepted, outbox row written)
               └─► PROCESSING (preprocessing worker picked up the job)
-                    └─► EXTRACTING              (text extraction from PDF/image)
-                          └─► CLEANING          (noise removal + language detection)
-                                └─► AWAITING_VERIFICATION  ◄── PIPELINE PAUSES
-                                      └─► PREPROCESSING_COMPLETED (user confirmed)
+                    └─► EXTRACTING              (Python docling extraction)
+                          └─► STRUCTURING       (Language detection, sections, facts)
+                                └─► SUMMARIZING
+                                      └─► PREPROCESSING_COMPLETED
                                             └─► AI_QUEUED     (outbox event dispatched)
                                                   └─► AI_PROCESSING  (AI worker running)
                                                         └─► AI_COMPLETED
@@ -517,9 +517,10 @@ After all 5 stages complete:
 
 | `event_type`                       | Trigger                     | Action                                 |
 | ---------------------------------- | --------------------------- | -------------------------------------- |
-| `analysis.requested`               | User clicks Analyze         | Enqueues `analyze-document` BullMQ job |
-| `document.preprocessing.completed` | (legacy) preprocessing done | Enqueues `ai-analysis` BullMQ job      |
-| `document.extraction.verified`     | User confirms extraction    | Enqueues `ai-analysis` BullMQ job      |
+| `analysis.requested`               | User clicks Analyze         | Enqueues `stage-initialization` job    |
+| `document.initialized`             | Node init done              | Enqueues `extract-layout-and-ocr` job  |
+| `document.extracted`               | Python docling done         | Enqueues `stage-node-pipeline` job     |
+| `document.preprocessing.completed` | Preprocessing done          | Enqueues `ai-analysis` job             |
 
 The dispatcher uses two mechanisms simultaneously:
 
