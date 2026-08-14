@@ -4,6 +4,10 @@ from pathlib import Path
 import signal
 import tempfile
 
+from io import BytesIO
+import tempfile
+from reportlab.pdfgen import canvas
+
 from bullmq import Worker
 from supabase import create_client, Client
 from docling.document_converter import (
@@ -55,39 +59,28 @@ converter = DocumentConverter(
 
 
 def warmup_docling_models():
-    """Converts a valid minimal PDF at startup to force-load ONNX and layout models into RAM."""
+    """Pre-load Docling OCR and layout models during application startup."""
     print("⏳ Pre-loading Docling OCR and Layout models into memory...")
-    
-    # Minimal 1-page valid PDF byte stream
-    minimal_pdf_bytes = (
-        b"%PDF-1.4\n"
-        b"1 0 obj <</Type /Catalog /Pages 2 0 R>> endobj\n"
-        b"2 0 obj <</Type /Pages /Kinds [] /Count 1 /Kids [3 0 R]>> endobj\n"
-        b"3 0 obj <</Type /Page /Parent 2 0 R /MediaBox [0 0 100 100] /Resources <<>>>> endobj\n"
-        b"xref\n"
-        b"0 4\n"
-        b"0000000000 65535 f \n"
-        b"0000000009 00000 n \n"
-        b"0000000052 00000 n \n"
-        b"0000000118 00000 n \n"
-        b"trailer <</Size 4 /Root 1 0 R>>\n"
-        b"startxref\n"
-        b"202\n"
-        b"%%EOF\n"
-    )
 
     try:
+        # Generate a genuinely valid, minimal 1-page PDF.
+        buffer = BytesIO()
+        pdf = canvas.Canvas(buffer, pagesize=(100, 100))
+        pdf.showPage()
+        pdf.save()
+
         with tempfile.NamedTemporaryFile(suffix=".pdf", delete=True) as tmp:
-            tmp.write(minimal_pdf_bytes)
+            tmp.write(buffer.getvalue())
             tmp.flush()
-            
-            # Execute convert once to force weight loading on startup
-            _ = converter.convert(tmp.name)
-            
+
+            # Run one conversion to initialize Docling's models.
+            converter.convert(tmp.name)
+
         print("✅ Docling OCR & Layout models loaded successfully!")
+
     except Exception as e:
         print(f"⚠️ Warmup failed with error: {e}")
-        
+             
 # Map incoming MIME types to correct file extensions for Docling's parser
 MIME_TO_EXTENSION = {
     "application/pdf": ".pdf",
