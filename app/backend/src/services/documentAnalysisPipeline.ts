@@ -41,7 +41,7 @@ import type {
   PipelineOptions,
 } from "./documentAnalysisPipeline/types";
 
-export const CLEARPATH_PIPELINE_VERSION = "2026-06-17";
+export const CLEARPATH_PIPELINE_VERSION = "2026-08-15";
 
 export async function runClearPathPipeline(
   document: NormalizedDocument,
@@ -148,15 +148,20 @@ export async function runClearPathPipeline(
     },
   });
 
-  // ── Stage 3 (pre): Official Source Search ─────────────────────────────────
+  // ── Stage 3 (pre): Web Search Routing + Grounding ─────────────────────────
   await emit?.({
     documentId: document.document_id,
     userId: document.user_id,
     eventType: "ai_verification_started",
     stage: "AI_PROCESSING",
-    message: "Stage 3/5 — Searching official sources for grounding",
+    message: "Stage 3/5 — Routing web search for grounding",
     progress: 37,
-    payload: { stage: 3, total: 5, sub_step: "search" },
+    payload: {
+      stage: 3,
+      total: 5,
+      sub_step: "search",
+      max_searches: options.maxSearches ?? 3,
+    },
   });
 
   const officialSnippets = await buildOfficialSourceSnippets(

@@ -34,6 +34,7 @@ export const PIPELINE_EVENT_TYPES = [
 
   "ai_search_started",
   "ai_search_progress",
+  "ai_search_skipped",
   "ai_search_completed",
 
   "ai_verification_started",
