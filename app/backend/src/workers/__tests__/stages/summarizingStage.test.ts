@@ -5,7 +5,10 @@ vi.mock("../../stageReporter", () => ({
   reportStage: vi.fn().mockResolvedValue(undefined),
 }));
 
-import { processSummarizingStage } from "../../stages/summarizingStage";
+import {
+  processSummarizingStage,
+  generateSummary,
+} from "../../stages/summarizingStage";
 import { reportStage } from "../../stageReporter";
 
 describe("processSummarizingStage", () => {
@@ -47,6 +50,19 @@ describe("processSummarizingStage", () => {
     );
   });
 
+  it("creates a document title and summary from the cleaned text", () => {
+    const result = generateSummary({
+      cleanText: "Introduction\nThis is the first paragraph.\nSecond paragraph.\n\nTerms\nThe agreement starts today.",
+      sections: [
+        { title: "Introduction", textContent: "This is the first paragraph. Second paragraph.", level: 1, sectionType: "section", orderIndex: 0, children: [] },
+        { title: "Terms", textContent: "The agreement starts today.", level: 1, sectionType: "section", orderIndex: 1, children: [] },
+      ],
+    });
+
+    expect(result.title).toBe("Introduction");
+    expect(result.summary).toContain("This is the first paragraph");
+  });
+
   it("updates currentStatus to SUMMARIZING", async () => {
     const state = makeState({
       status: "EMBEDDING",
@@ -68,7 +84,7 @@ describe("processSummarizingStage", () => {
     expect(result.currentStatus).toBe("PREPROCESSING_COMPLETED");
   });
 
-  it("handles undefined title and summary without crashing", async () => {
+  it("generates a fallback title and summary when none exist", async () => {
     const state = makeState({ status: "EMBEDDING" });
 
     const result = await processSummarizingStage(state);
@@ -76,7 +92,7 @@ describe("processSummarizingStage", () => {
     expect(result.currentStatus).toBe("SUMMARIZING");
     expect(reportStage).toHaveBeenCalledWith(
       expect.objectContaining({
-        payload: { title: undefined, summary: undefined },
+        payload: { title: "Untitled document", summary: "" },
       }),
     );
   });
