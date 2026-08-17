@@ -1,6 +1,6 @@
 /** @type {import('next-sitemap').IConfig} */
 module.exports = {
-  siteUrl: "https://clearpath.wahb.space",
+  siteUrl: "https://clearpath.buttnetworks.com",
   generateRobotsTxt: false, // We manage robots.txt manually
   changefreq: "weekly",
   priority: 0.7,
