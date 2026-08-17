@@ -1,6 +1,6 @@
 import AboutClient from "./AboutClient";
 
-const BASE_URL = "https://clearpath.wahb.space";
+const BASE_URL = "https://clearpath.buttnetworks.com";
 
 export const metadata = {
   title: "About ClearPath — Safety, Trust & Ethics Framework",

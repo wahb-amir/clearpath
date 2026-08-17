@@ -32,13 +32,13 @@ const authCookieOptions = {
   secure: isProd,
   sameSite: (isProd ? "none" : "lax") as "none" | "lax",
   path: "/",
-  ...(isProd ? { domain: ".wahb.space" } : {}),
+  ...(isProd ? { domain: ".wahb.buttnetworks.com" } : {}),
   maxAge: 7 * 24 * 60 * 60 * 1000,
 };
 
 const clearCookieOptions = {
   path: "/",
-  ...(isProd ? { domain: ".wahb.space" } : {}),
+  ...(isProd ? { domain: ".wahb.buttnetworks.com" } : {}),
 };
 
 const setAuthCookies = (

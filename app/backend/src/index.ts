@@ -21,7 +21,7 @@ app.use(
   cors({
     // 1. Dynamic origin fallback ensuring a valid URL is always matched
     origin: (origin, callback) => {
-      const allowedOrigin = env.FRONTEND_URL || "https://clearpath.wahb.space";
+      const allowedOrigin = env.FRONTEND_URL || "https://clearpath.buttnetworks.com";
 
       // Allow requests with no origin (like mobile apps, curl, or Postman)
       // or if the incoming browser origin matches your configured frontend URL

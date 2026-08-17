@@ -12,7 +12,7 @@ const outfit = Outfit({
   display: "swap",
 });
 
-const BASE_URL = "https://clearpath.wahb.space";
+const BASE_URL = "https://clearpath.buttnetworks.com";
 
 export const metadata = {
   metadataBase: new URL(BASE_URL),

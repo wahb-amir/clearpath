@@ -4,7 +4,7 @@ import FeatureCards from "@/components/landing/FeatureCards";
 import DemoPreview from "@/components/landing/DemoPreview";
 import TrustSection from "@/components/landing/TrustSection";
 
-const BASE_URL = "https://clearpath.wahb.space";
+const BASE_URL = "https://clearpath.buttnetworks.com";
 
 export const metadata = {
   title: "ClearPath — Turn Confusion Into Clarity",
