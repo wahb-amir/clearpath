@@ -11,6 +11,7 @@ import {
   loadAnalysisResultByRequestId,
 } from "./documentAnalysisResultRepository";
 import { runClearPathPipeline } from "./documentAnalysisPipeline";
+import { runClearPathAgenticPipeline } from "./agenticDocumentAnalysis/runClearPathAgenticPipeline";
 import { insertPipelineEvent } from "./analysisRequestService";
 import {
   createPublisherConnection,
@@ -220,11 +221,15 @@ export async function runAndPersistDocumentAnalysis(
   };
 
   try {
-    const result = await runClearPathPipeline(
-      document,
-      { maxSearchResultsPerQuery: 5 },
-      emit,
-    );
+    const pipeline = jobData.pipeline ?? "classic";
+    const result =
+      pipeline === "agentic"
+        ? await runClearPathAgenticPipeline(document, {}, emit)
+        : await runClearPathPipeline(
+            document,
+            { maxSearchResultsPerQuery: 5 },
+            emit,
+          );
 
     await withTransaction(async (client) => {
       await finalizeAnalysisResult(client, {

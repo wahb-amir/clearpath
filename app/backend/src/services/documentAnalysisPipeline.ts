@@ -8,6 +8,7 @@ import {
   summarizeGuardrailDiagnostics,
 } from "./documentAnalysisPipeline/guardrails";
 import {
+  
   buildStage1Prompt,
   buildStage2Prompt,
   buildStage3Prompt,
@@ -188,8 +189,18 @@ export async function runClearPathPipeline(
     },
   });
 
+  const stage3Prompt = buildStage3Prompt(document, stage2, officialSnippets);
+
+  if (stage3Prompt.report.document_truncated || stage3Prompt.report.snippets_dropped > 0) {
+    console.warn(
+      `[stage3] payload trimmed to fit token budget: doc ${stage3Prompt.report.document_kept_chars}/${stage3Prompt.report.document_original_chars} chars, ` +
+        `snippets trimmed=${stage3Prompt.report.snippets_trimmed}, dropped=${stage3Prompt.report.snippets_dropped}, ` +
+        `estimated_input_tokens=${stage3Prompt.report.estimated_input_tokens}`,
+    );
+  }
+
   const stage3 = await askGroqJsonStreaming(
-    buildStage3Prompt(document, stage2, officialSnippets),
+    stage3Prompt.messages,
     Stage3Schema,
     makeStage3Fallback(),
     0,
@@ -202,7 +213,15 @@ export async function runClearPathPipeline(
         stage: "AI_PROCESSING",
         message: `Cross-referencing extracted items with official sources (${tokens} chars)`,
         progress: 55 + Math.min(10, Math.floor(tokens / 120)),
-        payload: { stage: 3, total: 5, tokens_received: tokens },
+        payload: {
+          stage: 3,
+          total: 5,
+          tokens_received: tokens,
+          payload_trimmed:
+            stage3Prompt.report.document_truncated ||
+            stage3Prompt.report.snippets_dropped > 0,
+          estimated_input_tokens: stage3Prompt.report.estimated_input_tokens,
+        },
       });
     },
     60000,

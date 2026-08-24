@@ -1,6 +1,11 @@
 import { z } from "zod";
 import { getGroqClient, getGroqModel } from "../../lib/llm/groqClient";
 import type { ChatMessage } from "./types";
+import {
+  estimateMessagesTokens,
+  SAFE_INPUT_TOKEN_BUDGET,
+  truncateToTokenBudget,
+} from "./promptBudget";
 
 /**
  * Strip leading/trailing code fences that Groq sometimes adds around
@@ -77,6 +82,39 @@ function parseModelJson(input: string): unknown {
   return JSON.parse(slice);
 }
 
+function shrinkMessagesFor413(messages: ChatMessage[]): ChatMessage[] {
+  return messages.map((m) => {
+    if (m.role !== "user") return m;
+    try {
+      const braceIndex = m.content.indexOf("{");
+      if (braceIndex === -1) return m;
+      
+      const prefix = m.content.slice(0, braceIndex);
+      const jsonStr = m.content.slice(braceIndex);
+      const parsed = JSON.parse(jsonStr);
+      
+      if (typeof parsed.document_text === "string") {
+        parsed.document_text = "[Omitted for repair pass. Rely on extracted items and prior context.]";
+      }
+      if (Array.isArray(parsed.official_source_snippets)) {
+        parsed.official_source_snippets = parsed.official_source_snippets.map((s: any) => {
+          if (s && typeof s.snippet === "string") {
+            s.snippet = s.snippet.slice(0, 100) + "…";
+          }
+          return s;
+        });
+      }
+      
+      return {
+        ...m,
+        content: prefix + JSON.stringify(parsed, null, 2),
+      };
+    } catch {
+      return m;
+    }
+  });
+}
+
 /**
  * Build the message list for a one-shot repair pass: we feed the model
  * its own previous (invalid) response plus a user turn that explains
@@ -87,8 +125,9 @@ function buildRepairMessages(
   rawContent: string,
   validationError: string,
 ): ChatMessage[] {
+  const shrunken = shrinkMessagesFor413(originalMessages);
   return [
-    ...originalMessages,
+    ...shrunken,
     {
       role: "assistant",
       content: rawContent,
@@ -225,7 +264,189 @@ export async function askGroqJsonStreaming<T>(
     console.warn(`[${stageLabel}] using fallback`);
     return fallback;
   } catch (error) {
+    if (
+      (typeof error === "object" && error !== null && "status" in error && (error as any).status === 413) ||
+      (error instanceof Error && error.message.includes("413"))
+    ) {
+      console.warn(`[${stageLabel}] 413 Request Too Large. Retrying with shrunken payload.`);
+      try {
+        const shrunkenMessages = shrinkMessagesFor413(messages);
+        const retryCompletion = await withTimeout(
+          client.chat.completions.create({
+            model,
+            temperature,
+            messages: shrunkenMessages,
+          }),
+          Math.max(timeoutMs, 25000),
+          `${stageLabel}-413-retry`,
+        );
+        const retryContent = retryCompletion.choices[0]?.message?.content ?? "";
+        const retryResult = schema.safeParse(parseModelJson(retryContent));
+        if (retryResult.success) {
+          console.log(`[${stageLabel}] 413 retry succeeded`);
+          return retryResult.data;
+        }
+        console.warn(`[${stageLabel}] 413 retry validation failed:`, retryResult.error.message);
+      } catch (retryErr) {
+        console.error(`[${stageLabel}] 413 retry failed:`, retryErr);
+      }
+    }
+
     console.error(`[${stageLabel}] streaming failed:`, error);
     return fallback;
   }
 }
+
+/**
+ * Tool-use variant: sends a `tools` array and `tool_choice: "auto"` to
+ * Groq alongside the streamed chat completion. Returns the assistant's
+ * plain content (may be null when the model decided to call tools) plus
+ * the parsed `tool_calls`. Does NOT validate against a Zod schema — the
+ * agentic caller decides what to do with the tool arguments.
+ *
+ * Reuses the streaming / timeout / repair infrastructure above. The
+ * repair pass is skipped because tool_use responses aren't JSON; if the
+ * model emits an invalid structure we surface a discriminated
+ * `{kind: "error"}` result so the agent loop can decide what to do.
+ */
+export type GroqToolCall = {
+  id: string;
+  name: string;
+  arguments: Record<string, unknown>;
+};
+
+export type GroqToolStreamResult =
+  | { kind: "ok"; content: string | null; tool_calls: GroqToolCall[]; finishReason: string }
+  | { kind: "error"; error: string };
+
+export interface GroqToolDefinition {
+  type: "function";
+  function: {
+    name: string;
+    description: string;
+    /** JSON schema describing the function's parameters. */
+    parameters: Record<string, unknown>;
+  };
+}
+
+export async function askGroqJsonWithToolsStreaming(
+  messages: ChatMessage[],
+  tools: GroqToolDefinition[],
+  temperature = 0,
+  stageLabel = "LLM tool stage",
+  onToken?: (tokensReceived: number, partial: string) => void | Promise<void>,
+  timeoutMs = 60000,
+): Promise<GroqToolStreamResult> {
+  const client = getGroqClient();
+  const model = getGroqModel();
+
+  console.log(`[${stageLabel}] streaming-tools start (${tools.length} tools)`);
+
+  let content = "";
+  let tokenCount = 0;
+  const toolCallBuffers = new Map<
+    number,
+    { id: string; name: string; argsText: string; index: number }
+  >();
+  let finishReason = "stop";
+
+  try {
+    const stream = await withTimeout(
+      client.chat.completions.create({
+        model,
+        temperature,
+        messages,
+        tools,
+        tool_choice: "auto",
+        stream: true,
+      }),
+      timeoutMs,
+      stageLabel,
+    );
+
+    for await (const chunk of stream) {
+      const choice = chunk.choices[0];
+      const delta = choice?.delta;
+
+      const textDelta = delta?.content ?? "";
+      if (textDelta) {
+        content += textDelta;
+        tokenCount += textDelta.length;
+        if (tokenCount % 80 < textDelta.length) {
+          await onToken?.(tokenCount, content);
+        }
+      }
+
+      if (delta?.tool_calls) {
+        for (const tc of delta.tool_calls) {
+          // Groq streams tool_calls incrementally — index keys the deltas.
+          const idx = tc.index ?? 0;
+          const existing = toolCallBuffers.get(idx);
+          if (!existing) {
+            toolCallBuffers.set(idx, {
+              id: tc.id ?? "",
+              name: tc.function?.name ?? "",
+              argsText: tc.function?.arguments ?? "",
+              index: idx,
+            });
+          } else {
+            if (tc.id) existing.id = tc.id;
+            if (tc.function?.name) existing.name = tc.function.name;
+            if (tc.function?.arguments) existing.argsText += tc.function.arguments;
+          }
+        }
+      }
+
+      if (choice?.finish_reason) {
+        finishReason = choice.finish_reason;
+      }
+    }
+
+    await onToken?.(tokenCount, content);
+
+    const tool_calls: GroqToolCall[] = [];
+    for (const buf of toolCallBuffers.values()) {
+      let parsedArgs: Record<string, unknown> = {};
+      if (buf.argsText.trim().length > 0) {
+        try {
+          parsedArgs = JSON.parse(buf.argsText);
+          if (
+            typeof parsedArgs !== "object" ||
+            parsedArgs === null ||
+            Array.isArray(parsedArgs)
+          ) {
+            parsedArgs = {};
+          }
+        } catch {
+          // Surface as malformed argument — agent loop decides whether to retry
+          return {
+            kind: "error",
+            error: `Failed to parse arguments for tool ${buf.name || "(unknown)"}`,
+          };
+        }
+      }
+      tool_calls.push({
+        id: buf.id,
+        name: buf.name,
+        arguments: parsedArgs,
+      });
+    }
+
+    console.log(
+      `[${stageLabel}] streaming-tools done (${tool_calls.length} tool calls)`,
+    );
+    return {
+      kind: "ok",
+      content: content.trim().length === 0 ? null : content,
+      tool_calls,
+      finishReason,
+    };
+  } catch (error) {
+    console.error(`[${stageLabel}] streaming-tools failed:`, error);
+    return {
+      kind: "error",
+      error: error instanceof Error ? error.message : String(error),
+    };
+  }
+}
+
