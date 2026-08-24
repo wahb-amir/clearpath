@@ -97,6 +97,7 @@ export async function handleStageInitialization(job: Job<AnalysisJobData>): Prom
       storagePath,
       mimeType,
       analysisVersion,
+      pipeline: job.data.pipeline ?? "classic",
     });
   });
 }

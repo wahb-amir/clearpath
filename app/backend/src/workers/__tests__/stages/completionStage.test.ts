@@ -69,6 +69,7 @@ describe("processCompletionStage", () => {
       userId: "user-789",
       analysisRequestId: "req-456",
       analysisVersion: "v1",
+      pipeline: "classic",
     });
   });
 

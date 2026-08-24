@@ -8,7 +8,7 @@ export async function processCompletionStage(
 ): Promise<void> {
   const { job, workerId } = state;
   let { currentStatus } = state;
-  const { documentId, userId, analysisRequestId, analysisVersion } = job.data;
+  const { documentId, userId, analysisRequestId, analysisVersion, pipeline } = job.data;
 
   if (!isStageCompleteOrPast(currentStatus, "PREPROCESSING_COMPLETED")) {
     await reportStage({
@@ -34,6 +34,7 @@ export async function processCompletionStage(
             userId,
             analysisRequestId,
             analysisVersion,
+            pipeline: pipeline ?? "classic",
           }),
         ],
       );

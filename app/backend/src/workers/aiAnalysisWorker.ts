@@ -9,7 +9,7 @@ import { runAndPersistDocumentAnalysis } from "../services/documentAnalysisOrche
 export async function runAiPipeline(
   job: Job<AiAnalysisJobData>,
 ): Promise<void> {
-  const { documentId, analysisRequestId, userId, analysisVersion } = job.data;
+  const { documentId, analysisRequestId, userId, analysisVersion, pipeline } = job.data;
 
   const docResult = await pgPool.query<DocumentRow>(
     `SELECT * FROM documents WHERE id = $1`,
@@ -79,6 +79,7 @@ export async function runAiPipeline(
       userId,
       fileType: doc.mime_type,
       language: doc.language,
+      pipeline,
     });
 
 
