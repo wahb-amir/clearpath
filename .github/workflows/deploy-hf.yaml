@@ -30,6 +30,10 @@ jobs:
           # Combine Python requirements
           cat app/backend/services/ocr-engine/requirements.txt hf-deployment/requirements.txt > /tmp/hf-space/requirements.txt
           
+          # Patch torch versions for ZeroGPU compatibility (ZeroGPU requires specific torch versions)
+          sed -i 's/^torch==.*/torch==2.11.0/' /tmp/hf-space/requirements.txt
+          sed -i 's/^torchvision==.*/torchvision==0.22.0/' /tmp/hf-space/requirements.txt
+          
           # Inject README.md with Hugging Face Space configuration
           cat << 'EOF' > /tmp/hf-space/README.md
           ---
