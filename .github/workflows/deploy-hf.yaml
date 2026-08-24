@@ -31,6 +31,9 @@ jobs:
           # Create a temporary branch for the deployment
           git checkout -b hf-deploy-branch
           
+          # Remove unnecessary folders containing binary files (frontend, test data)
+          git rm -rf Test_Data/ app/frontend/
+          
           # Add the newly created root files
           git add app.py packages.txt requirements.txt
           
