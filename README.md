@@ -12,6 +12,7 @@ A user uploads a document → the system runs a multi-stage preprocessing and AI
 - [Monorepo Structure](#monorepo-structure)
 - [Tech Stack](#tech-stack)
 - [How the Pipeline Works](#how-the-pipeline-works)
+- [AI Pipelines: Classic vs Agentic](#ai-pipelines-classic-vs-agentic)
 - [Authentication System](#authentication-system)
 - [Database Schema (Supabase / PostgreSQL)](#database-schema)
 - [API Reference](#api-reference)
@@ -287,6 +288,59 @@ The frontend uses `@microsoft/fetch-event-source` which automatically reconnects
 
 ---
 
+## AI Pipelines: Classic vs Agentic
+
+ClearPath ships **two AI pipelines** that share the same preprocessing output, emit the same SSE event types, and produce the **identical** `DocumentAnalysisPipelineResult` shape — so the frontend doesn't care which one ran.
+
+| Pipeline     | Orchestrator                                                              | Decision model                                                                                  | Best for                                                  |
+| ------------ | ------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------- | --------------------------------------------------------- |
+| **classic**  | Hard-coded 5 stages (Understanding → Extraction → Verification → Synthesis → Safety) | Every document pays the full cost of every stage. Deterministic.                                | The default. Well-tested, predictable, fast on short docs. |
+| **agentic**  | Hand-rolled tool-use loop (model picks the next tool each turn)           | Model chooses what to read / search / extract / verify; loops up to 8 turns; calls `finalize` to end. | Long, messy, unstructured documents where retrieval & web grounding add value. |
+
+The classic pipeline is **untouched**. The agentic pipeline lives at `backend/src/services/agenticDocumentAnalysis/` and shares every sanitizer, guardrail, and event type with the classic one.
+
+### Choosing a pipeline
+
+Three layers, in priority order:
+
+1. **Per-request query param** on `POST /analysis/documents/:id/analyze`:
+   ```
+   POST /analysis/documents/:id/analyze?pipeline=agentic
+   POST /analysis/documents/:id/analyze?pipeline=classic   # same as no param
+   ```
+2. **Server default** via `AGENTIC_PIPELINE_DEFAULT` (`classic` or `agentic`) — used when the client omits the query param.
+3. **Global kill-switch** via `AGENTIC_PIPELINE_ENABLED` (`true` / `false`) — when `false`, every request is forced to `classic` regardless of the query param.
+
+The final pipeline selection is written into the BullMQ job payload and stamped into the outbox events so the SSE stream and persisted analysis row both record which pipeline ran.
+
+### Agentic tool catalog
+
+The model picks from 7 tools. Each maps to the same SSE event types the classic pipeline emits, so existing UI labels keep working.
+
+| Tool                      | Purpose                                                                  | SSE event pair                                |
+| ------------------------- | ------------------------------------------------------------------------ | --------------------------------------------- |
+| `prepare_rag_index`       | Defensive — eagerly chunks + embeds if `document_chunks` is empty.       | `ai_understanding_started/completed`          |
+| `read_document_section`   | Read a slice of the preprocessed sections (cheap, no LLM).               | `ai_extraction_started/completed`             |
+| `search_document_chunks`  | pgvector retrieval over the document's own chunks (`retrieveForQuery`).  | `ai_extraction_started/completed`             |
+| `web_search`              | Tavily search, up to 3 plans per call, parallel.                          | `ai_search_started/completed`                 |
+| `extract_candidates`      | Run Stage 2 (deadlines / actions / risks / contacts) on demand.          | `ai_extraction_started/completed`             |
+| `verify_against_sources`  | Run Stage 3 (grounding + cross-check) against accumulated snippets.      | `ai_verification_started/completed`           |
+| `finalize`                | Submit the Stage-4-shaped payload — terminal, ends the loop.              | `ai_synthesis_started/completed`              |
+
+### Limits & failure modes
+
+| Knob (env)               | Default | Effect                                                                                  |
+| ------------------------ | ------- | --------------------------------------------------------------------------------------- |
+| `AGENT_MAX_ITERATIONS`   | `8`     | Max LLM turns before the loop falls back to a deterministic Stage-4 synthesis.          |
+| `AGENT_TIMEOUT_MS`       | `180000`| Outer wall-clock cap. Exceeding it aborts with a fallback Stage 4.                      |
+| per-tool timeout         | `22000` | Individual tool wall-clock cap. Timeouts surface as recoverable `tool_error`.           |
+| loop detection           | 3×      | Same `{tool, args}` signature 3 turns in a row → abort to fallback.                       |
+| observation clip         | `1500`  | Tool results are clipped to this many chars before being appended to the model context.  |
+
+After every agentic run, the trajectory (`turns`, `finish_reason`, per-tool latency) is logged server-side and emitted in the final `ai_completed` SSE payload as `trajectory_finish_reason` for observability.
+
+---
+
 ## Authentication System
 
 
@@ -400,7 +454,7 @@ All endpoints are relative to the backend base URL (default `http://localhost:30
 
 | Method | Path                                                      | Auth         | Description                                                     |
 | ------ | --------------------------------------------------------- | ------------ | --------------------------------------------------------------- |
-| POST   | `/analysis/documents/:id/analyze`                         | cookie       | Start or re-use analysis. Returns SSE URL.                      |
+| POST   | `/analysis/documents/:id/analyze`                         | cookie       | Start or re-use analysis. Returns SSE URL. Query: `pipeline=classic\|agentic` (see [AI Pipelines](#ai-pipelines-classic-vs-agentic)) |
 | GET    | `/analysis/documents/:id/events`                          | cookie       | **SSE stream** of pipeline events                               |
 | POST   | `/analysis/documents/:id/toggle-save`                     | cookie       | Toggle bookmark status                                          |
 | GET    | `/analysis/history`                                       | cookie       | Paginated analysis history. Query: `page`, `pageSize`, `status` |
@@ -609,6 +663,8 @@ ClearPath includes a comprehensive Vitest test suite covering all document prepr
 | `OUTBOX_POLL_INTERVAL_MS`       |          | `2000`                    | Outbox polling interval                                           |
 | `OUTBOX_MAX_RETRIES`            |          | `10`                      | Max outbox dispatch retries before marking failed                 |
 | `SSE_HEARTBEAT_INTERVAL_MS`     |          | `15000`                   | SSE heartbeat interval                                            |
+| `AGENTIC_PIPELINE_ENABLED`      |          | `true`                    | Global kill-switch for the agentic pipeline — when `false`, every analysis is forced to classic regardless of the `?pipeline=` query param. Accepts `true`/`false`/`1`/`0`. |
+| `AGENTIC_PIPELINE_DEFAULT`      |          | `classic`                 | Default pipeline when the client omits `?pipeline=`. `classic` or `agentic`. |
 
 > **Note:** `DATABASE_URL` must point to the **Session pooler** (port 5432) — not the Transaction pooler — because the outbox dispatcher uses `LISTEN/NOTIFY` which requires a persistent connection.
 
@@ -646,6 +702,50 @@ For production, use a managed Redis service (Upstash, Redis Cloud) and configure
 - Storage bucket `documents` must exist with appropriate RLS policies
 - The `DATABASE_URL` must use the Session pooler connection string for LISTEN/NOTIFY support
 - Run all migrations via `pnpm run supabase:push` before deploying
+
+---
+
+## Recent Changes — Agentic AI Pipeline
+
+A second, **agentic** AI pipeline ships alongside the classic 5-stage orchestrator. The model now picks its own trajectory through a hand-rolled tool-use loop instead of walking a fixed sequence.
+
+### What changed
+
+| Area              | Change                                                                                                          |
+| ----------------- | --------------------------------------------------------------------------------------------------------------- |
+| **New module**    | `backend/src/services/agenticDocumentAnalysis/` — types, system prompt, 7-tool catalog, agent loop, finalize.   |
+| **LLM client**    | Added `askGroqJsonWithToolsStreaming` next to the existing `askGroqJsonStreaming`.                              |
+| **Orchestrator**  | `runAndPersistDocumentAnalysis` branches on `jobData.pipeline` — classic and agentic share the same persistence. |
+| **API**           | `POST /analysis/documents/:id/analyze` accepts `?pipeline=classic\|agentic`. `AGENTIC_PIPELINE_DEFAULT` controls the default. `AGENTIC_PIPELINE_ENABLED` is a hard kill-switch. |
+| **Outbox / types**| `pipeline` is threaded through `DocumentAnalysisJobData`, the outbox payload, and the dispatcher.               |
+| **Idempotency**   | `deriveIdempotencyKey` now includes the pipeline so classic + agentic runs against the same doc don't collide. |
+| **Tests**         | 33 new unit tests (`agentLoop`, `toolSchemas`, `finalize`, `sseMap`). All 64 source tests pass.                |
+
+### Behavior
+
+- **Short docs**: the agent often calls `finalize` in 2–3 turns after reading the first section. Wall-clock is dominated by LLM latency, not stage count.
+- **Long / messy docs**: the agent uses `search_document_chunks` (pgvector retrieval) and `web_search` (Tavily) before calling `finalize`, which typically produces a richer grounded result than a single Stage-3 cross-check.
+- **Failure modes** all fall through to the same deterministic Stage-4 synthesis + Stage-5 guardrails the classic pipeline uses, so the output shape stays identical and downstream UI / DB writers never branch on which pipeline ran.
+
+### Choosing a pipeline at runtime
+
+```bash
+# Per-request — opt into the agent for this call
+curl -X POST "$BASE/analysis/documents/$DOC_ID/analyze?pipeline=agentic" \
+     -H "Cookie: accessToken=..."
+
+# Server default — flip every client to the agent
+AGENTIC_PIPELINE_DEFAULT=agentic
+
+# Hard kill-switch — fall back to classic for everyone
+AGENTIC_PIPELINE_ENABLED=false
+```
+
+### Untouched on purpose
+
+- The classic pipeline (`documentAnalysisPipeline.ts` and friends) — fully preserved.
+- All sanitizers, guardrails, and SSE event types — reused verbatim by the agent's `buildFinalResult`.
+- The frontend — neither pipeline changes the result shape, so no UI work was required.
 
 ---
 
