@@ -30,6 +30,21 @@ jobs:
           # Combine Python requirements
           cat app/backend/services/ocr-engine/requirements.txt hf-deployment/requirements.txt > /tmp/hf-space/requirements.txt
           
+          # Inject README.md with Hugging Face Space configuration
+          cat << 'EOF' > /tmp/hf-space/README.md
+          ---
+          title: Backend API
+          emoji: 🚀
+          colorFrom: blue
+          colorTo: indigo
+          sdk: gradio
+          app_file: app.py
+          pinned: false
+          ---
+          # Clearpath Backend
+          This space hosts the backend API and OCR engine.
+          EOF
+          
           # Initialize a fresh git repository to avoid pushing history with binary files
           cd /tmp/hf-space
           git init
