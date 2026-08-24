@@ -72,6 +72,24 @@ const envSchema = z.object({
 
   TAVILY_API_KEY: z.string(),
   FRONTEND_URL: z.string().default("http://localhost:3000"),
+
+  // ─── Agentic AI Pipeline ────────────────────────────────
+  // Global kill-switch. When false, every analysis request is forced
+  // onto the classic pipeline regardless of the `?pipeline=` query
+  // param. Defaults to true so opt-in is the default; flip to false in
+  // staging/prod environments that aren't ready for the agent yet.
+  AGENTIC_PIPELINE_ENABLED: z
+    .union([z.boolean(), z.string()])
+    .default(true)
+    .transform((v) => (typeof v === "boolean" ? v : v !== "false" && v !== "0")),
+
+  // Default pipeline when the client does NOT pass `?pipeline=` on the
+  // analyze endpoint. Clients can still override per request with
+  // `?pipeline=agentic` or `?pipeline=classic` (when
+  // AGENTIC_PIPELINE_ENABLED is true).
+  AGENTIC_PIPELINE_DEFAULT: z
+    .enum(["classic", "agentic"])
+    .default("classic"),
 });
 
 const _env = envSchema.safeParse(process.env);
