@@ -125,90 +125,7 @@ function withTimeout<T>(
   });
 }
 
-// todo: Unused function call be removed after we have a better way to handle the fallback for the Groq client.
-async function askGroqJson<T>(
-  messages: ChatMessage[],
-  schema: z.ZodType<T>,
-  fallbackOrTemperature: T | number = 0,
-  temperature = 0,
-  stageLabel = "LLM stage",
-): Promise<T> {
-  const client = getGroqClient();
-  const model = getGroqModel();
-  const hasFallback = typeof fallbackOrTemperature !== "number";
 
-  const requestTemperature =
-    typeof fallbackOrTemperature === "number"
-      ? fallbackOrTemperature
-      : temperature;
-
-  console.log(`[${stageLabel}] starting`);
-
-  try {
-    const completion = await withTimeout(
-      client.chat.completions.create({
-        model,
-        temperature: requestTemperature,
-        messages,
-      }),
-      25000,
-      stageLabel,
-    );
-
-    const content = completion.choices[0]?.message?.content ?? "";
-    const parsed = parseModelJson(content);
-    const result = schema.safeParse(parsed);
-
-    if (result.success) {
-      console.log(`[${stageLabel}] completed`);
-      return result.data;
-    }
-
-    console.warn(`[${stageLabel}] validation failed:`, result.error.message);
-
-    // Attempt one repair pass before giving up / returning the fallback
-    console.log(`[${stageLabel}] attempting repair pass`);
-    const repairMessages = buildRepairMessages(
-      messages,
-      content,
-      result.error.message,
-    );
-    try {
-      const repairCompletion = await withTimeout(
-        client.chat.completions.create({
-          model,
-          temperature: 0,
-          messages: repairMessages,
-        }),
-        25000,
-        `${stageLabel}-repair`,
-      );
-      const repairContent = repairCompletion.choices[0]?.message?.content ?? "";
-      const repairParsed = parseModelJson(repairContent);
-      const repairResult = schema.safeParse(repairParsed);
-      if (repairResult.success) {
-        console.log(`[${stageLabel}] repair succeeded`);
-        return repairResult.data;
-      }
-      console.warn(
-        `[${stageLabel}] repair also failed:`,
-        repairResult.error.message,
-      );
-    } catch (repairErr) {
-      console.error(`[${stageLabel}] repair attempt threw:`, repairErr);
-    }
-
-    if (hasFallback) {
-      console.warn(`[${stageLabel}] using fallback`);
-      return fallbackOrTemperature as T;
-    }
-    throw result.error;
-  } catch (error) {
-    console.error(`[${stageLabel}] failed:`, error);
-    if (hasFallback) return fallbackOrTemperature as T;
-    throw error;
-  }
-}
 
 /**
  * Streaming variant of askGroqJson.
@@ -312,8 +229,3 @@ export async function askGroqJsonStreaming<T>(
     return fallback;
   }
 }
-
-// Re-export the streaming helper as the primary public symbol of this
-// module. The non-streaming `askGroqJson` above is intentionally kept
-// (with its todo note) for now — see its declaration.
-export { askGroqJson };
