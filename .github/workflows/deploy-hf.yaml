@@ -17,28 +17,30 @@ jobs:
 
       - name: Prepare Hugging Face Space files
         run: |
-          # Move isolated HF files to the root of the repository
-          cp hf-deployment/app.py .
-          cp hf-deployment/packages.txt .
+          # Create a clean deployment directory
+          mkdir -p /tmp/hf-space
+          
+          # Copy backend code
+          cp -r app/backend /tmp/hf-space/
+          
+          # Copy isolated HF files to the root
+          cp hf-deployment/app.py /tmp/hf-space/
+          cp hf-deployment/packages.txt /tmp/hf-space/
           
           # Combine Python requirements
-          cat app/backend/services/ocr-engine/requirements.txt hf-deployment/requirements.txt > requirements.txt
+          cat app/backend/services/ocr-engine/requirements.txt hf-deployment/requirements.txt > /tmp/hf-space/requirements.txt
           
-          # Configure git
-          git config --global user.email "github-actions[bot]@users.noreply.github.com"
-          git config --global user.name "github-actions[bot]"
+          # Initialize a fresh git repository to avoid pushing history with binary files
+          cd /tmp/hf-space
+          git init
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git config user.name "github-actions[bot]"
           
-          # Create a temporary branch for the deployment
-          git checkout -b hf-deploy-branch
+          # Add all files
+          git add .
           
-          # Remove unnecessary folders containing binary files (frontend, test data)
-          git rm -rf Test_Data/ app/frontend/
-          
-          # Add the newly created root files
-          git add app.py packages.txt requirements.txt
-          
-          # Commit the changes to the temporary branch
-          git commit -m "Prepare files for Hugging Face Space deployment"
+          # Commit the changes
+          git commit -m "Deploy to Hugging Face Space"
           
       - name: Push to Hugging Face Hub
         env:
@@ -50,8 +52,10 @@ jobs:
             exit 1
           fi
           
+          cd /tmp/hf-space
+          
           # Add the Hugging Face Space remote
           git remote add hf https://user:$HF_TOKEN@huggingface.co/spaces/$HF_SPACE_REPO
           
-          # Force push the temporary branch to the main branch of the Hugging Face Space
-          git push hf hf-deploy-branch:main --force
+          # Force push to the main branch of the Hugging Face Space
+          git push hf master:main --force || git push hf main:main --force
