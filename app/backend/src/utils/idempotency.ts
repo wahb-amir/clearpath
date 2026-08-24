@@ -14,9 +14,10 @@ export function deriveIdempotencyKey(params: {
   documentId: string;
   purpose: string;
   analysisVersion: string;
+  pipeline?: "classic" | "agentic";
 }): string {
-  const { userId, documentId, purpose, analysisVersion } = params;
-  const raw = `${userId}:${documentId}:${purpose}:${analysisVersion}`;
+  const { userId, documentId, purpose, analysisVersion, pipeline = "classic" } = params;
+  const raw = `${userId}:${documentId}:${purpose}:${analysisVersion}:${pipeline}`;
   return createHash("sha256").update(raw).digest("hex");
 }
 

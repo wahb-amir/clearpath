@@ -21,6 +21,17 @@ export const analyzeRequestBodySchema = z.object({
 export type AnalyzeRequestBody = z.infer<typeof analyzeRequestBodySchema>;
 
 /**
+ * Query params for POST /documents/:id/analyze.
+ * `pipeline` chooses between the classic 5-stage orchestrator and the
+ * new agentic pipeline. Defaults to "classic" for backward compatibility.
+ */
+export const analyzeQuerySchema = z.object({
+  pipeline: z.enum(["classic", "agentic"]).default("classic"),
+});
+
+export type AnalyzeQuery = z.infer<typeof analyzeQuerySchema>;
+
+/**
  * Query params for GET /documents/:id/events (SSE).
  * Last-Event-ID is normally sent as a header by EventSource on
  * reconnect, but we also accept it as a query param for the initial

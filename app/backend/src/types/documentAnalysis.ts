@@ -80,4 +80,6 @@ export interface DocumentAnalysisJobData {
   language?: string | null;
   storagePath?: string;
   mimeType?: string;
+  /** Pipeline selector. Defaults to "classic" when absent. */
+  pipeline?: "classic" | "agentic";
 }

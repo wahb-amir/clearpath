@@ -21,6 +21,7 @@ interface TriggerAnalysisParams {
   purpose: string;
   analysisVersion?: string;
   clientIdempotencyKey?: string;
+  pipeline?: "classic" | "agentic";
 }
 
 /**
@@ -78,6 +79,7 @@ export async function triggerAnalysis(
         documentId: params.documentId,
         purpose: params.purpose,
         analysisVersion,
+        pipeline: params.pipeline ?? "classic",
       });
 
     // 4. Check for an existing request with this idempotency key
@@ -175,6 +177,7 @@ export async function triggerAnalysis(
       storagePath: doc.storage_path,
       mimeType: doc.mime_type,
       analysisVersion,
+      pipeline: params.pipeline ?? "classic",
     };
 
     await client.query(

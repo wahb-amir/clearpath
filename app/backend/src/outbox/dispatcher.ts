@@ -161,6 +161,7 @@ export class OutboxDispatcher {
           storagePath: payload.storagePath,
           mimeType: payload.mimeType,
           analysisVersion: payload.analysisVersion,
+          pipeline: payload.pipeline ?? "classic",
         };
         await enqueueStageJob(
           "stage-initialization",
@@ -208,6 +209,7 @@ export class OutboxDispatcher {
           userId: string;
           analysisRequestId: string;
           analysisVersion: string;
+          pipeline?: "classic" | "agentic";
         };
 
         await enqueueAiAnalysisJob(`ai:${payload.analysisRequestId}`, payload);

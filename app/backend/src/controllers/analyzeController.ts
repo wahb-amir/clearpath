@@ -2,9 +2,11 @@ import type { Request, Response, NextFunction } from "express";
 import {
   documentIdParamSchema,
   analyzeRequestBodySchema,
+  analyzeQuerySchema,
 } from "../validators/documentAnalysis";
 import { triggerAnalysis } from "../services/analysisRequestService";
 import { pgPool } from "../db/pool";
+import { env } from "../config/env";
 
 interface AuthenticatedRequest extends Request {
   user?: {
@@ -45,11 +47,23 @@ export async function analyzeDocumentController(
   try {
     const { id: documentId } = documentIdParamSchema.parse(req.params);
     const body = analyzeRequestBodySchema.parse(req.body ?? {});
+    const query = analyzeQuerySchema.parse(req.query ?? {});
 
     const userId = req.user?.userId;
     if (!userId) {
       throw new Error("Missing authenticated userId");
     }
+
+    // Resolve pipeline: per-request query param takes precedence when
+    // present, otherwise fall back to env.AGENTIC_PIPELINE_DEFAULT.
+    // AGENTIC_PIPELINE_ENABLED is a hard kill-switch — if disabled in
+    // env, every request is forced to classic regardless of the query
+    // param.
+    const requestedPipeline = query.pipeline ?? env.AGENTIC_PIPELINE_DEFAULT;
+    const pipeline =
+      requestedPipeline === "agentic" && !env.AGENTIC_PIPELINE_ENABLED
+        ? "classic"
+        : requestedPipeline;
 
     // Check if the user already has another document in-flight (excluding this one)
     const inFlightCheck = await pgPool.query(
@@ -79,6 +93,7 @@ export async function analyzeDocumentController(
       purpose: body.purpose,
       analysisVersion: body.analysisVersion,
       clientIdempotencyKey: body.idempotencyKey,
+      pipeline,
     });
 
     res.status(202).json(result);

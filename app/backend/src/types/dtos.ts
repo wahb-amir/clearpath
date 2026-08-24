@@ -60,12 +60,14 @@ export interface AnalysisJobData {
   storagePath: string;
   mimeType: string;
   analysisVersion: string;
+  pipeline?: "classic" | "agentic";
 }
 export interface AiAnalysisJobData {
   documentId: string;
   analysisRequestId: string;
   userId: string;
   analysisVersion: string;
+  pipeline?: "classic" | "agentic";
 }
 
 /** Outbox payload for 'analysis.requested' events. */
@@ -76,6 +78,7 @@ export interface AnalysisRequestedOutboxPayload {
   storagePath: string;
   mimeType: string;
   analysisVersion: string;
+  pipeline?: "classic" | "agentic";
 }
 
 /* ------------------------------------------------------------------ */
@@ -95,6 +98,7 @@ export interface StagePipelineBase {
   storagePath: string;
   mimeType: string;
   analysisVersion: string;
+  pipeline?: "classic" | "agentic";
 }
 
 /** Emitted by `stage-initialization`; consumed by the Python OCR service. */
