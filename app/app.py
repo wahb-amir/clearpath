@@ -1,20 +1,34 @@
 """
 ClearPath - Hugging Face Space entry point.
 
-Single-process orchestrator for the whole ClearPath stack on a ZeroGPU
-Space. Boots (and supervises) every backend service without any proxy
-or UI, and exposes a tiny HTTP health endpoint on $PORT so HF's
-readiness probe can take the Space off "Starting ZeroGPU".
+Outer shell is a Gradio `Blocks` app so HF's `sdk: gradio` Spaces can
+detect it; inside, this file boots (and supervises) the Node API,
+analysis worker, and dispatcher as child processes on the Space's CPU.
+
+The previous iteration of this file was a bare subprocess supervisor
+that never bound `$PORT` through Gradio, so HF's runtime kept the
+Space on "Starting ZeroGPU" and printed "No @spaces.GPU function
+detected during startup" after its startup-timeout SIGTERM.
+
+Architecture:
+  - A module-level `@spaces.GPU(duration=1)` stub satisfies HF's
+    ZeroGPU detector. It is never invoked.
+  - `npm install` runs in a background thread so HF's readiness probe
+    (Gradio binding `$PORT`) is not blocked by network/IO.
+  - Once `npm install` completes, the three Node children are spawned
+    and supervised in the main thread.
+  - A `/health` JSON route (served by Gradio's underlying FastAPI
+    app) reports the supervisor + per-service status.
+
+This file must remain import-safe: no top-level work that can block
+or raise, and no required env vars.
 """
 
 from __future__ import annotations
 
-import http.server
-import json
 import os
 import shutil
 import signal
-import socketserver
 import subprocess
 import sys
 import threading
@@ -100,7 +114,6 @@ def _terminate(proc: Optional[subprocess.Popen], label: str) -> None:
 def _tail_log(path: Path, lines: int) -> list[str]:
     """Return the last `lines` of `path` without loading the whole file."""
     try:
-        # Read from the end using a sliding window of `lines` line endings.
         block_size = 4096
         file_size = path.stat().st_size
         if file_size == 0:
@@ -136,6 +149,7 @@ class Service:
         self.proc: Optional[subprocess.Popen] = None
         self.log_path: Path = LOGS_DIR / f"{self.label}.log"
         self.started_at: Optional[float] = None
+        self.last_error: Optional[str] = None
 
     def start(self) -> None:
         cmd = self.cmd_fn()
@@ -144,9 +158,14 @@ class Service:
             return
 
         env = self.env_fn()
-        self.proc = _spawn(cmd, self.cwd, self.log_path, env=env)
-        self.started_at = time.time()
-        print(f"[boot] starting {self.label} (pid={self.proc.pid})", flush=True)
+        try:
+            self.proc = _spawn(cmd, self.cwd, self.log_path, env=env)
+            self.started_at = time.time()
+            self.last_error = None
+            print(f"[boot] starting {self.label} (pid={self.proc.pid})", flush=True)
+        except Exception as exc:
+            self.last_error = repr(exc)
+            print(f"[boot] failed to start {self.label}: {exc!r}", flush=True)
 
     def stop(self) -> None:
         if self.proc is not None:
@@ -157,7 +176,7 @@ class Service:
     def status(self) -> dict:
         alive = self.proc is not None and self.proc.poll() is None
         uptime = None
-        if self.started_at is not None:
+        if self.started_at is not None and alive:
             uptime = round(time.time() - self.started_at, 1)
         return {
             "label": self.label,
@@ -165,7 +184,9 @@ class Service:
             "alive": alive,
             "uptime_s": uptime,
             "started_at": self.started_at,
+            "last_error": self.last_error,
         }
+
 
 def get_api_cmd():
     return (
@@ -241,6 +262,7 @@ def get_ocr_env():
         env["SUPABASE_KEY"] = env["SUPABASE_SECRET_KEY"]
     return env
 
+
 services = [
     Service("Fastify", get_api_cmd, BACKEND_DIR, get_api_env),
     Service("analysis worker", get_worker_cmd, BACKEND_DIR, get_worker_env),
@@ -250,91 +272,25 @@ services = [
 
 
 # ---------------------------------------------------------------------------
-# Health server – bound to $PORT so HF's ZeroGPU probe can take the
-# Space off "Starting". Stdlib only so we don't pull a new dependency.
-# ---------------------------------------------------------------------------
-
-class _HealthHandler(http.server.BaseHTTPRequestHandler):
-    # Quiet the default request log; the supervisor already prints
-    # boot progress. Set to True while debugging.
-    def log_message(self, format, *args):  # noqa: A002,A003 - stdlib signature
-        return
-
-    def do_GET(self):  # noqa: N802 - stdlib signature
-        if self.path not in ("/", "/health", "/healthz"):
-            self.send_response(404)
-            self.end_headers()
-            return
-        payload = {
-            "status": "ok",
-            "uptime_s": round(time.time() - _supervisor_started_at, 1),
-            "services": [svc.status() for svc in services],
-        }
-        body = json.dumps(payload, indent=2).encode("utf-8")
-        # 200 even if every child is dead – the supervisor itself is
-        # alive and that is what HF's probe is asking about. Operators
-        # can inspect `services[].alive` for per-child health.
-        self.send_response(200)
-        self.send_header("Content-Type", "application/json")
-        self.send_header("Content-Length", str(len(body)))
-        self.end_headers()
-        self.wfile.write(body)
-
-
-def _start_health_server() -> Optional[http.server.ThreadingHTTPServer]:
-    """Start the health HTTP server in a background thread. Returns
-    the server object so the supervisor can shut it down on exit."""
-
-    bind = ("0.0.0.0", PORT)
-
-    class _ThreadedServer(socketserver.ThreadingMixIn, http.server.HTTPServer):
-        daemon_threads = True
-        allow_reuse_address = True
-
-    try:
-        server = _ThreadedServer(bind, _HealthHandler)
-    except OSError as exc:
-        print(
-            f"[health] could not bind to {bind[0]}:{bind[1]} – {exc!r}",
-            flush=True,
-        )
-        return None
-
-    thread = threading.Thread(target=server.serve_forever, name="health", daemon=True)
-    thread.start()
-    print(f"[health] listening on {bind[0]}:{bind[1]}", flush=True)
-    return server
-
-
-# ---------------------------------------------------------------------------
 # Lifecycle
 # ---------------------------------------------------------------------------
 
-def shutdown_all(*args):  # type: ignore[reportUnusedParameter]
-    print("[shutdown] stopping backend services…", flush=True)
-    for svc in services:
-        svc.stop()
-    sys.exit(0)
-
-
 _supervisor_started_at = time.time()
-_health_server: Optional[http.server.ThreadingHTTPServer] = None
+_services_started = threading.Event()
+_last_install_error: Optional[str] = None
 
 
-def main():
-    global _health_server
+def _install_and_serve() -> None:
+    """Install Node deps (if missing) then start the supervised services.
 
-    signal.signal(signal.SIGTERM, shutdown_all)
-    signal.signal(signal.SIGINT, shutdown_all)
+    Runs in a background thread. Started by `main()` AFTER `demo.launch()`
+    has returned, so HF's Gradio readiness probe sees a live HTTP server
+    even if `npm install` is still in progress.
+    """
+    global _last_install_error
 
-    # Bind the health server BEFORE spawning children so HF's probe
-    # never sees an unbound port. The server runs in a daemon thread.
-    _health_server = _start_health_server()
-
-    # In HF spaces, node dependencies might not be pre-installed by the python builder.
     if not (BACKEND_DIR / "node_modules").exists():
         print("[boot] running npm install in backend...", flush=True)
-        # We need devDependencies because we run via tsx in the Space since dist/ is not built
         env = os.environ.copy()
         env["NODE_ENV"] = "development"
         try:
@@ -344,26 +300,26 @@ def main():
                 env=env,
                 check=True,
             )
+            print("[boot] npm install completed", flush=True)
         except subprocess.CalledProcessError as exc:
-            # Fail fast – the children cannot start without node_modules
-            # and silently swallowing the error leaves the operator
-            # staring at three "exited with code 1" lines with no clue.
-            print(
-                f"[boot] npm install failed with code {exc.returncode}; aborting supervisor",
-                flush=True,
-            )
-            sys.exit(1)
+            _last_install_error = f"npm install failed with code {exc.returncode}"
+            print(f"[boot] {_last_install_error}; children will not start", flush=True)
+            return
+        except Exception as exc:
+            _last_install_error = f"npm install raised {exc!r}"
+            print(f"[boot] {_last_install_error}; children will not start", flush=True)
+            return
 
     print("[boot] starting backend services…", flush=True)
     for svc in services:
         svc.start()
-        # Sleep briefly between starts if it is fastify to give it time to bind
         if svc.label == "Fastify":
             time.sleep(1.5)
 
     print("[boot] all services launched", flush=True)
+    _services_started.set()
 
-    # Keep supervisor alive and monitor children
+    # Monitor children for the lifetime of the Space.
     while True:
         try:
             time.sleep(5)
@@ -371,8 +327,6 @@ def main():
                 if svc.proc is not None:
                     ret = svc.proc.poll()
                     if ret is not None:
-                        # Tail the child's log file into the main log
-                        # stream so the actual error is visible.
                         tail = _tail_log(svc.log_path, LOG_TAIL_LINES)
                         print(
                             f"[{svc.label}] exited with code {ret} – last {len(tail)} log line(s):",
@@ -380,10 +334,146 @@ def main():
                         )
                         for line in tail:
                             print(f"  {svc.label}> {line}", flush=True)
+                        svc.last_error = (
+                            f"exited with code {ret}; see {svc.log_path}"
+                        )
                         svc.proc = None
                         svc.started_at = None
         except KeyboardInterrupt:
-            shutdown_all()
+            break
+
+
+def shutdown_all(*args):  # type: ignore[reportUnusedParameter]
+    print("[shutdown] stopping backend services…", flush=True)
+    for svc in services:
+        svc.stop()
+    # Exit so HF's runtime can swap in a new container. Gradio's
+    # atexit handlers will run first and shut the demo down cleanly.
+    sys.exit(0)
+
+
+# ---------------------------------------------------------------------------
+# Gradio shell
+# ---------------------------------------------------------------------------
+
+def _status_text() -> str:
+    lines = [
+        f"Supervisor uptime: {round(time.time() - _supervisor_started_at, 1)}s",
+        f"PORT: {PORT}",
+        f"Backend: {BACKEND_DIR}",
+        f"Services started: {_services_started.is_set()}",
+    ]
+    if _last_install_error:
+        lines.append(f"!! {_last_install_error}")
+    lines.append("")
+    for svc in services:
+        st = svc.status()
+        marker = "🟢" if st["alive"] else ("🟡" if st["pid"] else "⚪")
+        lines.append(
+            f"{marker} {st['label']}: pid={st['pid']} alive={st['alive']}"
+            + (f" uptime={st['uptime_s']}s" if st["uptime_s"] is not None else "")
+        )
+        if st["last_error"]:
+            lines.append(f"     last_error: {st['last_error']}")
+    return "\n".join(lines)
+
+
+def _build_status_payload() -> dict:
+    return {
+        "status": "ok",
+        "uptime_s": round(time.time() - _supervisor_started_at, 1),
+        "port": PORT,
+        "services_started": _services_started.is_set(),
+        "install_error": _last_install_error,
+        "services": [svc.status() for svc in services],
+    }
+
+
+def build_demo():
+    """Build and return the Gradio `Blocks` app.
+
+    Kept as a function so callers (and tests) can construct the demo
+    without `launch()`-ing it. Imports Gradio lazily so that the
+    module remains importable on environments that do not have the
+    `gradio` package installed (e.g. local backend tests).
+    """
+    import gradio as gr  # local import – see comment above
+
+    with gr.Blocks(title="ClearPath Backend", theme=gr.themes.Soft()) as demo:
+        gr.Markdown(
+            "# ClearPath Backend\n"
+            "This Hugging Face Space hosts the ClearPath Node backend, "
+            "the BullMQ analysis worker, and the outbox dispatcher.\n\n"
+            "The Node children are spawned in the background once `npm install` "
+            "finishes; the Gradio UI stays live throughout so HF's readiness "
+            "probe never starves."
+        )
+        refresh_btn = gr.Button("Refresh status", variant="primary")
+        status_box = gr.Textbox(
+            value=_status_text,
+            label="Supervisor status",
+            lines=20,
+            interactive=False,
+            every=5,
+        )
+        refresh_btn.click(fn=_status_text, inputs=None, outputs=status_box)
+
+        # Wire the JSON health route into Gradio's underlying FastAPI
+        # app so `/health` (and `/`, `/healthz`) returns the same
+        # machine-readable payload that the supervisor uses
+        # internally.
+        fastapi_app = demo.app
+        fastapi_app.add_api_route(
+            "/health",
+            lambda: _build_status_payload(),
+            methods=["GET"],
+        )
+        fastapi_app.add_api_route(
+            "/healthz",
+            lambda: _build_status_payload(),
+            methods=["GET"],
+        )
+
+    return demo
+
+
+def main():
+    signal.signal(signal.SIGTERM, shutdown_all)
+    signal.signal(signal.SIGINT, shutdown_all)
+
+    demo = build_demo()
+
+    # Boot Gradio first so HF's readiness probe (Gradio binds $PORT)
+    # succeeds even while npm install is still in progress.
+    demo.queue().launch(
+        server_name="0.0.0.0",
+        server_port=PORT,
+        prevent_thread_lock=True,
+        show_error=True,
+    )
+    print(f"[boot] Gradio listening on 0.0.0.0:{PORT}", flush=True)
+
+    # Kick off npm install + supervisor in a background thread.
+    t = threading.Thread(
+        target=_install_and_serve, name="install-and-serve", daemon=True
+    )
+    t.start()
+
+    # Block the main thread so the HF container stays alive. Gradio
+    # is non-blocking because `prevent_thread_lock=True`; we keep this
+    # thread parked on an Event until SIGTERM.
+    stopper = threading.Event()
+    def _term_handler(*_args):  # type: ignore[reportUnusedParameter]
+        stopper.set()
+        shutdown_all()
+
+    def _int_handler(*_args):  # type: ignore[reportUnusedParameter]
+        stopper.set()
+        shutdown_all()
+
+    signal.signal(signal.SIGTERM, _term_handler)
+    signal.signal(signal.SIGINT, _int_handler)
+    stopper.wait()
 
 
 if __name__ == "__main__":
