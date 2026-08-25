@@ -7,6 +7,8 @@
     "dev:simple": "tsx src/index.ts",
     "build": "tsc",
     "start": "node dist/index.js",
+    "start:worker": "node dist/workers/run.js",
+    "start:dispatcher": "node dist/outbox/run.js",
     "generate-keys": "node scripts/generate-keys.js",
     "supabase:migration": "supabase migration new",
     "supabase:push": "supabase db push",

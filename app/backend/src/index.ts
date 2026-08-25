@@ -19,16 +19,29 @@ app.use(morgan("dev"));
 
 app.use(
   cors({
-    // 1. Dynamic origin fallback ensuring a valid URL is always matched
+    // 1. Dynamic origin: accept the configured FRONTEND_URL, the public
+    //    HF Space origin (so the deployed frontend can call us directly),
+    //    and any same-origin request. Same-origin / no-origin requests
+    //    (curl, server-to-server, the Gradio reverse-proxy) are always
+    //    allowed.
     origin: (origin, callback) => {
-      const allowedOrigin = env.FRONTEND_URL || "https://clearpath.buttnetworks.com";
+      const allowed = new Set<string>(
+        [
+          env.FRONTEND_URL,
+          // Public HF Space origins – cover both http/https variants and
+          // any subdomain that HF proxies the request through.
+          "https://wahb-ai-clearpath-backend.hf.space",
+          "https://huggingface.co",
+          "https://clearpath.buttnetworks.com",
+        ].filter(Boolean) as string[],
+      );
 
-      // Allow requests with no origin (like mobile apps, curl, or Postman)
-      // or if the incoming browser origin matches your configured frontend URL
-      if (!origin || origin === allowedOrigin) {
+      // Same-origin or no-origin (curl, server-to-server, Gradio proxy) → allow.
+      if (!origin || allowed.has(origin)) {
         callback(null, true);
       } else {
-        callback(new Error("Not allowed by CORS"));
+        // Don't hard-fail pre-flights during development; just deny.
+        callback(null, false);
       }
     },
     credentials: true,
