@@ -24,7 +24,14 @@ This file must remain import-safe: no top-level work that can block
 or raise, and no required env vars.
 """
 
-from __future__ import annotations
+# NOTE: deliberately NOT using `from __future__ import annotations`
+# here. PEP563 postpones all annotations to strings, which FastAPI
+# cannot introspect when we add routes to Gradio's underlying FastAPI
+# app inside `_install_health_routes`. Without real annotations at
+# registration time, FastAPI treats the `request` parameter of the
+# health handlers as a query parameter and /health returns 422
+# ("Field required: query.request"). Python 3.12 has native PEP 604
+# union syntax (X | None), so the future import is unnecessary.
 
 import os
 import shutil
@@ -425,21 +432,13 @@ def build_demo():
         )
         refresh_btn.click(fn=_status_text, inputs=None, outputs=status_box)
 
-        # Wire the JSON health route into Gradio's underlying FastAPI
-        # app so `/health` (and `/`, `/healthz`) returns the same
-        # machine-readable payload that the supervisor uses
-        # internally.
-        fastapi_app = demo.app
-        fastapi_app.add_api_route(
-            "/health",
-            lambda: _build_status_payload(),
-            methods=["GET"],
-        )
-        fastapi_app.add_api_route(
-            "/healthz",
-            lambda: _build_status_payload(),
-            methods=["GET"],
-        )
+        # NOTE: do NOT add the /health routes here. In Gradio 6.x,
+        # `demo.app` is a placeholder App object at construction time;
+        # the live uvicorn-served FastAPI app is only assigned to
+        # `demo.app` after `demo.launch()` returns. Adding routes
+        # here mounts them on the placeholder, which is never served,
+        # so /health would be matched by Gradio's catch-all and
+        # return HTML. The post-launch hook is in `main()`.
 
     return demo
 
@@ -460,7 +459,83 @@ def _launch_kwargs() -> dict:
         "theme": gr.themes.Soft(),
         "prevent_thread_lock": True,
         "show_error": True,
+        # Disable Gradio's strict CORS middleware so our /health route
+        # can return the Access-Control-Allow-Origin header we set on
+        # the response. Gradio's strict_cors strips cross-origin headers
+        # by default, which blocks the ClearPath frontend (and any
+        # external monitoring) from polling /health. Gradio's own
+        # routes still enforce their own auth/CSRF model.
+        "strict_cors": False,
     }
+
+
+def _install_health_routes(demo) -> None:
+    """Mount JSON /health and /healthz on the live FastAPI app.
+
+    Called AFTER `demo.launch()` returns, so `demo.app` is the
+    uvicorn-served FastAPI app rather than the construction-time
+    placeholder. Adding routes here makes them match before Gradio's
+    catch-all, so a GET returns JSON instead of the Gradio HTML page.
+
+    CORS: Gradio 6.x sets `strict_cors=True` by default, which blocks
+    cross-origin browser requests to its routes. The health route is
+    expected to be polled by external monitoring (k8s probes, the
+    ClearPath frontend at clearpath.buttnetworks.com, etc.), so we
+    set permissive CORS headers on the responses directly (no need
+    for CORSMiddleware – we only have two routes to expose).
+    """
+    # IMPORTANT: `Request` MUST be imported here (not inside the handler
+    # bodies). FastAPI introspects handler annotations at registration
+    # time to distinguish Request objects from query parameters. A
+    # lazy `from fastapi import Request` inside the nested function
+    # leaves the annotation as a bare string ("Request") and FastAPI
+    # then tries to validate `request` as a query parameter – the
+    # /health endpoint returns 422 with "Field required: query.request".
+    from fastapi import Request
+    from fastapi.responses import JSONResponse
+
+    fastapi_app = demo.app
+
+    async def _health_handler(request: Request):
+        body = _build_status_payload()
+        # Echo the request's Origin (if any) so the browser accepts
+        # the response. "*" is fine because /health carries no
+        # credentials and no sensitive data.
+        origin = request.headers.get("origin") or "*"
+        return JSONResponse(
+            content=body,
+            headers={
+                "Access-Control-Allow-Origin": origin,
+                "Access-Control-Allow-Methods": "GET, OPTIONS",
+                "Access-Control-Allow-Headers": "*",
+                "Cache-Control": "no-store",
+            },
+        )
+
+    async def _options_handler(request: Request):
+        origin = request.headers.get("origin") or "*"
+        return JSONResponse(
+            content=None,
+            status_code=204,
+            headers={
+                "Access-Control-Allow-Origin": origin,
+                "Access-Control-Allow-Methods": "GET, OPTIONS",
+                "Access-Control-Allow-Headers": "*",
+                "Access-Control-Max-Age": "86400",
+            },
+        )
+
+    for path in ("/health", "/healthz"):
+        fastapi_app.add_api_route(
+            path,
+            _health_handler,
+            methods=["GET"],
+        )
+        fastapi_app.add_api_route(
+            path,
+            _options_handler,
+            methods=["OPTIONS"],
+        )
 
 
 def main():
@@ -472,7 +547,16 @@ def main():
     # Boot Gradio first so HF's readiness probe (Gradio binds $PORT)
     # succeeds even while npm install is still in progress.
     demo.queue().launch(**_launch_kwargs())
+    # In Gradio 6.x `launch()` returns (app, local_url, share_url);
+    # the live FastAPI app is also reassigned to `demo.app` post-launch.
     print(f"[boot] Gradio listening on 0.0.0.0:{PORT}", flush=True)
+
+    # Now that `demo.app` is the live FastAPI app, mount the JSON
+    # /health and /healthz routes. Registering them on the live app
+    # (rather than the construction-time placeholder) makes them
+    # match before Gradio's catch-all, so a GET returns JSON rather
+    # than the Gradio HTML page.
+    _install_health_routes(demo)
 
     # Kick off npm install + supervisor in a background thread.
     t = threading.Thread(
