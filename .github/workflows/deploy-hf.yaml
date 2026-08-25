@@ -33,7 +33,7 @@ jobs:
 
           # Inject README.md with Hugging Face Space configuration
           cat << 'EOF' > /tmp/hf-space/README.md
-         ---
+          ---
           title: Backend API
           emoji: 🚀
           colorFrom: blue
