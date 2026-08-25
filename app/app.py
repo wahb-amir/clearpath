@@ -519,6 +519,24 @@ def _launch_kwargs() -> dict:
         # external monitoring) from polling /health. Gradio's own
         # routes still enforce their own auth/CSRF model.
         "strict_cors": False,
+        # Force off SSR mode. In Gradio 6.x SSR mode, the PUBLIC $PORT is
+        # served by a bundled Node.js process, not by Python's uvicorn –
+        # Python only listens internally (e.g. :7861). That Node process
+        # forwards requests to Python using a hardcoded prefix allowlist
+        # (see gradio/templates/node/build/proxy_routes.js:
+        # PYTHON_ROUTE_PREFIXES = ["/gradio_api", "/config", "/login",
+        # "/logout", "/theme.css", "/robots.txt", "/pwa_icon",
+        # "/manifest.json", "/monitoring"]). Anything outside that list –
+        # including our own /health, /healthz, /api/*, /auth/*,
+        # /uploads/*, /analysis/* routes mounted on demo.app – never
+        # reaches Python at all; the Node layer falls through to
+        # SvelteKit's SPA fallback and serves index.html (HTML) instead
+        # of our JSON. Explicitly disabling SSR here (rather than relying
+        # on GRADIO_SSR_MODE being unset, or on the undocumented
+        # GRADIO_SERVER_MODE_ENABLED escape hatch) makes Python's uvicorn
+        # serve $PORT directly, so every route we install on demo.app is
+        # reachable.
+        "ssr_mode": False,
     }
 
 
