@@ -23,28 +23,39 @@ export type AnalysisQueueJobData =
   | InitializationCompletedPayload // == AnalysisJobData shape, used by stage-initialization
   | ExtractionCompletedPayload; // consumed by stage-node-pipeline
 
+// Lazy-init pattern (mirrors documentAnalysisQueue.ts) so that simply
+// importing this module on a HF Space – before Redis secrets are
+// configured – does NOT open a Redis client. The first enqueue call
+// constructs the Queue. If Redis is unreachable, the rejection bubbles
+// out of the enqueue call and is handled by the caller; it no longer
+// crashes the process at import time.
+let queueInstance: Queue<AnalysisQueueJobData, unknown, AnalysisQueueJobName> | null = null;
 
-export const analysisQueue = new Queue<
-  AnalysisQueueJobData,
-  unknown,
-  AnalysisQueueJobName
->(env.ANALYSIS_QUEUE_NAME, {
-  connection: createQueueConnection() as ConnectionOptions,
-  defaultJobOptions: {
-    attempts: env.ANALYSIS_JOB_ATTEMPTS,
-    backoff: {
-      type: "exponential",
-      delay: 5000,
-    },
-    removeOnComplete: {
-      age: 24 * 60 * 60,
-      count: 1000,
-    },
-    removeOnFail: {
-      age: 7 * 24 * 60 * 60,
-    },
-  },
-});
+function getAnalysisQueue(): Queue<AnalysisQueueJobData, unknown, AnalysisQueueJobName> {
+  if (!queueInstance) {
+    queueInstance = new Queue<AnalysisQueueJobData, unknown, AnalysisQueueJobName>(
+      env.ANALYSIS_QUEUE_NAME,
+      {
+        connection: createQueueConnection() as ConnectionOptions,
+        defaultJobOptions: {
+          attempts: env.ANALYSIS_JOB_ATTEMPTS,
+          backoff: {
+            type: "exponential",
+            delay: 5000,
+          },
+          removeOnComplete: {
+            age: 24 * 60 * 60,
+            count: 1000,
+          },
+          removeOnFail: {
+            age: 7 * 24 * 60 * 60,
+          },
+        },
+      },
+    );
+  }
+  return queueInstance;
+}
 
 function safeJobId(jobId: string): string {
   return jobId.replace(/:/g, "-");
@@ -54,7 +65,7 @@ export async function enqueueAiAnalysisJob(
   jobId: string,
   data: AiAnalysisJobData,
 ): Promise<void> {
-  await analysisQueue.add("ai-analysis", data, { jobId: safeJobId(jobId) });
+  await getAnalysisQueue().add("ai-analysis", data, { jobId: safeJobId(jobId) });
 }
 
 /**
@@ -69,5 +80,5 @@ export async function enqueueStageJob(
   jobId: string,
   data: AnalysisQueueJobData,
 ): Promise<void> {
-  await analysisQueue.add(jobName, data, { jobId: safeJobId(jobId) });
+  await getAnalysisQueue().add(jobName, data, { jobId: safeJobId(jobId) });
 }

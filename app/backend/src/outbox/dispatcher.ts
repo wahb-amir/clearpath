@@ -59,25 +59,51 @@ export class OutboxDispatcher {
   async start(): Promise<void> {
     this.running = true;
 
-    // Polling fallback
+    // Polling fallback – always on. Acts as a safety net if the LISTEN
+    // connection is missing or unhealthy, and is the sole dispatch
+    // mechanism on a HF Space where DATABASE_URL is not configured.
     this.pollTimer = setInterval(() => {
       void this.dispatchPending();
     }, env.OUTBOX_POLL_INTERVAL_MS);
 
-    // LISTEN/NOTIFY for low-latency dispatch
-    this.listenClient = new PgClient({ connectionString: env.DATABASE_URL });
-    await this.listenClient.connect();
-    await this.listenClient.query("LISTEN outbox_new_event");
-    this.listenClient.on("notification", () => {
-      void this.dispatchPending();
-    });
-    this.listenClient.on("error", (err) => {
-      // eslint-disable-next-line no-console
-      console.error(
-        "[outbox] LISTEN connection error, relying on polling",
-        err,
+    // LISTEN/NOTIFY for low-latency dispatch. If DATABASE_URL is not
+    // set (common on a freshly-deployed HF Space) or the connect
+    // itself fails, log and fall back to polling-only mode – the
+    // polling timer above will keep the dispatcher functional.
+    if (!env.DATABASE_URL) {
+      console.warn(
+        "[outbox] DATABASE_URL is not set; skipping LISTEN/NOTIFY and running polling-only",
       );
-    });
+    } else {
+      try {
+        this.listenClient = new PgClient({ connectionString: env.DATABASE_URL });
+        await this.listenClient.connect();
+        await this.listenClient.query("LISTEN outbox_new_event");
+        this.listenClient.on("notification", () => {
+          void this.dispatchPending();
+        });
+        this.listenClient.on("error", (err) => {
+          // eslint-disable-next-line no-console
+          console.error(
+            "[outbox] LISTEN connection error, relying on polling",
+            err,
+          );
+        });
+      } catch (err) {
+        console.error(
+          "[outbox] failed to establish LISTEN connection; relying on polling",
+          err,
+        );
+        if (this.listenClient) {
+          try {
+            await this.listenClient.end();
+          } catch {
+            // ignore – we are already in a degraded state
+          }
+          this.listenClient = null;
+        }
+      }
+    }
 
     // Initial sweep on startup (catches anything queued while we were down)
     void this.dispatchPending();
@@ -89,7 +115,14 @@ export class OutboxDispatcher {
   async stop(): Promise<void> {
     this.running = false;
     if (this.pollTimer) clearInterval(this.pollTimer);
-    if (this.listenClient) await this.listenClient.end();
+    if (this.listenClient) {
+      try {
+        await this.listenClient.end();
+      } catch {
+        // ignore – process is shutting down
+      }
+      this.listenClient = null;
+    }
   }
 
   /**

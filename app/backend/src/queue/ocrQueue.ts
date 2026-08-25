@@ -13,26 +13,36 @@ import type { InitializationCompletedPayload } from "../types/dtos";
  * bug structurally impossible - Node never even connects a Worker to
  * this queue, so it can never claim a job here.
  */
-export const ocrQueue = new Queue<InitializationCompletedPayload, unknown, "extract-layout-and-ocr">(
-  env.OCR_QUEUE_NAME,
-  {
-    connection: createQueueConnection() as ConnectionOptions,
-    defaultJobOptions: {
-      attempts: env.OCR_JOB_ATTEMPTS,
-      backoff: {
-        type: "exponential",
-        delay: 5000,
+
+// Lazy-init pattern (mirrors documentAnalysisQueue.ts) – see analysisQueue.ts
+// for the rationale.
+let queueInstance: Queue<InitializationCompletedPayload, unknown, "extract-layout-and-ocr"> | null = null;
+
+function getOcrQueue(): Queue<InitializationCompletedPayload, unknown, "extract-layout-and-ocr"> {
+  if (!queueInstance) {
+    queueInstance = new Queue<InitializationCompletedPayload, unknown, "extract-layout-and-ocr">(
+      env.OCR_QUEUE_NAME,
+      {
+        connection: createQueueConnection() as ConnectionOptions,
+        defaultJobOptions: {
+          attempts: env.OCR_JOB_ATTEMPTS,
+          backoff: {
+            type: "exponential",
+            delay: 5000,
+          },
+          removeOnComplete: {
+            age: 24 * 60 * 60,
+            count: 1000,
+          },
+          removeOnFail: {
+            age: 7 * 24 * 60 * 60,
+          },
+        },
       },
-      removeOnComplete: {
-        age: 24 * 60 * 60,
-        count: 1000,
-      },
-      removeOnFail: {
-        age: 7 * 24 * 60 * 60,
-      },
-    },
-  },
-);
+    );
+  }
+  return queueInstance;
+}
 
 function safeJobId(jobId: string): string {
   return jobId.replace(/:/g, "-");
@@ -42,5 +52,5 @@ export async function enqueueOcrJob(
   jobId: string,
   data: InitializationCompletedPayload,
 ): Promise<void> {
-  await ocrQueue.add("extract-layout-and-ocr", data, { jobId: safeJobId(jobId) });
+  await getOcrQueue().add("extract-layout-and-ocr", data, { jobId: safeJobId(jobId) });
 }

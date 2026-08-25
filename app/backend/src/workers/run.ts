@@ -41,6 +41,14 @@ worker.on("failed", (job, err) => {
 worker.on("completed", (job) => {
   console.log("[worker] COMPLETED", job.id, job.name);
 });
+
+// ioredis emits rejections on connection drops; without this guard
+// Node 22's default policy (`unhandledRejection` = exit 1) would kill
+// the worker on any transient Redis blip. Log and keep going.
+process.on("unhandledRejection", (err) => {
+  console.error("[worker] unhandledRejection (kept alive)", err);
+});
+
 async function shutdown() {
   await worker.close();
   process.exit(0);

@@ -12,12 +12,13 @@ const baseOptions: RedisOptions = {
   // unreachable. HF Spaces do not run a local Redis instance; the
   // connection will reconnect once the secrets are configured and
   // Upstash/Redis Cloud is reachable.
-  // NOTE: `lazyConnect: true` is intentionally OFF here. BullMQ calls
-  // `client.connect()` internally the moment a Queue/Worker is created,
-  // so a lazy client would just be forcibly woken up – and any pending
-  // command issued before that connect completed (e.g. from module
-  // load) would fail with "Connection is closed.".
-  lazyConnect: false,
+  // `lazyConnect: true` is safe here: the Queue/Worker constructors
+  // register handlers and start the connection themselves – they don't
+  // issue commands at module load. With lazy connect, a missing Redis
+  // secret means the client sits dormant until the first command, at
+  // which point the unhandledRejection guard in the entry point logs
+  // the error instead of killing the process.
+  lazyConnect: true,
   retryStrategy: (times) => Math.min(times * 200, 5000),
   reconnectOnError: () => true,
 };
