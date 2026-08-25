@@ -5,12 +5,19 @@ import { resolvedRedis } from "../config/env";
 
 const baseOptions: RedisOptions = {
   ...(resolvedRedis as any),
-  // Required by BullMQ
+  // Required by BullMQ – null means BullMQ manages retries itself.
   maxRetriesPerRequest: null,
   enableReadyCheck: true,
-  // Don't spam the logs / exit on startup if Redis is unreachable
-  // (HF Spaces do not run a local Redis instance).
-  lazyConnect: true,
+  // Don't let ioredis crash the process on startup if Redis is
+  // unreachable. HF Spaces do not run a local Redis instance; the
+  // connection will reconnect once the secrets are configured and
+  // Upstash/Redis Cloud is reachable.
+  // NOTE: `lazyConnect: true` is intentionally OFF here. BullMQ calls
+  // `client.connect()` internally the moment a Queue/Worker is created,
+  // so a lazy client would just be forcibly woken up – and any pending
+  // command issued before that connect completed (e.g. from module
+  // load) would fail with "Connection is closed.".
+  lazyConnect: false,
   retryStrategy: (times) => Math.min(times * 200, 5000),
   reconnectOnError: () => true,
 };

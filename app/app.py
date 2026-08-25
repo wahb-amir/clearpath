@@ -32,6 +32,18 @@ from typing import Optional
 import gradio as gr
 
 # ---------------------------------------------------------------------------
+# spaces.GPU — must be imported and applied at module load time so HF
+# Spaces' startup detector can find a decorated function. Defining it
+# lazily (inside a handler) is too late: HF's container emits
+# "No @spaces.GPU function detected during startup" before the first
+# request ever lands.
+# ---------------------------------------------------------------------------
+try:
+    import spaces  # type: ignore
+except Exception:  # pragma: no cover - dev / non-HF environments
+    spaces = None
+
+# ---------------------------------------------------------------------------
 # Paths & runtime configuration
 # ---------------------------------------------------------------------------
 
@@ -157,25 +169,27 @@ def healthcheck() -> str:
 
 def run_ocr_on_upload(file_path: str | None) -> str:
     """
-    OCR path – allocated on the ZeroGPU. Decorated lazily so the GPU
-    is *not* held while the user is just reading the docs or pinging
-    the health endpoint. Each call is a fresh allocation.
+    Gradio handler. Validates the upload and dispatches to the
+    module-level ``ocr_on_gpu`` function. Keeping the decoration
+    at module scope (rather than re-decorating on every request)
+    is what makes HF Spaces' startup detector happy.
     """
     if not file_path:
         return "⚠️ Please upload a PDF / image first."
+    return ocr_on_gpu(file_path)
 
-    # Lazy import + @spaces.GPU decoration (HF helper).
-    try:
-        import spaces  # type: ignore
-    except Exception:
-        spaces = None
 
-    if spaces is not None:
-        @spaces.GPU(duration=120)
-        def _ocr_with_gpu() -> str:
-            return _run_docling_ocr(file_path)
-        return _ocr_with_gpu()
-    return _run_docling_ocr(file_path)
+# Module-level @spaces.GPU function so the HF Spaces startup
+# detector can find it. The closure captures ``spaces`` from the
+# import above; if ``spaces`` is None (dev / non-HF), we still
+# expose a plain function so the handler works locally.
+if spaces is not None:
+    @spaces.GPU(duration=120)
+    def ocr_on_gpu(file_path: str) -> str:
+        return _run_docling_ocr(file_path)
+else:  # pragma: no cover - dev / non-HF environments
+    def ocr_on_gpu(file_path: str) -> str:
+        return _run_docling_ocr(file_path)
 
 
 def _run_docling_ocr(file_path: str) -> str:
