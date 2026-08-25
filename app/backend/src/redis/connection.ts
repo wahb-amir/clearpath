@@ -1,25 +1,17 @@
 import { Redis, type RedisOptions } from "ioredis";
 import { env } from "../config/env";
 
-/**
- * Redis configuration & connection factories.
- *
- * BullMQ requires `maxRetriesPerRequest: null` on its connections.
- * We keep separate connections for:
- *  - queue (producers / dispatcher)
- *  - worker (BullMQ worker - consumes jobs)
- *  - pubsub publisher (worker -> SSE notifications)
- *  - pubsub subscriber (SSE endpoint -> per-connection subscriber)
- *
- * ioredis connections are not safe to share between pub/sub mode and
- * normal command mode, so we always create dedicated connections.
- */
+
 
 const baseOptions: RedisOptions = {
-  host: env.REDIS_HOST,
-  port: env.REDIS_PORT,
-  password: env.REDIS_PASSWORD || undefined,
-  db: env.REDIS_DB ?? 0,
+  ...(env.REDIS_URL
+    ? { url: env.REDIS_URL }
+    : {
+        host: env.REDIS_HOST,
+        port: env.REDIS_PORT,
+        password: env.REDIS_PASSWORD || undefined,
+        db: env.REDIS_DB ?? 0,
+      }),
   // Required by BullMQ
   maxRetriesPerRequest: null,
   enableReadyCheck: true,
