@@ -12,9 +12,6 @@ const envSchema = z.object({
     .enum(["development", "production", "test"])
     .default("development"),
 
-  // ─── MongoDB ────────────────────────────────────────────
-  MONGODB_URI: z.string().default("mongodb://localhost:27017/clearpath"),
-
   // ─── Redis URL (legacy/app usage) ──────────────────────
   REDIS_URL: z.string().default("redis://localhost:6379"),
 
