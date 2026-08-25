@@ -16,6 +16,27 @@ UI that:
 Nothing in this file assumes a local Redis. The REDIS_URL env var is
 read from the Space secrets and threaded into the spawned backend
 process; the backend already prefers REDIS_URL when present.
+
+OCR accelerator selection
+-------------------------
+The OCR tab can run on either the ZeroGPU A10G or on plain CPU. On a
+free-tier Space the GPU has a tight monthly quota, so CPU is the safe
+default. Users can opt in to the GPU per-run via a checkbox.
+
+Behaviour is controlled by the ``OCR_USE_GPU`` env var:
+
+* ``"0"``, ``"false"``, ``"no"`` (default) – CPU path is used. The
+  ``@spaces.GPU`` decorator is not applied, so a request never
+  allocates GPU time. The Gradio handler still calls the same
+  ``_run_docling_ocr`` function, which loads docling on CPU.
+* ``"1"``, ``"true"``, ``"yes"`` – GPU path is used. ``ocr_on_gpu`` is
+  decorated with ``@spaces.GPU(duration=120)`` at module scope so HF's
+  startup detector finds it.
+
+Per-run override: the OCR tab has an "Use GPU (faster, burns quota)"
+checkbox that swaps between the two module-level functions. The GPU
+function is always defined at module load time so the detector is
+happy regardless of the default.
 """
 
 from __future__ import annotations
@@ -52,6 +73,17 @@ BACKEND_DIR = REPO_ROOT / "backend"
 BACKEND_ENV_FILE = BACKEND_DIR / ".env"
 OCR_DIR = BACKEND_DIR / "services" / "ocr-engine"
 PORT = int(os.environ.get("PORT", "7860"))
+
+
+def _truthy(value: str | None) -> bool:
+    """Parse common truthy string spellings used in env vars."""
+    return str(value or "").strip().lower() in {"1", "true", "yes", "on"}
+
+
+# Default to CPU so the free-tier Space doesn't burn GPU quota on
+# every uploaded document. Set OCR_USE_GPU=1 in the Space's env vars
+# (or tick the checkbox in the OCR tab) to allocate the A10G.
+OCR_USE_GPU_DEFAULT = _truthy(os.environ.get("OCR_USE_GPU"))
 
 
 # ---------------------------------------------------------------------------
@@ -167,16 +199,23 @@ def healthcheck() -> str:
         return f"❌ {e}"
 
 
-def run_ocr_on_upload(file_path: str | None) -> str:
+def run_ocr_on_upload(file_path: str | None, use_gpu: bool | None = None) -> str:
     """
-    Gradio handler. Validates the upload and dispatches to the
-    module-level ``ocr_on_gpu`` function. Keeping the decoration
-    at module scope (rather than re-decorating on every request)
-    is what makes HF Spaces' startup detector happy.
+    Gradio handler. Validates the upload and dispatches to either the
+    module-level ``ocr_on_gpu`` (GPU) or ``ocr_on_cpu`` (CPU) function.
+
+    Both functions are defined at module scope so HF Spaces' startup
+    detector can find a @spaces.GPU-decorated function even when the
+    user prefers the default CPU path. The ``use_gpu`` checkbox lets
+    the user opt in per-run without restarting the Space.
     """
     if not file_path:
         return "⚠️ Please upload a PDF / image first."
-    return ocr_on_gpu(file_path)
+    if use_gpu is None:
+        use_gpu = OCR_USE_GPU_DEFAULT
+    if use_gpu:
+        return ocr_on_gpu(file_path)
+    return ocr_on_cpu(file_path)
 
 
 # Module-level @spaces.GPU function so the HF Spaces startup
@@ -186,15 +225,29 @@ def run_ocr_on_upload(file_path: str | None) -> str:
 if spaces is not None:
     @spaces.GPU(duration=120)
     def ocr_on_gpu(file_path: str) -> str:
-        return _run_docling_ocr(file_path)
+        return _run_docling_ocr(file_path, accelerator="gpu")
 else:  # pragma: no cover - dev / non-HF environments
     def ocr_on_gpu(file_path: str) -> str:
-        return _run_docling_ocr(file_path)
+        return _run_docling_ocr(file_path, accelerator="gpu")
 
 
-def _run_docling_ocr(file_path: str) -> str:
-    """Pure-CPU path. Used when @spaces.GPU is unavailable (e.g. dev)."""
+def ocr_on_cpu(file_path: str) -> str:
+    """Module-level CPU entry point. No GPU allocation, no quota burn."""
+    return _run_docling_ocr(file_path, accelerator="cpu")
+
+
+def _run_docling_ocr(file_path: str, accelerator: str = "cpu") -> str:
+    """
+    Run Docling on either CPU or the allocated GPU.
+
+    On CPU we force docling's pipeline to use ``AcceleratorOptions`` with
+    ``device="cpu"`` so it never accidentally touches a CUDA device that
+    might be missing on a CPU-only Space. On GPU we let docling's
+    auto-detected defaults (it will pick cuda when available) do the
+    right thing, capped by the ZeroGPU ``duration=120`` quota.
+    """
     try:
+        from docling.datamodel.accelerator_options import AcceleratorOptions  # type: ignore
         from docling.document_converter import DocumentConverter  # type: ignore
     except Exception as e:
         return (
@@ -202,11 +255,22 @@ def _run_docling_ocr(file_path: str) -> str:
             "the Space's requirements and rebuild.\n"
             f"({e})"
         )
-    converter = DocumentConverter()
+
+    # Force the device explicitly so a CPU-only container never tries
+    # to touch CUDA. On GPU we pass device="auto" to let docling
+    # negotiate with whatever HF handed us for the duration window.
+    if accelerator == "cpu":
+        opts = AcceleratorOptions(device="cpu", num_threads=int(os.environ.get("OCR_THREADS", "2")))
+    else:
+        opts = AcceleratorOptions(device="auto")
+
+    converter = DocumentConverter(accelerator_options=opts)
     res = converter.convert(file_path)
     md = res.document.export_to_markdown()
+    header = f"_Run on {accelerator.upper()} • {len(md):,} chars_\n\n"
     # Truncate to keep the Gradio Textbox responsive.
-    return md[:20000] + ("\n\n…(truncated)" if len(md) > 20000 else "")
+    truncated = "\n\n…(truncated)" if len(md) > 20000 else ""
+    return header + md[:20000] + truncated
 
 
 with gr.Blocks(title="ClearPath – HF Space", css=CUSTOM_CSS) as demo:
@@ -242,15 +306,21 @@ with gr.Blocks(title="ClearPath – HF Space", css=CUSTOM_CSS) as demo:
         hc_out = gr.Textbox(label="Result", interactive=False)
         hc_btn.click(healthcheck, outputs=hc_out)
 
-    with gr.Tab("OCR (GPU)"):
+    with gr.Tab("OCR"):
         gr.Markdown(
-            "Upload a PDF or image. Each run is a fresh ZeroGPU allocation "
-            "and will count against your quota."
+            "Upload a PDF or image. **CPU is the default** so the free-tier "
+            "ZeroGPU quota isn't burned. Tick the box below to opt in to the "
+            "GPU for a single run; each GPU run allocates the A10G for up to "
+            "120 seconds and counts against your monthly quota."
         )
         upload = gr.File(label="Document", type="filepath")
+        use_gpu = gr.Checkbox(
+            label="Use GPU (faster, burns ZeroGPU quota)",
+            value=OCR_USE_GPU_DEFAULT,
+        )
         ocr_btn = gr.Button("Run OCR", variant="primary")
         ocr_out = gr.Textbox(label="Markdown output", lines=20, interactive=False)
-        ocr_btn.click(run_ocr_on_upload, inputs=upload, outputs=ocr_out)
+        ocr_btn.click(run_ocr_on_upload, inputs=[upload, use_gpu], outputs=ocr_out)
 
 
 def _shutdown(*_: object) -> None:

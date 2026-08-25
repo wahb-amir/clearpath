@@ -21,15 +21,48 @@ jobs:
           # Create a clean deployment directory
           mkdir -p /tmp/hf-space
 
-          # Copy backend code
-          cp -r app/backend /tmp/hf-space/
+          # Copy backend code, but strip out anything that must never
+          # land in the public Space: real .env files, local signing
+          # keys, coverage reports, build artefacts, and the dist tree
+          # the prod path can rebuild on first boot. rsync --exclude
+          # gives us a clean recursive copy in one pass.
+          rsync -a --delete \
+            --exclude='.env' --exclude='.env.*' \
+            --exclude='.keys/' \
+            --exclude='coverage/' \
+            --exclude='dist/' \
+            --exclude='node_modules/' \
+            --exclude='supabase/.temp/' \
+            --exclude='.turbo/' \
+            --exclude='__pycache__/' \
+            --exclude='*.pyc' \
+            app/backend/ /tmp/hf-space/backend/
 
-          # Copy isolated HF files to the root
-          cp hf-deployment/app.py /tmp/hf-space/
+          # Use the Gradio entry point from app/app.py - it is a
+          # ZeroGPU-compatible launcher (decorates a function with
+          # @spaces.GPU at module scope so HF's startup detector finds
+          # it). The legacy hf-deployment/app.py was a plain subprocess
+          # launcher that never registered a @spaces.GPU function and
+          # therefore failed the ZeroGPU readiness check with
+          # "No @spaces.GPU function detected during startup".
+          cp app/app.py /tmp/hf-space/app.py
           cp hf-deployment/packages.txt /tmp/hf-space/
 
-          # Copy OCR engine requirements unchanged
-          cp app/backend/services/ocr-engine/requirements.txt /tmp/hf-space/requirements.txt
+          # Build the Space's requirements.txt: the Space's own Python
+          # deps (gradio + spaces) are required for the launcher to
+          # import; the OCR engine's requirements are appended so the
+          # on-demand OCR tab works. We de-duplicate by package name so
+          # a pin in the Space's own list is not overridden by the OCR
+          # engine's looser version.
+          cp app/requirements.txt /tmp/hf-space/requirements.txt
+          while IFS= read -r pkg; do
+            [ -z "$pkg" ] && continue
+            [[ "$pkg" =~ ^# ]] && continue
+            name="${pkg%%[<>=! ]*}"
+            if ! grep -E "^${name}([<>=! ]|$)" /tmp/hf-space/requirements.txt > /dev/null; then
+              echo "$pkg" >> /tmp/hf-space/requirements.txt
+            fi
+          done < app/backend/services/ocr-engine/requirements.txt
 
           # Inject README.md with Hugging Face Space configuration
           cat << 'EOF' > /tmp/hf-space/README.md
