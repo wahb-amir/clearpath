@@ -1,36 +1,14 @@
 # Hugging Face Space requirements for ClearPath (all-in-one ZeroGPU deploy).
 #
-# Strategy: install ONLY what's needed to run the Gradio front-end + the
-# Node API + worker + dispatcher inside the Space. The Python OCR
-# worker is intentionally NOT bundled here – Docling + its ONNX model
-# load takes 2-5 minutes on a cold start and bloats the image past
-# reasonable limits. The OCR worker is expected to run as a separate
-# service (Docker / Railway / your laptop) consuming the same Redis
-# queue the Node worker feeds. The Space's *OCR* tab uses Docling
-# directly for one-off in-browser uploads.
+# Strategy: install ONLY what's needed to run the Node API + worker + dispatcher 
+# inside the Space. The Python OCR worker is intentionally NOT bundled here
+# by default.
 #
-# HF's gradio builder hard-pins `gradio[oauth]==4.44.0` and
-# `spaces==0.51.1` on top of this file. The Python base image is 3.10,
-# so all native extensions must have a cp310 wheel.
-#
-# IMPORTANT: Gradio 4.44 imports `HfFolder` from `huggingface_hub`,
-# which was removed in hub>=0.20. The HF base image's hub is too new,
-# so we pin hub<0.20 (or accept a fresh install at that range). If a
-# newer HF base image re-adds HfFolder, drop this pin.
+# The Space uses ZeroGPU, so we must include the spaces SDK.
 
-# --- Gradio front-end ---
-gradio>=4.44.0,<5.0
 spaces>=0.30.0
-fastapi>=0.110.0          # Gradio 4.x exposes the FastAPI app for mounting
-httpx>=0.27.0             # async HTTP client used by the reverse proxy
-uvicorn>=0.30.0           # ASGI server for the FastAPI app
-websockets>=12.0          # uvicorn[standard] transitive
-# huggingface_hub: Gradio 4.44 imports HfFolder (removed in hub>=0.20).
-# The HF base image ships a newer hub, so we downgrade.
-huggingface_hub>=0.16.4,<0.20
 
-# --- Docling for the in-Space OCR tab (used directly, not as a worker) ---
-# onnxruntime: latest version that still ships cp310 wheels.
+# --- Docling (used if ENABLE_PYTHON_OCR_WORKER is set) ---
 onnxruntime>=1.23.0,<1.28.0
-docling>=2.40.0,<2.118.0  # latest 2.x line
-reportlab>=4.0.0,<5.0     # used by Docling for warmup PDFs
+docling>=2.40.0,<2.118.0
+reportlab>=4.0.0,<5.0
