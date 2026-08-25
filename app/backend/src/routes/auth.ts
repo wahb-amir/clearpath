@@ -27,18 +27,31 @@ const registerSchema = z.object({
 
 const isProd = process.env.NODE_ENV !== "development";
 
+// NOTE: no `domain` attribute here. The frontend (clearpath.buttnetworks.com)
+// and this backend (a *.hf.space Hugging Face Space) are on entirely
+// different registrable domains, so there is no `Domain` value that could
+// ever make a cookie shared between them — `Domain` only widens a cookie's
+// scope to subdomains of the SAME site that issued it. Setting one to a
+// mismatched domain (this used to be hardcoded to ".wahb.buttnetworks.com",
+// which isn't even this project's frontend domain) causes the browser to
+// silently reject the entire Set-Cookie header, since Domain must match the
+// host that actually sent the response. That's why login previously
+// "succeeded" but no cookie was ever stored, and /me then 401'd.
+//
+// The correct pattern for genuine cross-site auth cookies is a host-only
+// cookie (omit `domain`) plus `SameSite=None; Secure`, which lets the
+// browser attach it on subsequent `credentials: "include"` requests back to
+// this same backend host regardless of what site initiated the request.
 const authCookieOptions = {
   httpOnly: true,
   secure: isProd,
   sameSite: (isProd ? "none" : "lax") as "none" | "lax",
   path: "/",
-  ...(isProd ? { domain: ".wahb.buttnetworks.com" } : {}),
   maxAge: 7 * 24 * 60 * 60 * 1000,
 };
 
 const clearCookieOptions = {
   path: "/",
-  ...(isProd ? { domain: ".wahb.buttnetworks.com" } : {}),
 };
 
 const setAuthCookies = (
