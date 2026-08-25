@@ -584,16 +584,24 @@ def _install_health_routes(demo) -> None:
     # `/`. add_api_route appends; FastAPI/Starlette match in order.
     health_routes = []
     for path in ("/health", "/healthz"):
-        health_routes.append(fastapi_app.add_api_route(
+        # NOTE: `add_api_route()` returns None — it appends the Route to
+        # `fastapi_app.routes` internally rather than returning it. Grab
+        # the just-appended route from the route list instead of using
+        # the (None) return value, or we end up inserting `None` into
+        # `router.routes`, which crashes every request with
+        # "'NoneType' object has no attribute 'matches'".
+        fastapi_app.add_api_route(
             path,
             _health_handler,
             methods=["GET"],
-        ))
-        health_routes.append(fastapi_app.add_api_route(
+        )
+        health_routes.append(fastapi_app.routes[-1])
+        fastapi_app.add_api_route(
             path,
             _options_handler,
             methods=["OPTIONS"],
-        ))
+        )
+        health_routes.append(fastapi_app.routes[-1])
 
     # Move the four routes to the front of the list. Starlette/FastAPI
     # match in registration order; Gradio's catch-all is at index 0
@@ -685,16 +693,16 @@ def _install_proxy_routes(demo) -> None:
     proxy_routes = []
     methods = ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS", "HEAD"]
     for prefix in PROXY_PREFIXES:
-        proxy_routes.append(
-            fastapi_app.add_api_route(
-                f"{prefix}/{{path:path}}", _proxy_handler, methods=methods
-            )
+        # NOTE: `add_api_route()` returns None (see _install_health_routes
+        # above for why) — read back the appended route object instead.
+        fastapi_app.add_api_route(
+            f"{prefix}/{{path:path}}", _proxy_handler, methods=methods
         )
-        proxy_routes.append(
-            fastapi_app.add_api_route(
-                prefix, _proxy_handler, methods=methods
-            )
+        proxy_routes.append(fastapi_app.routes[-1])
+        fastapi_app.add_api_route(
+            prefix, _proxy_handler, methods=methods
         )
+        proxy_routes.append(fastapi_app.routes[-1])
 
     # Prepend so proxy routes match before Gradio's catch-all.
     existing = list(fastapi_app.router.routes)
