@@ -19,23 +19,23 @@ def start_services():
     
     # 1. Install Node.js dependencies
     print("Installing Node.js dependencies...")
-    subprocess.run("npm install", shell=True, cwd="app/backend", check=True)
+    subprocess.run("npm install", shell=True, cwd="backend", check=True)
     
     # Environment variables
     env = os.environ.copy()
     
     # 2. Start the Backend Worker
-    worker_process = run_command("npx tsx src/workers/run.ts", cwd="app/backend", env=env)
+    worker_process = run_command("npx tsx src/workers/run.ts", cwd="backend", env=env)
     
     # 3. Start the Backend Dispatcher
-    dispatcher_process = run_command("npx tsx src/outbox/run.ts", cwd="app/backend", env=env)
+    dispatcher_process = run_command("npx tsx src/outbox/run.ts", cwd="backend", env=env)
     
     # 4. Start the Docling Python Service
-    ocr_process = run_command("python app/backend/services/ocr-engine/src/main.py", env=env)
+    ocr_process = run_command("python backend/services/ocr-engine/src/main.py", env=env)
     
     # 5. Start the Express API on port 7860 (the only port exposed by HF Spaces)
     env["PORT"] = "7860"
-    api_process = run_command("npx tsx src/index.ts", cwd="app/backend", env=env)
+    api_process = run_command("npx tsx src/index.ts", cwd="backend", env=env)
     
     return [worker_process, dispatcher_process, ocr_process, api_process]
 
