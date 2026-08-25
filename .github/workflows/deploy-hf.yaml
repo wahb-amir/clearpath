@@ -9,6 +9,7 @@ on:
 jobs:
   deploy:
     runs-on: ubuntu-latest
+
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
@@ -19,21 +20,17 @@ jobs:
         run: |
           # Create a clean deployment directory
           mkdir -p /tmp/hf-space
-          
+
           # Copy backend code
           cp -r app/backend /tmp/hf-space/
-          
+
           # Copy isolated HF files to the root
           cp hf-deployment/app.py /tmp/hf-space/
           cp hf-deployment/packages.txt /tmp/hf-space/
-          
-          # Combine Python requirements
-          cat app/backend/services/ocr-engine/requirements.txt hf-deployment/requirements.txt > /tmp/hf-space/requirements.txt
-          
-          # Patch torch versions for ZeroGPU compatibility (ZeroGPU requires specific torch versions)
-          sed -i 's/^torch==.*/torch==2.11.0/' /tmp/hf-space/requirements.txt
-          sed -i 's/^torchvision==.*/torchvision==0.22.0/' /tmp/hf-space/requirements.txt
-          
+
+          # Copy OCR engine requirements unchanged
+          cp app/backend/services/ocr-engine/requirements.txt /tmp/hf-space/requirements.txt
+
           # Inject README.md with Hugging Face Space configuration
           cat << 'EOF' > /tmp/hf-space/README.md
           ---
@@ -42,26 +39,26 @@ jobs:
           colorFrom: blue
           colorTo: indigo
           sdk: gradio
-          python_version: 3.11
+          python_version: 3.12
           app_file: app.py
           pinned: false
           ---
           # Clearpath Backend
           This space hosts the backend API and OCR engine.
           EOF
-          
+
           # Initialize a fresh git repository to avoid pushing history with binary files
           cd /tmp/hf-space
           git init
           git config user.email "github-actions[bot]@users.noreply.github.com"
           git config user.name "github-actions[bot]"
-          
+
           # Add all files
           git add .
-          
+
           # Commit the changes
           git commit -m "Deploy to Hugging Face Space"
-          
+
       - name: Push to Hugging Face Hub
         env:
           HF_TOKEN: ${{ secrets.HF_TOKEN }}
@@ -71,11 +68,11 @@ jobs:
             echo "Error: HF_TOKEN and HF_SPACE_REPO secrets must be set in GitHub repository settings."
             exit 1
           fi
-          
+
           cd /tmp/hf-space
-          
+
           # Add the Hugging Face Space remote
           git remote add hf https://user:$HF_TOKEN@huggingface.co/spaces/$HF_SPACE_REPO
-          
+
           # Force push to the main branch of the Hugging Face Space
           git push hf master:main --force || git push hf main:main --force
