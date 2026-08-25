@@ -43,6 +43,11 @@ import time
 from pathlib import Path
 from typing import Optional
 
+try:
+    import httpx  # type: ignore
+except ImportError:
+    httpx = None  # type: ignore
+
 # ---------------------------------------------------------------------------
 # spaces.GPU – imported at module load so HF's startup detector finds the
 # @spaces.GPU-decorated function.
@@ -71,6 +76,15 @@ OCR_VENV_PYTHON3 = OCR_DIR / "venv" / "bin" / "python3"
 LOGS_DIR = REPO_ROOT / "logs"
 
 PORT = int(os.environ.get("PORT", "7860"))
+# The Node API listens on this port internally (Gradio owns the public $PORT).
+INTERNAL_API_PORT = int(os.environ.get("INTERNAL_API_PORT", "3001"))
+# Paths to proxy from the public Gradio app to the internal Node API.
+PROXY_PREFIXES = ("/api", "/auth", "/uploads", "/analysis")
+# Hop-by-hop headers that must be stripped per RFC 7230 §6.1.
+_HOP_BY_HOP = frozenset({
+    "connection", "keep-alive", "proxy-authenticate", "proxy-authorization",
+    "te", "trailers", "transfer-encoding", "upgrade", "host",
+})
 
 def _truthy(value: str | None) -> bool:
     return str(value or "").strip().lower() in {"1", "true", "yes", "on"}
@@ -195,22 +209,33 @@ class Service:
         }
 
 
+TSX_BIN = BACKEND_DIR / "node_modules" / ".bin" / "tsx"
+
+
+def _tsx_cmd(src_file: str) -> list[str]:
+    """Return the best command to run a TypeScript source file.
+
+    Prefer the local tsx binary (installed as a devDependency) so we
+    don't pay the `npx` resolution overhead and don't rely on the
+    network at service start time.
+    """
+    if TSX_BIN.exists():
+        return [str(TSX_BIN), src_file]
+    return ["npx", "--yes", "tsx", src_file]
+
+
 def get_api_cmd():
-    return (
-        ["npm", "run", "start"]
-        if (BACKEND_DIR / "dist" / "index.js").exists()
-        else ["npx", "tsx", "src/index.ts"]
-    )
+    if (BACKEND_DIR / "dist" / "index.js").exists():
+        return ["node", "dist/index.js"]
+    return _tsx_cmd("src/index.ts")
 
 def get_api_env():
     env = os.environ.copy()
-    # IMPORTANT: do NOT propagate PORT to the Fastify child. Gradio is
-    # the public-facing server on $PORT (default 7860); the Fastify
-    # API runs on an INTERNAL port (default 3001, matching the local
-    # .env) and is only reachable from inside the container. The
-    # Gradio UI proxies any caller-visible API path through its own
-    # FastAPI app, so the Node API does not need to compete for the
-    # public port.
+    # IMPORTANT: do NOT propagate PORT to the Express/Fastify child. Gradio is
+    # the public-facing server on $PORT (default 7860); the Node API
+    # runs on an INTERNAL port (default 3001 per .env defaults) and is
+    # only reachable from inside the container. Gradio's /health JSON
+    # route exposes supervisor status externally; the Node API is internal.
     env.pop("PORT", None)
     env.pop("HOST", None)
     env.setdefault("NODE_ENV", "production")
@@ -218,11 +243,9 @@ def get_api_env():
 
 
 def get_worker_cmd():
-    return (
-        ["npm", "run", "start:worker"]
-        if (BACKEND_DIR / "dist" / "workers" / "run.js").exists()
-        else ["npx", "tsx", "src/workers/run.ts"]
-    )
+    if (BACKEND_DIR / "dist" / "workers" / "run.js").exists():
+        return ["node", "dist/workers/run.js"]
+    return _tsx_cmd("src/workers/run.ts")
 
 def get_worker_env():
     env = os.environ.copy()
@@ -231,11 +254,9 @@ def get_worker_env():
 
 
 def get_dispatcher_cmd():
-    return (
-        ["npm", "run", "start:dispatcher"]
-        if (BACKEND_DIR / "dist" / "outbox" / "run.js").exists()
-        else ["npx", "tsx", "src/outbox/run.ts"]
-    )
+    if (BACKEND_DIR / "dist" / "outbox" / "run.js").exists():
+        return ["node", "dist/outbox/run.js"]
+    return _tsx_cmd("src/outbox/run.ts")
 
 def get_dispatcher_env():
     env = os.environ.copy()
@@ -244,7 +265,24 @@ def get_dispatcher_env():
 
 
 def get_ocr_cmd():
-    if not ENABLE_PYTHON_OCR_WORKER:
+    """Return the OCR worker command, or None to skip it.
+
+    Auto-starts the Docling worker if the entry point exists, UNLESS the
+    operator has explicitly set ENABLE_PYTHON_OCR_WORKER=0 to disable it.
+    Setting ENABLE_PYTHON_OCR_WORKER=1 forces it even if the entry point
+    is missing (useful to surface a clearer error message).
+    """
+    explicit_enable = _truthy(os.environ.get("ENABLE_PYTHON_OCR_WORKER", ""))
+    explicit_disable = os.environ.get("ENABLE_PYTHON_OCR_WORKER", "").strip().lower() in {"0", "false", "no", "off"}
+
+    main_py = OCR_DIR / "src" / "main.py"
+
+    if explicit_disable:
+        print("[boot] Docling worker: skipped (ENABLE_PYTHON_OCR_WORKER=0)", flush=True)
+        return None
+
+    if not explicit_enable and not main_py.exists():
+        print(f"[boot] Docling worker: skipped (entry not found at {main_py}; set ENABLE_PYTHON_OCR_WORKER=1 to force)", flush=True)
         return None
 
     for candidate in (OCR_VENV_PYTHON, OCR_VENV_PYTHON3):
@@ -255,12 +293,11 @@ def get_ocr_cmd():
         python = shutil.which("python3") or shutil.which("python")
 
     if not python:
-        print("[boot] No python interpreter found for the OCR worker.", flush=True)
+        print("[boot] Docling worker: skipped (no python interpreter found)", flush=True)
         return None
 
-    main_py = OCR_DIR / "src" / "main.py"
     if not main_py.exists():
-        print(f"[boot] OCR worker entry not found at {main_py}", flush=True)
+        print(f"[boot] Docling worker: skipped (entry not found at {main_py})", flush=True)
         return None
 
     return [python, str(main_py)]
@@ -295,7 +332,7 @@ _last_install_error: Optional[str] = None
 
 
 def _install_and_serve() -> None:
-    """Install Node deps (if missing) then start the supervised services.
+    """Install Node deps (if missing), build TypeScript, then start supervised services.
 
     Runs in a background thread. Started by `main()` AFTER `demo.launch()`
     has returned, so HF's Gradio readiness probe sees a live HTTP server
@@ -323,6 +360,22 @@ def _install_and_serve() -> None:
             _last_install_error = f"npm install raised {exc!r}"
             print(f"[boot] {_last_install_error}; children will not start", flush=True)
             return
+
+    # Build the TypeScript dist so we can run `node dist/index.js` instead of tsx.
+    # This is faster at runtime and avoids needing npx to resolve the tsx binary.
+    if not (BACKEND_DIR / "dist" / "index.js").exists():
+        print("[boot] building TypeScript dist...", flush=True)
+        try:
+            subprocess.run(
+                ["npm", "run", "build"],
+                cwd=str(BACKEND_DIR),
+                check=True,
+            )
+            print("[boot] TypeScript build completed", flush=True)
+        except subprocess.CalledProcessError as exc:
+            print(f"[boot] TypeScript build failed with code {exc.returncode}; will fall back to tsx", flush=True)
+        except Exception as exc:
+            print(f"[boot] TypeScript build raised {exc!r}; will fall back to tsx", flush=True)
 
     print("[boot] starting backend services…", flush=True)
     for svc in services:
@@ -474,8 +527,9 @@ def _install_health_routes(demo) -> None:
 
     Called AFTER `demo.launch()` returns, so `demo.app` is the
     uvicorn-served FastAPI app rather than the construction-time
-    placeholder. Adding routes here makes them match before Gradio's
-    catch-all, so a GET returns JSON instead of the Gradio HTML page.
+    placeholder. The routes are PREPENDED to Gradio's route list so
+    they win over Gradio's catch-all (`/`) regardless of registration
+    order quirks in different Gradio versions.
 
     CORS: Gradio 6.x sets `strict_cors=True` by default, which blocks
     cross-origin browser requests to its routes. The health route is
@@ -525,17 +579,130 @@ def _install_health_routes(demo) -> None:
             },
         )
 
+    # Register the routes on the live app, then prepend them to the
+    # router's route list so they match BEFORE Gradio's catch-all at
+    # `/`. add_api_route appends; FastAPI/Starlette match in order.
+    health_routes = []
     for path in ("/health", "/healthz"):
-        fastapi_app.add_api_route(
+        health_routes.append(fastapi_app.add_api_route(
             path,
             _health_handler,
             methods=["GET"],
-        )
-        fastapi_app.add_api_route(
+        ))
+        health_routes.append(fastapi_app.add_api_route(
             path,
             _options_handler,
             methods=["OPTIONS"],
+        ))
+
+    # Move the four routes to the front of the list. Starlette/FastAPI
+    # match in registration order; Gradio's catch-all is at index 0
+    # of the route list after launch(), so prepending guarantees our
+    # routes win on /health and /healthz regardless of any future
+    # Gradio route registration changes.
+    existing = list(fastapi_app.router.routes)
+    fastapi_app.router.routes = health_routes + [
+        r for r in existing if r not in health_routes
+    ]
+
+
+def _install_proxy_routes(demo) -> None:
+    """Mount async reverse-proxy routes on Gradio's live FastAPI app.
+
+    Forwards /api/*, /auth/*, /uploads/*, /analysis/* to the internal
+    Node API on INTERNAL_API_PORT. This is necessary because HF's Gradio
+    SDK owns $PORT; Gradio is the public-facing server and the Node API
+    runs internally.
+
+    SSE streams (Content-Type: text/event-stream) are forwarded using
+    httpx's streaming API so they are never buffered.
+    """
+    if httpx is None:
+        print("[boot] httpx not available – API proxy not installed", flush=True)
+        return
+
+    from fastapi import Request
+    from fastapi.responses import Response, StreamingResponse
+
+    fastapi_app = demo.app
+    base_url = f"http://127.0.0.1:{INTERNAL_API_PORT}"
+
+    async def _proxy_handler(request: Request, path: str = "") -> Response:
+        prefix = "/" + request.url.path.lstrip("/").split("/")[0]
+        upstream_path = request.url.path
+        upstream = f"{base_url}{upstream_path}"
+        if request.url.query:
+            upstream += f"?{request.url.query}"
+
+        headers = {
+            k: v for k, v in request.headers.items()
+            if k.lower() not in _HOP_BY_HOP
+        }
+        body = await request.body()
+
+        async with httpx.AsyncClient(
+            timeout=httpx.Timeout(120.0, connect=10.0)
+        ) as client:
+            try:
+                upstream_resp = await client.request(
+                    method=request.method,
+                    url=upstream,
+                    headers=headers,
+                    content=body,
+                )
+            except httpx.RequestError as exc:
+                from fastapi.responses import JSONResponse
+                return JSONResponse(
+                    {"error": "upstream_unreachable", "detail": str(exc)},
+                    status_code=502,
+                )
+
+        resp_headers = {
+            k: v for k, v in upstream_resp.headers.items()
+            if k.lower() not in _HOP_BY_HOP
+        }
+        content_type = upstream_resp.headers.get("content-type", "")
+
+        # Stream SSE responses without buffering.
+        if "text/event-stream" in content_type:
+            async def _stream():
+                async for chunk in upstream_resp.aiter_bytes():
+                    yield chunk
+            return StreamingResponse(
+                _stream(),
+                status_code=upstream_resp.status_code,
+                headers=resp_headers,
+                media_type=content_type,
+            )
+
+        return Response(
+            content=upstream_resp.content,
+            status_code=upstream_resp.status_code,
+            headers=resp_headers,
+            media_type=content_type,
         )
+
+    proxy_routes = []
+    methods = ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS", "HEAD"]
+    for prefix in PROXY_PREFIXES:
+        proxy_routes.append(
+            fastapi_app.add_api_route(
+                f"{prefix}/{{path:path}}", _proxy_handler, methods=methods
+            )
+        )
+        proxy_routes.append(
+            fastapi_app.add_api_route(
+                prefix, _proxy_handler, methods=methods
+            )
+        )
+
+    # Prepend so proxy routes match before Gradio's catch-all.
+    existing = list(fastapi_app.router.routes)
+    fastapi_app.router.routes = proxy_routes + [
+        r for r in existing if r not in proxy_routes
+    ]
+    print(f"[boot] proxy routes installed for {PROXY_PREFIXES}", flush=True)
+
 
 
 def main():
@@ -551,12 +718,9 @@ def main():
     # the live FastAPI app is also reassigned to `demo.app` post-launch.
     print(f"[boot] Gradio listening on 0.0.0.0:{PORT}", flush=True)
 
-    # Now that `demo.app` is the live FastAPI app, mount the JSON
-    # /health and /healthz routes. Registering them on the live app
-    # (rather than the construction-time placeholder) makes them
-    # match before Gradio's catch-all, so a GET returns JSON rather
-    # than the Gradio HTML page.
+    # Mount /health, /healthz and reverse-proxy routes on the live app.
     _install_health_routes(demo)
+    _install_proxy_routes(demo)
 
     # Kick off npm install + supervisor in a background thread.
     t = threading.Thread(

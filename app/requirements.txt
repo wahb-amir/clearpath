@@ -1,20 +1,17 @@
+
 # Hugging Face Space requirements for ClearPath (all-in-one ZeroGPU deploy).
 #
 # Strategy: install ONLY what's needed to run the Node API + worker + dispatcher
 # inside the Space. The Python OCR worker is intentionally NOT bundled here
 # by default.
 #
-# The Space uses ZeroGPU on the gradio SDK. The HF base image hard-pins
-# `gradio[oauth]==4.44.0` and `spaces==0.51.x` for us, so we don't pin
-# either here – just install the SDK and let HF's runtime take care of
-# the rest. The previous incarnation of this file pinned Gradio at the
-# same range and broke the build because Gradio 4.44 imports `HfFolder`
-# from `huggingface_hub`, which was removed in hub>=0.20. HF's runtime
-# resolves that conflict for us, so we leave it alone.
+# The Space uses ZeroGPU, so we must include the spaces SDK.
+# httpx is used by the reverse-proxy in app.py to forward API routes to Node.
 
 spaces>=0.30.0
+httpx>=0.27.0
 
-# --- Docling (used if ENABLE_PYTHON_OCR_WORKER is set) ---
+# --- Docling (used if ENABLE_PYTHON_OCR_WORKER is set or ocr entry exists) ---
 onnxruntime>=1.23.0,<1.28.0
 docling>=2.40.0,<2.118.0
 reportlab>=4.0.0,<5.0
