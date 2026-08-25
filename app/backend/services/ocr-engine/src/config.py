@@ -1,6 +1,6 @@
 # config.py
 import os
-from pydantic import Field, HttpUrl, RedisDsn
+from pydantic import AliasChoices, Field, HttpUrl, RedisDsn
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -20,12 +20,22 @@ class Settings(BaseSettings):
     REDIS_DB: int = Field(default=0, ge=0)
 
     # Supabase Configuration
-    SUPABASE_URL: HttpUrl
-    SUPABASE_KEY: str = Field(
-        ...,
-        env="SUPABASE_SERVICE_ROLE_KEY",
+    # Optional so the OCR worker can boot on a HF Space before the user
+    # has configured Supabase secrets (matches the Node env.ts pattern).
+    # Routes / jobs that actually need Supabase will surface a clear error
+    # at request time instead of crashing the process at startup.
+    SUPABASE_URL: HttpUrl | None = Field(default=None)
+    # Accepts BOTH the Node-side env name (`SUPABASE_SECRET_KEY`) and the
+    # historical name (`SUPABASE_SERVICE_ROLE_KEY`). The first non-empty
+    # value wins, so this works whether the secret is set under either name.
+    SUPABASE_KEY: str | None = Field(
+        default=None,
+        validation_alias=AliasChoices(
+            "SUPABASE_SECRET_KEY",
+            "SUPABASE_SERVICE_ROLE_KEY",
+        ),
         min_length=1,
-        description="Service role key for Supabase administrative access",
+        description="Service role / secret key for Supabase administrative access",
     )
 
     # BullMQ Configuration

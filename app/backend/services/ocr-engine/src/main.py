@@ -35,13 +35,37 @@ import redis
 import json
 from config import settings
 
-SUPABASE_URL = settings.SUPABASE_URL
-SUPABASE_KEY = settings.SUPABASE_KEY
 QUEUE_NAME = get_bullmq_queue_name()
 EXPECTED_JOB_NAME = get_bullmq_job_name()
 WORKER_ID = "ocr-engine"
 
-supabase: Client = create_client(str(SUPABASE_URL), SUPABASE_KEY)
+
+def _get_supabase() -> Client:
+    """Lazily build the Supabase client.
+
+    Built on first use (not at import time) so the OCR worker can boot
+    on a HF Space before the user has wired up Supabase secrets. The
+    first real OCR job will fail loudly with a clear error if the
+    secrets are missing, instead of the whole process dying on import.
+    """
+    if not settings.SUPABASE_URL or not settings.SUPABASE_KEY:
+        raise RuntimeError(
+            "Supabase is not configured: set SUPABASE_URL and "
+            "SUPABASE_SECRET_KEY (or SUPABASE_SERVICE_ROLE_KEY) in the "
+            "Space's environment variables before triggering OCR jobs."
+        )
+    return create_client(str(settings.SUPABASE_URL), settings.SUPABASE_KEY)
+
+
+# Module-level proxy so existing `supabase.table(...)` call sites keep
+# working unchanged. The real client is constructed on first attribute
+# access (i.e. when the first OCR job actually needs it).
+class _LazySupabase:
+    def __getattr__(self, name: str):
+        return getattr(_get_supabase(), name)
+
+
+supabase = _LazySupabase()
 
 _redis_conf = get_redis_connection_config()
 if isinstance(_redis_conf, str):
