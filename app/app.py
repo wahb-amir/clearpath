@@ -197,8 +197,15 @@ def get_api_cmd():
 
 def get_api_env():
     env = os.environ.copy()
-    env["PORT"] = str(PORT)
-    env["HOST"] = "0.0.0.0"
+    # IMPORTANT: do NOT propagate PORT to the Fastify child. Gradio is
+    # the public-facing server on $PORT (default 7860); the Fastify
+    # API runs on an INTERNAL port (default 3001, matching the local
+    # .env) and is only reachable from inside the container. The
+    # Gradio UI proxies any caller-visible API path through its own
+    # FastAPI app, so the Node API does not need to compete for the
+    # public port.
+    env.pop("PORT", None)
+    env.pop("HOST", None)
     env.setdefault("NODE_ENV", "production")
     return env
 
@@ -399,7 +406,7 @@ def build_demo():
     """
     import gradio as gr  # local import – see comment above
 
-    with gr.Blocks(title="ClearPath Backend", theme=gr.themes.Soft()) as demo:
+    with gr.Blocks(title="ClearPath Backend") as demo:
         gr.Markdown(
             "# ClearPath Backend\n"
             "This Hugging Face Space hosts the ClearPath Node backend, "
@@ -437,6 +444,25 @@ def build_demo():
     return demo
 
 
+def _launch_kwargs() -> dict:
+    """Build the kwargs passed to `demo.launch()`.
+
+    Kept separate so the `gr` import stays scoped to `build_demo()` –
+    Pylance can resolve `gr` and we don't need a top-level `gradio`
+    import (which would break local dev environments that don't have
+    the package installed).
+    """
+    import gradio as gr
+
+    return {
+        "server_name": "0.0.0.0",
+        "server_port": PORT,
+        "theme": gr.themes.Soft(),
+        "prevent_thread_lock": True,
+        "show_error": True,
+    }
+
+
 def main():
     signal.signal(signal.SIGTERM, shutdown_all)
     signal.signal(signal.SIGINT, shutdown_all)
@@ -445,12 +471,7 @@ def main():
 
     # Boot Gradio first so HF's readiness probe (Gradio binds $PORT)
     # succeeds even while npm install is still in progress.
-    demo.queue().launch(
-        server_name="0.0.0.0",
-        server_port=PORT,
-        prevent_thread_lock=True,
-        show_error=True,
-    )
+    demo.queue().launch(**_launch_kwargs())
     print(f"[boot] Gradio listening on 0.0.0.0:{PORT}", flush=True)
 
     # Kick off npm install + supervisor in a background thread.
