@@ -1,20 +1,18 @@
 import { Redis, type RedisOptions } from "ioredis";
-import { env } from "../config/env";
+import { resolvedRedis } from "../config/env";
 
 
 
 const baseOptions: RedisOptions = {
-  ...(env.REDIS_URL
-    ? { url: env.REDIS_URL }
-    : {
-        host: env.REDIS_HOST,
-        port: env.REDIS_PORT,
-        password: env.REDIS_PASSWORD || undefined,
-        db: env.REDIS_DB ?? 0,
-      }),
+  ...(resolvedRedis as any),
   // Required by BullMQ
   maxRetriesPerRequest: null,
   enableReadyCheck: true,
+  // Don't spam the logs / exit on startup if Redis is unreachable
+  // (HF Spaces do not run a local Redis instance).
+  lazyConnect: true,
+  retryStrategy: (times) => Math.min(times * 200, 5000),
+  reconnectOnError: () => true,
 };
 
 /** Shared connection for BullMQ Queue (producer side / dispatcher). */

@@ -1,0 +1,11 @@
+# Minimal requirements for the Hugging Face Space's Gradio front-end.
+# The full backend (`backend/`) brings its own dependencies via `npm`,
+# and the Python OCR worker brings its own via
+# `backend/services/ocr-engine/requirements.txt` – this file is only
+# for the lightweight Gradio launcher.
+gradio>=4.44.0
+spaces>=0.30.0
+# Optional: enables the on-demand OCR tab. Comment out (and remove the
+# "OCR (GPU)" tab in app.py) if you don't want any Python-side
+# inference in the Space at all.
+# docling>=2.30.0

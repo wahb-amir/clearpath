@@ -43,6 +43,9 @@ app.use(cookieParser());
 /**
  * Verify Supabase Connectivity on Startup
  * Runs a lightweight query to ensure the backend can talk to your Postgres instance.
+ * On a HF Space, the Supabase env vars are baked in as secrets so this
+ * should always succeed; if it fails, log a warning rather than killing
+ * the process so the Gradio shell can stay up and surface the error.
  */
 async function verifyDatabaseConnection() {
   try {
@@ -59,13 +62,12 @@ async function verifyDatabaseConnection() {
       "✅ PostgreSQL Connection verified successfully via Supabase API.",
     );
   } catch (err: any) {
-    console.error("❌ Failed to connect to Supabase/PostgreSQL on startup:");
-    console.error(err?.message || err);
-    process.exit(1); // Crash the process so your process manager (e.g., PM2/Docker) can handle it
+    console.warn("⚠️ Supabase check failed (continuing in degraded mode):");
+    console.warn(err?.message || err);
   }
 }
 
-// Fire the connection check
+// Fire the connection check (non-fatal in HF Space contexts).
 verifyDatabaseConnection();
 
 // --- Routes ---

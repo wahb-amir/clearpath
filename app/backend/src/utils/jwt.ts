@@ -6,16 +6,42 @@ import crypto from "crypto";
 
 // Load keys
 const keysDir = path.resolve(__dirname, "../../.keys");
+const privateKeyPath = path.join(keysDir, "private.pem");
+const publicKeyPath = path.join(keysDir, "public.pem");
 let privateKey = "";
 let publicKey = "";
 
 try {
-  privateKey = fs.readFileSync(path.join(keysDir, "private.pem"), "utf8");
-  publicKey = fs.readFileSync(path.join(keysDir, "public.pem"), "utf8");
+  privateKey = fs.readFileSync(privateKeyPath, "utf8");
+  publicKey = fs.readFileSync(publicKeyPath, "utf8");
 } catch (e) {
-  console.warn(
-    '⚠️ RS256 keys not found. Run "node scripts/generate-keys.js" first.',
-  );
+  // Auto-generate the RS256 key pair at first boot. This is critical
+  // for ephemeral environments (e.g. Hugging Face Spaces) where the
+  // filesystem is recreated on every restart and `scripts/generate-keys.js`
+  // cannot be run manually.
+  try {
+    if (!fs.existsSync(keysDir)) {
+      fs.mkdirSync(keysDir, { recursive: true });
+    }
+    const { publicKey: pub, privateKey: priv } = crypto.generateKeyPairSync(
+      "rsa",
+      {
+        modulusLength: 2048,
+        publicKeyEncoding: { type: "spki", format: "pem" },
+        privateKeyEncoding: { type: "pkcs8", format: "pem" },
+      },
+    );
+    fs.writeFileSync(publicKeyPath, pub);
+    fs.writeFileSync(privateKeyPath, priv);
+    publicKey = pub;
+    privateKey = priv;
+    console.log("✅ Generated RS256 key pair on startup at", keysDir);
+  } catch (genErr) {
+    console.warn(
+      '⚠️ RS256 keys not found and auto-generation failed. Run "node scripts/generate-keys.js" first.',
+    );
+    console.warn(genErr);
+  }
 }
 
 const KID = "key-1"; // Key ID for rotation

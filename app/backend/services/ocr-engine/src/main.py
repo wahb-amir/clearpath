@@ -6,7 +6,15 @@ import tempfile
 
 from io import BytesIO
 import tempfile
-from reportlab.pdfgen import canvas
+
+try:
+    # reportlab is only used to build a tiny throwaway PDF for warmup.
+    # If it's not installed (e.g. the requirements.txt in this HF Space
+    # container pre-dates the reportlab pin) we fall back to a hand-built
+    # minimal PDF so warmup still works.
+    from reportlab.pdfgen import canvas as _rl_canvas
+except Exception:  # pragma: no cover - defensive
+    _rl_canvas = None
 
 from bullmq import Worker
 from supabase import create_client, Client
@@ -63,14 +71,30 @@ def warmup_docling_models():
     print("⏳ Pre-loading Docling OCR and Layout models into memory...")
 
     try:
-        # Generate a genuinely valid, minimal 1-page PDF.
-        buffer = BytesIO()
-        pdf = canvas.Canvas(buffer, pagesize=(100, 100))
-        pdf.showPage()
-        pdf.save()
+        # Build a minimal 1-page PDF. Prefer reportlab; otherwise use the
+        # hand-crafted bytes below so we don't hard-depend on reportlab.
+        if _rl_canvas is not None:
+            buffer = BytesIO()
+            pdf = _rl_canvas.Canvas(buffer, pagesize=(100, 100))
+            pdf.showPage()
+            pdf.save()
+            pdf_bytes = buffer.getvalue()
+        else:
+            # Minimal valid PDF (one blank page, no external resources).
+            pdf_bytes = (
+                b"%PDF-1.4\n"
+                b"1 0 obj<</Type/Catalog/Pages 2 0 R>>endobj\n"
+                b"2 0 obj<</Type/Pages/Kids[3 0 R]/Count 1>>endobj\n"
+                b"3 0 obj<</Type/Page/Parent 2 0 R/MediaBox[0 0 100 100]"
+                b"/Resources<<>>>>endobj\n"
+                b"xref\n0 4\n0000000000 65535 f \n"
+                b"0000000009 00000 n \n0000000052 00000 n \n"
+                b"0000000099 00000 n \n"
+                b"trailer<</Size 4/Root 1 0 R>>\nstartxref\n160\n%%EOF"
+            )
 
         with tempfile.NamedTemporaryFile(suffix=".pdf", delete=True) as tmp:
-            tmp.write(buffer.getvalue())
+            tmp.write(pdf_bytes)
             tmp.flush()
 
             # Run one conversion to initialize Docling's models.
