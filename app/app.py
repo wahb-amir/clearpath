@@ -101,18 +101,91 @@ LOG_TAIL_LINES = 50
 # Subprocess helpers
 # ---------------------------------------------------------------------------
 
-def _spawn(cmd: list[str], cwd: Path, log_path: Path, env: dict | None = None) -> subprocess.Popen:
+def _spawn(cmd: list[str], cwd: Path, log_path: Path, env: dict | None = None) -> tuple[subprocess.Popen, "object"]:
+    """Spawn a supervised child, tee-ing its output to a log file AND stdout.
+
+    On a HF Space the per-child log file lives on ephemeral disk and is
+    not viewable from the Space UI – the only log stream operators
+    actually see is the Gradio/uvicorn parent process's stdout.
+    ``_tee_stdout`` reads each child's combined stdout/stderr line by
+    line, writes it to ``log_path`` (so the existing tail-on-crash
+    behavior keeps working), and re-emits it on the supervisor's stdout
+    so it shows up in HF's main log stream alongside the `[boot] ...`
+    supervisor lines.
+
+    Returns ``(proc, log_file)``: ``proc`` is the live Popen, ``log_file``
+    is the open append-mode handle to ``log_path`` that the tee writes
+    into. Caller owns both and must close ``log_file`` on shutdown.
+    """
     log_path.parent.mkdir(parents=True, exist_ok=True)
-    log_file = open(log_path, "ab")
+    log_file = open(log_path, "ab", buffering=0)
     return subprocess.Popen(
         cmd,
         cwd=str(cwd),
         env=env or os.environ.copy(),
-        stdout=log_file,
+        stdout=subprocess.PIPE,
         stderr=subprocess.STDOUT,
         # New process group so we can SIGTERM the whole tree on shutdown.
         preexec_fn=os.setsid if os.name == "posix" else None,
-    )
+        bufsize=0,
+        text=True,
+    ), log_file
+
+
+class _ChildLogTee(threading.Thread):
+    """Forward a child's stdout to (a) its log file and (b) the supervisor's stdout.
+
+    Daemon thread so a hung tee never blocks the supervisor from exiting
+    on SIGTERM/SIGINT. Each line is prefixed with ``[<label>] `` so a
+    HF log reader can tell which service produced it without having to
+    correlate timestamps across per-service log files (which, again,
+    live on ephemeral disk and are not viewable from the Space UI).
+    """
+
+    def __init__(self, proc: subprocess.Popen, log_file, label: str) -> None:
+        super().__init__(name=f"tee-{label}", daemon=True)
+        self.proc = proc
+        self.log_file = log_file
+        self.label = label
+        self._stopped = threading.Event()
+
+    def run(self) -> None:
+        assert self.proc.stdout is not None
+        stream = self.proc.stdout
+        for raw in stream:
+            if not raw:
+                # EOF on a text-mode stream: empty trailing line.
+                if self._stopped.is_set():
+                    return
+                continue
+            line = raw if raw.endswith("\n") else raw + "\n"
+            try:
+                self.log_file.write(line)
+            except Exception:
+                # Log file may have been rotated/removed; never let a
+                # logging failure kill the tee thread.
+                pass
+            try:
+                sys.stdout.write(f"[{self.label}] {line}")
+                sys.stdout.flush()
+            except Exception:
+                # stdout may be closed during interpreter shutdown.
+                pass
+            if self._stopped.is_set() and self.proc.poll() is not None:
+                # After we've been asked to stop AND the child has
+                # exited, drain any remaining buffered output once.
+                remaining = stream.read()
+                if remaining:
+                    try:
+                        self.log_file.write(remaining)
+                        sys.stdout.write(f"[{self.label}] {remaining}")
+                        sys.stdout.flush()
+                    except Exception:
+                        pass
+                return
+
+    def stop(self) -> None:
+        self._stopped.set()
 
 
 def _terminate(proc: Optional[subprocess.Popen], label: str) -> None:
@@ -168,6 +241,8 @@ class Service:
         self.cwd = cwd
         self.env_fn = env_fn
         self.proc: Optional[subprocess.Popen] = None
+        self.log_file = None
+        self.tee: Optional["_ChildLogTee"] = None
         self.log_path: Path = LOGS_DIR / f"{self.label}.log"
         self.started_at: Optional[float] = None
         self.last_error: Optional[str] = None
@@ -180,7 +255,12 @@ class Service:
 
         env = self.env_fn()
         try:
-            self.proc = _spawn(cmd, self.cwd, self.log_path, env=env)
+            self.proc, self.log_file = _spawn(cmd, self.cwd, self.log_path, env=env)
+            # Tee the child's combined stdout/stderr to the per-service
+            # log file AND the supervisor's stdout so it reaches HF's
+            # main log stream.
+            self.tee = _ChildLogTee(self.proc, self.log_file, self.label)
+            self.tee.start()
             self.started_at = time.time()
             self.last_error = None
             print(f"[boot] starting {self.label} (pid={self.proc.pid})", flush=True)
@@ -191,7 +271,25 @@ class Service:
     def stop(self) -> None:
         if self.proc is not None:
             _terminate(self.proc, self.label)
+            if self.tee is not None:
+                # Tell the tee to drain remaining output, then close the
+                # pipe so the read() in the tee thread can exit.
+                self.tee.stop()
+            try:
+                if self.proc.stdout is not None:
+                    self.proc.stdout.close()
+            except Exception:
+                pass
+            if self.tee is not None:
+                self.tee.join(timeout=2)
+            if self.log_file is not None:
+                try:
+                    self.log_file.close()
+                except Exception:
+                    pass
             self.proc = None
+            self.tee = None
+            self.log_file = None
             self.started_at = None
 
     def status(self) -> dict:
@@ -512,13 +610,15 @@ def _launch_kwargs() -> dict:
         "theme": gr.themes.Soft(),
         "prevent_thread_lock": True,
         "show_error": True,
-        # Disable Gradio's strict CORS middleware so our /health route
-        # can return the Access-Control-Allow-Origin header we set on
-        # the response. Gradio's strict_cors strips cross-origin headers
-        # by default, which blocks the ClearPath frontend (and any
-        # external monitoring) from polling /health. Gradio's own
-        # routes still enforce their own auth/CSRF model.
-        "strict_cors": False,
+        # Re-enable Gradio's strict CORS so Gradio's permissive-CORS
+        # middleware does NOT echo `Access-Control-Allow-Origin: <attacker>`
+        # back to arbitrary origins on OPTIONS preflight for our
+        # proxied /api /auth /uploads /analysis routes. We install our
+        # own CORSMiddleware scoped to those prefixes (see
+        # `_install_cors_middleware`) which sets the
+        # Access-Control-Allow-Credentials header and restricts the
+        # origin to the allowlist returned by `_cors_allowed_origins`.
+        "strict_cors": True,
         # Force off SSR mode. In Gradio 6.x SSR mode, the PUBLIC $PORT is
         # served by a bundled Node.js process, not by Python's uvicorn –
         # Python only listens internally (e.g. :7861). That Node process
@@ -570,30 +670,36 @@ def _install_health_routes(demo) -> None:
 
     async def _health_handler(request: Request):
         body = _build_status_payload()
-        # Echo the request's Origin (if any) so the browser accepts
-        # the response. "*" is fine because /health carries no
-        # credentials and no sensitive data.
-        origin = request.headers.get("origin") or "*"
+        # Restrict CORS to the same allowlist as the proxied routes.
+        # Returning ACAO: * would still let an attacker's browser read
+        # the JSON body (no credentials are sent, so it isn't a real
+        # leak, but echoing arbitrary origins is still the wrong
+        # default and confusing when debugging).
+        origin = request.headers.get("origin")
+        cors_headers = _cors_headers_for(origin)
         return JSONResponse(
             content=body,
             headers={
-                "Access-Control-Allow-Origin": origin,
+                **cors_headers,
                 "Access-Control-Allow-Methods": "GET, OPTIONS",
                 "Access-Control-Allow-Headers": "*",
                 "Cache-Control": "no-store",
+                "Vary": "Origin",
             },
         )
 
     async def _options_handler(request: Request):
-        origin = request.headers.get("origin") or "*"
+        origin = request.headers.get("origin")
+        cors_headers = _cors_headers_for(origin)
         return JSONResponse(
             content=None,
-            status_code=204,
+            status_code=204 if cors_headers else 403,
             headers={
-                "Access-Control-Allow-Origin": origin,
+                **cors_headers,
                 "Access-Control-Allow-Methods": "GET, OPTIONS",
                 "Access-Control-Allow-Headers": "*",
                 "Access-Control-Max-Age": "86400",
+                "Vary": "Origin",
             },
         )
 
@@ -648,12 +754,29 @@ def _cors_allowed_origins() -> frozenset[str]:
     request, we own the whole CORS contract for these routes directly at
     the one choke point every one of these requests must cross: our
     reverse proxy.
+
+    The production frontend is https://clearpath.buttnetworks.com/ --
+    always in the allowlist. FRONTEND_URL env var (when set) is added
+    on top so a deploy that hasn't cut over DNS yet still works.
+    Localhost dev origins are also accepted by default; they can be
+    disabled by setting ``STRICT_CORS=1`` in the Space's env.
     """
     origins = {
         "https://wahb-ai-clearpath-backend.hf.space",
         "https://huggingface.co",
+        # Production frontend. Always allowed.
         "https://clearpath.buttnetworks.com",
     }
+    if not _truthy(os.environ.get("STRICT_CORS")):
+        # Local dev origins. Useful for hitting the deployed backend
+        # from a local Next.js dev server. Setting STRICT_CORS=1
+        # disables this escape hatch for production deployments.
+        origins.update({
+            "http://localhost:3000",
+            "http://localhost:3001",
+            "http://127.0.0.1:3000",
+            "http://127.0.0.1:3001",
+        })
     frontend_url = os.environ.get("FRONTEND_URL")
     if frontend_url:
         origins.add(frontend_url.rstrip("/"))
@@ -661,6 +784,14 @@ def _cors_allowed_origins() -> frozenset[str]:
 
 
 def _cors_headers_for(origin: str | None) -> dict[str, str]:
+    """Return the CORS response headers for ``origin``.
+
+    Returns an empty dict for unknown origins -- callers must NOT add
+    any permissive default themselves. Returning ``{}`` causes the
+    preflight handler to send a 204 with no
+    ``Access-Control-Allow-*`` headers, which causes the browser to
+    block the follow-up request (the secure default).
+    """
     if not origin or origin not in _cors_allowed_origins():
         return {}
     return {
@@ -712,9 +843,13 @@ def _install_proxy_routes(demo) -> None:
             and "access-control-request-method" in request.headers
         ):
             if not cors_headers:
-                # Origin not recognized – no CORS headers, browser will
-                # correctly block the follow-up request itself.
-                return Response(status_code=204)
+                # Origin not recognized – return 403 with no CORS
+                # headers so the browser refuses the follow-up request.
+                # Using 403 (not 204) makes it clear to anyone probing
+                # the endpoint that this origin is not on the
+                # allowlist, and a 204 with no headers would still let
+                # a permissive browser tolerate the response.
+                return Response(status_code=403, headers={"Vary": "Origin"})
             requested_headers = request.headers.get(
                 "access-control-request-headers"
             )
@@ -764,11 +899,19 @@ def _install_proxy_routes(demo) -> None:
             k: v for k, v in upstream_resp.headers.items()
             if k.lower() not in _HOP_BY_HOP
         }
-        # Force-set (overwrite, don't just merge) our own CORS headers on
-        # top of whatever Express returned. This makes the actual response
-        # correct even if Express's own cors() config disagreed or omitted
-        # them for some request-specific reason -- see the comment on
-        # `_cors_allowed_origins` above.
+        # Strip any Access-Control-* headers the upstream Node API set,
+        # then force-set our own on top. Without the strip, an unknown
+        # origin would still see Express's echoed
+        # Access-Control-Allow-Origin in the response (we don't want
+        # to leak that to attackers). For known origins we overwrite
+        # anyway so Access-Control-Allow-Credentials: true is
+        # guaranteed -- Express's cors() config sometimes drops it
+        # for credentialed preflights depending on how the headers
+        # line up.
+        resp_headers = {
+            k: v for k, v in resp_headers.items()
+            if not k.lower().startswith("access-control-")
+        }
         resp_headers.update(cors_headers)
         content_type = upstream_resp.headers.get("content-type", "")
 
