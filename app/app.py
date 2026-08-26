@@ -554,7 +554,7 @@ def _install_health_routes(demo) -> None:
     expected to be polled by external monitoring (k8s probes, the
     ClearPath frontend at clearpath.buttnetworks.com, etc.), so we
     set permissive CORS headers on the responses directly (no need
-    for CORSMiddleware – we only have two routes to expose).
+    for CORSMiddleware - we only have two routes to expose).
     """
     # IMPORTANT: `Request` MUST be imported here (not inside the handler
     # bodies). FastAPI introspects handler annotations at registration
@@ -632,6 +632,44 @@ def _install_health_routes(demo) -> None:
     ]
 
 
+def _cors_allowed_origins() -> frozenset[str]:
+    """Origins allowed to make credentialed cross-origin requests to the
+    proxied /api, /auth, /uploads, /analysis routes.
+
+    Mirrors the allowlist in app/backend/src/index.ts's cors() config so
+    the two layers agree. Kept here (rather than only trusting whatever
+    Express/Gradio decide) because we've observed the preflight response
+    for these routes coming back with NO
+    Access-Control-Allow-Credentials header at all -- which two
+    independent implicit CORS layers (Gradio's own CustomCORSMiddleware,
+    which always sets it, and Express's cors() package, credentials:true)
+    should both prevent, yet the browser reported it missing. Rather than
+    keep chasing which of two layers silently swallowed it on a given
+    request, we own the whole CORS contract for these routes directly at
+    the one choke point every one of these requests must cross: our
+    reverse proxy.
+    """
+    origins = {
+        "https://wahb-ai-clearpath-backend.hf.space",
+        "https://huggingface.co",
+        "https://clearpath.buttnetworks.com",
+    }
+    frontend_url = os.environ.get("FRONTEND_URL")
+    if frontend_url:
+        origins.add(frontend_url.rstrip("/"))
+    return frozenset(origins)
+
+
+def _cors_headers_for(origin: str | None) -> dict[str, str]:
+    if not origin or origin not in _cors_allowed_origins():
+        return {}
+    return {
+        "Access-Control-Allow-Origin": origin,
+        "Access-Control-Allow-Credentials": "true",
+        "Vary": "Origin",
+    }
+
+
 def _install_proxy_routes(demo) -> None:
     """Mount async reverse-proxy routes on Gradio's live FastAPI app.
 
@@ -642,6 +680,14 @@ def _install_proxy_routes(demo) -> None:
 
     SSE streams (Content-Type: text/event-stream) are forwarded using
     httpx's streaming API so they are never buffered.
+
+    CORS preflight (OPTIONS) requests are answered directly here, and
+    never forwarded upstream -- see `_cors_headers_for` for why. Actual
+    requests also get these headers force-set on the response, on top
+    of (overwriting, not merely trusting) whatever Express returned, so
+    a credentialed cross-origin request from an allowed origin always
+    gets a correct, consistent answer regardless of what either Gradio's
+    or Express's own CORS layer independently decided to do.
     """
     if httpx is None:
         print("[boot] httpx not available – API proxy not installed", flush=True)
@@ -654,6 +700,36 @@ def _install_proxy_routes(demo) -> None:
     base_url = f"http://127.0.0.1:{INTERNAL_API_PORT}"
 
     async def _proxy_handler(request: Request, path: str = "") -> Response:
+        origin = request.headers.get("origin")
+        cors_headers = _cors_headers_for(origin)
+
+        # Answer CORS preflight deterministically, in Python, and never
+        # forward it upstream. See the module docstring above / the
+        # comment on `_cors_allowed_origins` for why we don't delegate
+        # this to Gradio's or Express's own CORS handling.
+        if (
+            request.method == "OPTIONS"
+            and "access-control-request-method" in request.headers
+        ):
+            if not cors_headers:
+                # Origin not recognized – no CORS headers, browser will
+                # correctly block the follow-up request itself.
+                return Response(status_code=204)
+            requested_headers = request.headers.get(
+                "access-control-request-headers"
+            )
+            return Response(
+                status_code=204,
+                headers={
+                    **cors_headers,
+                    "Access-Control-Allow-Methods": (
+                        "GET, POST, PUT, PATCH, DELETE, OPTIONS, HEAD"
+                    ),
+                    "Access-Control-Allow-Headers": requested_headers or "*",
+                    "Access-Control-Max-Age": "600",
+                },
+            )
+
         prefix = "/" + request.url.path.lstrip("/").split("/")[0]
         upstream_path = request.url.path
         upstream = f"{base_url}{upstream_path}"
@@ -681,12 +757,19 @@ def _install_proxy_routes(demo) -> None:
                 return JSONResponse(
                     {"error": "upstream_unreachable", "detail": str(exc)},
                     status_code=502,
+                    headers=cors_headers,
                 )
 
         resp_headers = {
             k: v for k, v in upstream_resp.headers.items()
             if k.lower() not in _HOP_BY_HOP
         }
+        # Force-set (overwrite, don't just merge) our own CORS headers on
+        # top of whatever Express returned. This makes the actual response
+        # correct even if Express's own cors() config disagreed or omitted
+        # them for some request-specific reason -- see the comment on
+        # `_cors_allowed_origins` above.
+        resp_headers.update(cors_headers)
         content_type = upstream_resp.headers.get("content-type", "")
 
         # Stream SSE responses without buffering.
