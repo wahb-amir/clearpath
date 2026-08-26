@@ -39,6 +39,9 @@ def get_worker_options() -> dict[str, Any]:
     return {
         "connection": get_redis_connection_config(),
         "concurrency": settings.BULLMQ_CONCURRENCY,
+        # Seconds between idle polls. See Settings.BULLMQ_DRAIN_DELAY_SECONDS
+        # for the rationale (default 30 vs library default 5).
+        "drainDelay": settings.BULLMQ_DRAIN_DELAY_SECONDS,
     }
 
 
