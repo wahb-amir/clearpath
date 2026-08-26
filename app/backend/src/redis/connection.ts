@@ -1,10 +1,24 @@
 import { Redis, type RedisOptions } from "ioredis";
 import { resolvedRedis } from "../config/env";
 
+// `resolvedRedis` is either `{ url: string }` (REDIS_URL / Upstash case) or
+// `{ host, port, password, db }` (granular fallback). Split the `url` out:
+// ioredis's `RedisOptions` type has NO `url` field. Passing `{ url: "..." }`
+// as the single constructor argument silently ignores it (verified: the
+// client falls back to its own default `host: "localhost", port: 6379`)
+// instead of throwing, so this was a silent misconfiguration rather than a
+// crash. Every Node-side Redis client (queue producer, worker consumer,
+// pub/sub) was, in practice, trying to reach a Redis on the container's own
+// localhost -- which doesn't exist on a HF Space -- instead of the real
+// Upstash/Redis Cloud instance in REDIS_URL. The URL must be passed as the
+// FIRST POSITIONAL ARGUMENT (a string), which is the only form ioredis
+// actually parses with `parseURL()`.
+const { url: connectionUrl, ...hostOptions } = resolvedRedis as {
+  url?: string;
+} & Partial<RedisOptions>;
 
-
-const baseOptions: RedisOptions = {
-  ...(resolvedRedis as any),
+const sharedOptions: RedisOptions = {
+  ...hostOptions,
   // Required by BullMQ – null means BullMQ manages retries itself.
   maxRetriesPerRequest: null,
   enableReadyCheck: true,
@@ -23,19 +37,25 @@ const baseOptions: RedisOptions = {
   reconnectOnError: () => true,
 };
 
+function makeClient(): Redis {
+  return connectionUrl
+    ? new Redis(connectionUrl, sharedOptions)
+    : new Redis(sharedOptions);
+}
+
 /** Shared connection for BullMQ Queue (producer side / dispatcher). */
 export function createQueueConnection(): Redis {
-  return new Redis(baseOptions);
+  return makeClient();
 }
 
 /** Connection for BullMQ Worker (consumer side). */
 export function createWorkerConnection(): Redis {
-  return new Redis(baseOptions);
+  return makeClient();
 }
 
 /** Connection used to PUBLISH pipeline notifications (worker side). */
 export function createPublisherConnection(): Redis {
-  return new Redis(baseOptions);
+  return makeClient();
 }
 
 /**
@@ -44,7 +64,7 @@ export function createPublisherConnection(): Redis {
  * on client disconnect.
  */
 export function createSubscriberConnection(): Redis {
-  return new Redis(baseOptions);
+  return makeClient();
 }
 
 export const PIPELINE_NOTIFY_CHANNEL_PREFIX = "doc-pipeline:";
