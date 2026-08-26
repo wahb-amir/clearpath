@@ -801,6 +801,79 @@ def _cors_headers_for(origin: str | None) -> dict[str, str]:
     }
 
 
+class ProxyCORSMiddleware:
+    def __init__(self, app):
+        self.app = app
+
+    async def __call__(self, scope, receive, send):
+        if scope["type"] != "http":
+            return await self.app(scope, receive, send)
+
+        path = scope.get("path", "")
+        # Do not proxy Gradio's internal API routes
+        if path in ("/api/config", "/api/predict") or path.startswith("/api/queue/"):
+            return await self.app(scope, receive, send)
+
+        # Only apply to proxy prefixes
+        if not any(path == p or path.startswith(p + "/") for p in PROXY_PREFIXES):
+            return await self.app(scope, receive, send)
+
+        headers = dict(scope.get("headers", []))
+        origin_bytes = headers.get(b"origin")
+        origin = origin_bytes.decode("latin1") if origin_bytes else None
+        
+        cors_headers_dict = _cors_headers_for(origin)
+        
+        # If OPTIONS preflight
+        if scope["method"] == "OPTIONS" and b"access-control-request-method" in headers:
+            if not cors_headers_dict:
+                await self.send_response(send, 403, {b"vary": b"Origin"})
+                return
+            
+            req_headers = headers.get(b"access-control-request-headers", b"*")
+            resp_headers = {
+                b"access-control-allow-methods": b"GET, POST, PUT, PATCH, DELETE, OPTIONS, HEAD",
+                b"access-control-allow-headers": req_headers,
+                b"access-control-max-age": b"600",
+                b"vary": b"Origin"
+            }
+            for k, v in cors_headers_dict.items():
+                resp_headers[k.lower().encode("latin1")] = v.encode("latin1")
+            
+            await self.send_response(send, 204, resp_headers)
+            return
+
+        # For normal requests, we intercept the send to inject CORS headers
+        async def send_wrapper(message):
+            if message["type"] == "http.response.start":
+                # Strip existing upstream/gradio CORS headers
+                filtered_headers = []
+                for k, v in message.get("headers", []):
+                    if not k.lower().startswith(b"access-control-"):
+                        filtered_headers.append((k, v))
+                
+                # Add our CORS headers
+                for k, v in cors_headers_dict.items():
+                    filtered_headers.append((k.lower().encode("latin1"), v.encode("latin1")))
+                
+                message["headers"] = filtered_headers
+            await send(message)
+
+        await self.app(scope, receive, send_wrapper)
+
+    async def send_response(self, send, status, headers):
+        headers_list = [(k, v) for k, v in headers.items()]
+        await send({
+            "type": "http.response.start",
+            "status": status,
+            "headers": headers_list
+        })
+        await send({
+            "type": "http.response.body",
+            "body": b""
+        })
+
+
 def _install_proxy_routes(demo) -> None:
     """Mount async reverse-proxy routes on Gradio's live FastAPI app.
 
@@ -811,14 +884,6 @@ def _install_proxy_routes(demo) -> None:
 
     SSE streams (Content-Type: text/event-stream) are forwarded using
     httpx's streaming API so they are never buffered.
-
-    CORS preflight (OPTIONS) requests are answered directly here, and
-    never forwarded upstream -- see `_cors_headers_for` for why. Actual
-    requests also get these headers force-set on the response, on top
-    of (overwriting, not merely trusting) whatever Express returned, so
-    a credentialed cross-origin request from an allowed origin always
-    gets a correct, consistent answer regardless of what either Gradio's
-    or Express's own CORS layer independently decided to do.
     """
     if httpx is None:
         print("[boot] httpx not available – API proxy not installed", flush=True)
@@ -831,40 +896,6 @@ def _install_proxy_routes(demo) -> None:
     base_url = f"http://127.0.0.1:{INTERNAL_API_PORT}"
 
     async def _proxy_handler(request: Request, path: str = "") -> Response:
-        origin = request.headers.get("origin")
-        cors_headers = _cors_headers_for(origin)
-
-        # Answer CORS preflight deterministically, in Python, and never
-        # forward it upstream. See the module docstring above / the
-        # comment on `_cors_allowed_origins` for why we don't delegate
-        # this to Gradio's or Express's own CORS handling.
-        if (
-            request.method == "OPTIONS"
-            and "access-control-request-method" in request.headers
-        ):
-            if not cors_headers:
-                # Origin not recognized – return 403 with no CORS
-                # headers so the browser refuses the follow-up request.
-                # Using 403 (not 204) makes it clear to anyone probing
-                # the endpoint that this origin is not on the
-                # allowlist, and a 204 with no headers would still let
-                # a permissive browser tolerate the response.
-                return Response(status_code=403, headers={"Vary": "Origin"})
-            requested_headers = request.headers.get(
-                "access-control-request-headers"
-            )
-            return Response(
-                status_code=204,
-                headers={
-                    **cors_headers,
-                    "Access-Control-Allow-Methods": (
-                        "GET, POST, PUT, PATCH, DELETE, OPTIONS, HEAD"
-                    ),
-                    "Access-Control-Allow-Headers": requested_headers or "*",
-                    "Access-Control-Max-Age": "600",
-                },
-            )
-
         prefix = "/" + request.url.path.lstrip("/").split("/")[0]
         upstream_path = request.url.path
         upstream = f"{base_url}{upstream_path}"
@@ -891,28 +922,13 @@ def _install_proxy_routes(demo) -> None:
                 from fastapi.responses import JSONResponse
                 return JSONResponse(
                     {"error": "upstream_unreachable", "detail": str(exc)},
-                    status_code=502,
-                    headers=cors_headers,
+                    status_code=502
                 )
 
         resp_headers = {
             k: v for k, v in upstream_resp.headers.items()
             if k.lower() not in _HOP_BY_HOP
         }
-        # Strip any Access-Control-* headers the upstream Node API set,
-        # then force-set our own on top. Without the strip, an unknown
-        # origin would still see Express's echoed
-        # Access-Control-Allow-Origin in the response (we don't want
-        # to leak that to attackers). For known origins we overwrite
-        # anyway so Access-Control-Allow-Credentials: true is
-        # guaranteed -- Express's cors() config sometimes drops it
-        # for credentialed preflights depending on how the headers
-        # line up.
-        resp_headers = {
-            k: v for k, v in resp_headers.items()
-            if not k.lower().startswith("access-control-")
-        }
-        resp_headers.update(cors_headers)
         content_type = upstream_resp.headers.get("content-type", "")
 
         # Stream SSE responses without buffering.
@@ -940,11 +956,11 @@ def _install_proxy_routes(demo) -> None:
         # NOTE: `add_api_route()` returns None (see _install_health_routes
         # above for why) — read back the appended route object instead.
         fastapi_app.add_api_route(
-            f"{prefix}/{{path:path}}", _proxy_handler, methods=methods
+            f"{prefix}/{{path:path}}", _proxy_handler, methods=methods, include_in_schema=False
         )
         proxy_routes.append(fastapi_app.routes[-1])
         fastapi_app.add_api_route(
-            prefix, _proxy_handler, methods=methods
+            prefix, _proxy_handler, methods=methods, include_in_schema=False
         )
         proxy_routes.append(fastapi_app.routes[-1])
 
@@ -973,6 +989,12 @@ def main():
     # Mount /health, /healthz and reverse-proxy routes on the live app.
     _install_health_routes(demo)
     _install_proxy_routes(demo)
+
+    # Insert ProxyCORSMiddleware into the top of the middleware stack
+    from starlette.middleware import Middleware
+    demo.app.user_middleware.insert(0, Middleware(ProxyCORSMiddleware))
+    demo.app.middleware_stack = None
+    demo.app.build_middleware_stack()
 
     # Kick off npm install + supervisor in a background thread.
     t = threading.Thread(

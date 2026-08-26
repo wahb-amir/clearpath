@@ -14,6 +14,15 @@ export function errorHandler(
   // eslint-disable-next-line @typescript-eslint/no-unused-vars
   _next: NextFunction,
 ): void {
+  // Handle body-parser malformed JSON errors (which set status = 400)
+  if (err instanceof SyntaxError && "status" in err && err.status === 400 && "body" in err) {
+    res.status(400).json({
+      error: "Invalid JSON format in request body",
+      code: "INVALID_JSON",
+    });
+    return;
+  }
+
   if (err instanceof ZodError) {
     res.status(400).json({
       error: "Validation failed",
