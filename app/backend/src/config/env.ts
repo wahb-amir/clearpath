@@ -13,12 +13,6 @@ const envSchema = z.object({
     .default("development"),
 
   // ─── Redis URL (preferred) ────────────────────────────
-  // Prefer a single REDIS_URL (e.g. rediss://... on Upstash). Falls back
-  // to localhost only if neither REDIS_URL nor any of the granular
-  // REDIS_HOST/PORT/... are set in the environment.
-  REDIS_URL: z.string().optional(),
-
-  // ─── Redis Detailed Config ─────────────────────────────
   REDIS_HOST: z.string().optional(),
   REDIS_PORT: z.coerce.number().optional(),
   REDIS_PASSWORD: z.string().optional(),
@@ -114,9 +108,6 @@ export const env = _env.data;
  * - Last-resort default: redis://localhost:6379
  */
 export const resolvedRedis = (() => {
-  if (env.REDIS_URL && env.REDIS_URL.length > 0) {
-    return { url: env.REDIS_URL };
-  }
   if (env.REDIS_HOST) {
     return {
       host: env.REDIS_HOST,
