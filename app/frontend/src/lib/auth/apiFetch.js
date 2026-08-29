@@ -36,7 +36,7 @@ function shouldSkipRefresh(url) {
 
 export async function apiFetch(input, init) {
   const urlString = input.toString();
-  const fullUrl = urlString.startsWith("http")
+  const fullUrl = urlString.startsWith("http") || urlString.startsWith(API_BASE_URL)
     ? urlString
     : `${API_BASE_URL}${urlString.startsWith("/") ? "" : "/"}${urlString}`;
 
