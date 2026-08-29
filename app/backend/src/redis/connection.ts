@@ -1,11 +1,10 @@
 import { Redis, type RedisOptions } from "ioredis";
-import { resolvedRedis } from "../config/env";
+import { env, resolvedRedis } from "../config/env";
 
 const sharedOptions: RedisOptions = {
   host: resolvedRedis.host,
   port: Number(resolvedRedis.port),
   family: 4,
-
   username: env.REDIS_USERNAME || "default",
   password: resolvedRedis.password || undefined,
 
