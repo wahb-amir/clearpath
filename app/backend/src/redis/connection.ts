@@ -6,7 +6,7 @@ const sharedOptions: RedisOptions = {
   port: Number(resolvedRedis.port),
   family: 4,
 
-  username: "app",
+  username: env.REDIS_USERNAME || "default",
   password: resolvedRedis.password || undefined,
 
   maxRetriesPerRequest: null,
