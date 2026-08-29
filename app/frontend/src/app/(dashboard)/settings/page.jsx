@@ -6,7 +6,7 @@ import { Globe, Bell, Type, ShieldAlert, LogOut } from "lucide-react";
 import { apiFetch } from "@/lib/auth/apiFetch";
 
 // Note: Use NEXT_PUBLIC_ prefixes so env variables are exposed to the client bundle safely
-const API_BASE_URL = (process.env.NEXT_PUBLIC_BACKEND_URL || "").replace(
+const API_BASE_URL = ((typeof window !== 'undefined' ? '/backend-api' : process.env.NEXT_PUBLIC_BACKEND_URL) || "").replace(
   /\/$/,
   "",
 );

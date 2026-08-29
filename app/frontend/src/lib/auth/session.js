@@ -2,7 +2,7 @@ import { jwtVerify, createRemoteJWKSet } from "jose";
 import { getAccessToken } from "./cookies";
 
 const BACKEND_URL =
-  process.env.NEXT_PUBLIC_BACKEND_URL || "http://localhost:3001";
+  (typeof window !== 'undefined' ? '/backend-api' : process.env.NEXT_PUBLIC_BACKEND_URL) || "http://localhost:3001";
 
 // Create a remote JWK Set to dynamically fetch and cache public keys
 const JWKS = createRemoteJWKSet(

@@ -94,7 +94,7 @@ function normalizeStage(stage) {
 
 
 async function uploadDocumentFile(file) {
-  const baseUrl = process.env.NEXT_PUBLIC_BACKEND_URL?.replace(/\/$/, "") || "";
+  const baseUrl = (typeof window !== 'undefined' ? '/backend-api' : process.env.NEXT_PUBLIC_BACKEND_URL)?.replace(/\/$/, "") || "";
 
   const signResponse = await apiFetch(`${baseUrl}/uploads/sign`, {
     method: "POST",

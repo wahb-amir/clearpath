@@ -1,6 +1,6 @@
-// lib/auth/apiFetch.js
-const API_BASE_URL =
-  process.env.NEXT_PUBLIC_BACKEND_URL || "http://localhost:3001";
+const API_BASE_URL = typeof window !== 'undefined' 
+  ? "/backend-api" 
+  : (process.env.NEXT_PUBLIC_BACKEND_URL || "http://localhost:3001");
 
 let refreshPromise = null;
 
