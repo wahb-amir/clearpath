@@ -27,12 +27,19 @@ def get_redis_connection_config() -> str | dict[str, Any]:
     if settings.REDIS_URL:
         return str(settings.REDIS_URL)
 
-    return {
+    config: dict[str, Any] = {
         "host": settings.REDIS_HOST,
         "port": settings.REDIS_PORT,
+        "username": settings.REDIS_USERNAME,
         "password": settings.REDIS_PASSWORD,
         "db": settings.REDIS_DB,
     }
+
+    if settings.REDIS_TLS:
+        config["ssl"] = True
+        config["ssl_cert_reqs"] = "none"
+
+    return config
 
 
 def get_worker_options() -> dict[str, Any]:

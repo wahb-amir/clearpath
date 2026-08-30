@@ -16,8 +16,10 @@ class Settings(BaseSettings):
     REDIS_URL: RedisDsn | None = Field(default=None)
     REDIS_HOST: str = Field(default="127.0.0.1")
     REDIS_PORT: int = Field(default=6379, ge=1)
+    REDIS_USERNAME: str = Field(default="app")
     REDIS_PASSWORD: str | None = Field(default=None)
     REDIS_DB: int = Field(default=0, ge=0)
+    REDIS_TLS: bool = Field(default=True)
 
     # Supabase Configuration
     # Optional so the OCR worker can boot on a HF Space before the user
