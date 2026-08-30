@@ -115,10 +115,6 @@ clearpath/
 │       ├── next.config.mjs
 │       └── package.json
 │
-├── services/
-│   └── chunker/                # Rust document chunking service
-│       ├── src/
-│       └── Cargo.toml
 │
 ├── .github/
 │   └── workflows/
