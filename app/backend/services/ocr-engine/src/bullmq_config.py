@@ -25,20 +25,32 @@ def get_bullmq_job_name() -> str:
 
 import socket
 
-def get_redis_connection_config() -> str | dict[str, Any]:
+from urllib.parse import urlparse
+
+def get_redis_connection_config() -> dict[str, Any]:
+    host = settings.REDIS_HOST
+    port = settings.REDIS_PORT
+    password = settings.REDIS_PASSWORD
+    is_tls = settings.REDIS_TLS
+
     if settings.REDIS_URL:
-        return str(settings.REDIS_URL)
+        parsed = urlparse(str(settings.REDIS_URL))
+        host = parsed.hostname or host
+        port = parsed.port or port
+        password = parsed.password or password
+        if parsed.scheme == "rediss":
+            is_tls = True
 
     config: dict[str, Any] = {
-        "host": settings.REDIS_HOST,
-        "port": settings.REDIS_PORT,
+        "host": host,
+        "port": port,
         "username": settings.REDIS_USERNAME,
-        "password": settings.REDIS_PASSWORD,
+        "password": password,
         "db": settings.REDIS_DB,
         "socket_type": socket.AF_INET,
     }
 
-    if settings.REDIS_TLS:
+    if is_tls:
         config["ssl"] = True
         config["ssl_cert_reqs"] = "none"
 
