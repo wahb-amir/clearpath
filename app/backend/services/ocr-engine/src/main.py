@@ -3,6 +3,7 @@ import asyncio
 from pathlib import Path
 import signal
 import tempfile
+import traceback
 
 from io import BytesIO
 import tempfile
