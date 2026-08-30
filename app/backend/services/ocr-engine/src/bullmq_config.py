@@ -47,7 +47,6 @@ def get_redis_connection_config() -> dict[str, Any]:
         "username": settings.REDIS_USERNAME,
         "password": password,
         "db": settings.REDIS_DB,
-        "socket_type": socket.AF_INET,
     }
 
     if is_tls:
