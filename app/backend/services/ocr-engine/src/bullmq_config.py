@@ -23,6 +23,8 @@ def get_bullmq_job_name() -> str:
     return settings.BULLMQ_JOB_NAME
 
 
+import socket
+
 def get_redis_connection_config() -> str | dict[str, Any]:
     if settings.REDIS_URL:
         return str(settings.REDIS_URL)
@@ -33,6 +35,7 @@ def get_redis_connection_config() -> str | dict[str, Any]:
         "username": settings.REDIS_USERNAME,
         "password": settings.REDIS_PASSWORD,
         "db": settings.REDIS_DB,
+        "socket_type": socket.AF_INET,
     }
 
     if settings.REDIS_TLS:
