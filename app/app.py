@@ -908,22 +908,22 @@ def _install_proxy_routes(demo) -> None:
         }
         body = await request.body()
 
-        async with httpx.AsyncClient(
-            timeout=httpx.Timeout(120.0, connect=10.0)
-        ) as client:
-            try:
-                upstream_resp = await client.request(
-                    method=request.method,
-                    url=upstream,
-                    headers=headers,
-                    content=body,
-                )
-            except httpx.RequestError as exc:
-                from fastapi.responses import JSONResponse
-                return JSONResponse(
-                    {"error": "upstream_unreachable", "detail": str(exc)},
-                    status_code=502
-                )
+        client = httpx.AsyncClient(timeout=httpx.Timeout(120.0, connect=10.0))
+        req = client.build_request(
+            method=request.method,
+            url=upstream,
+            headers=headers,
+            content=body,
+        )
+        try:
+            upstream_resp = await client.send(req, stream=True)
+        except httpx.RequestError as exc:
+            await client.aclose()
+            from fastapi.responses import JSONResponse
+            return JSONResponse(
+                {"error": "upstream_unreachable", "detail": str(exc)},
+                status_code=502
+            )
 
         resp_headers = {
             k: v for k, v in upstream_resp.headers.items()
@@ -934,14 +934,24 @@ def _install_proxy_routes(demo) -> None:
         # Stream SSE responses without buffering.
         if "text/event-stream" in content_type:
             async def _stream():
-                async for chunk in upstream_resp.aiter_bytes():
-                    yield chunk
+                try:
+                    async for chunk in upstream_resp.aiter_bytes():
+                        yield chunk
+                finally:
+                    await upstream_resp.aclose()
+                    await client.aclose()
             return StreamingResponse(
                 _stream(),
                 status_code=upstream_resp.status_code,
                 headers=resp_headers,
                 media_type=content_type,
             )
+
+        try:
+            await upstream_resp.aread()
+        finally:
+            await upstream_resp.aclose()
+            await client.aclose()
 
         return Response(
             content=upstream_resp.content,
