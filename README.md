@@ -49,7 +49,7 @@ A user uploads a document → the system runs a multi-stage preprocessing and AI
           ▼                 ▼                   ▼
    ┌─────────────┐   ┌─────────────┐   ┌─────────────────┐
    │  Supabase   │   │    Redis    │   │   Groq LLM API  │
-   │  (Postgres  │   │  (BullMQ   │   │  (llama-3.3-70b)│
+   │  (Postgres  │   │  (BullMQ   │   │  │
    │   Storage)  │   │   queues + │   │                 │
    │             │   │   pub/sub) │   │  Tavily Search  │
    └─────────────┘   └─────────────┘   └─────────────────┘
@@ -142,7 +142,7 @@ clearpath/
 | File Storage      | Supabase Storage                                               |
 | Queue             | BullMQ (backed by Redis / ioredis)                             |
 | Auth              | Custom JWT (httpOnly cookies) + argon2 password hashing        |
-| LLM               | Groq API — `llama-3.3-70b-versatile`                           |
+| LLM               | Groq API — `openai/gpt-oss-120b`                           |
 | Web Search        | Tavily Search API (for official source grounding)              |
 | Schema Validation | Zod                                                            |
 | Logging           | Morgan                                                         |
@@ -645,7 +645,7 @@ ClearPath includes a comprehensive Vitest test suite covering all document prepr
 | `SUPABASE_SECRET_KEY`           | ✅       | —                         | Supabase service role secret key                                  |
 | `SUPABASE_PUBLISHABLE_KEY`      | ✅       | —                         | Supabase anon/publishable key                                     |
 | `GROQ_API_KEY`                  | ✅       | —                         | Groq API key (starts with `gsk_`)                                 |
-| `GROQ_MODEL`                    |          | `llama-3.3-70b-versatile` | Groq model ID                                                     |
+| `GROQ_MODEL`                    |          | `openai/gpt-oss-120b` | Groq model ID                                                     |
 | `TAVILY_API_KEY`                | ✅       | —                         | Tavily Search API key                                             |
 | `INTERNAL_API_KEY`              | ✅       | —                         | Secret key for internal endpoints (min 16 chars)                  |
 | `ACCESS_TOKEN_EXPIRY`           |          | `15m`                     | JWT access token lifetime                                         |

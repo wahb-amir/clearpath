@@ -8,9 +8,9 @@ class Settings(BaseSettings):
     """Application Settings Schema and Environment Validator."""
 
     # Threading Limits (coerced to int, with defaults)
-    OMP_NUM_THREADS: int = Field(default=2, ge=1)
-    OPENBLAS_NUM_THREADS: int = Field(default=2, ge=1)
-    MKL_NUM_THREADS: int = Field(default=2, ge=1)
+    OMP_NUM_THREADS: int = Field(default=4, ge=1)
+    OPENBLAS_NUM_THREADS: int = Field(default=4, ge=1)
+    MKL_NUM_THREADS: int = Field(default=4, ge=1)
 
     # Redis Configuration
     REDIS_URL: RedisDsn | None = Field(default=None)
@@ -60,7 +60,7 @@ class Settings(BaseSettings):
     # 30s cuts that to ~2.9K/day with no perceptible pickup latency for a
     # user-initiated document-analysis pipeline (each OCR job itself takes
     # tens of seconds). Tune via env without redeploying code.
-    BULLMQ_DRAIN_DELAY_SECONDS: int = Field(default=30, ge=1)
+    BULLMQ_DRAIN_DELAY_SECONDS: int = Field(default=2, ge=1)
 
     # Storage buckets
     RAW_BUCKET: str = Field(

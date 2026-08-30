@@ -91,6 +91,27 @@ def _truthy(value: str | None) -> bool:
 
 ENABLE_PYTHON_OCR_WORKER = _truthy(os.environ.get("ENABLE_PYTHON_OCR_WORKER"))
 
+# Persistent httpx client for the reverse proxy.
+# Creating a new AsyncClient per request tears down and re-creates the
+# TCP+SSL connection pool every time (150-200ms overhead per call).
+# A shared client with keepalive connections reduces this to ~5-10ms
+# after the first request warmup.
+_proxy_client: "object | None" = None  # type: httpx.AsyncClient | None
+
+def _get_proxy_client():  # -> httpx.AsyncClient
+    global _proxy_client
+    if _proxy_client is None and httpx is not None:
+        _proxy_client = httpx.AsyncClient(
+            timeout=httpx.Timeout(120.0, connect=10.0),
+            limits=httpx.Limits(
+                max_keepalive_connections=20,
+                max_connections=50,
+                keepalive_expiry=30.0,
+            ),
+        )
+    return _proxy_client
+
+
 # How many trailing lines of a child's log file to print on crash so
 # the actual error reaches HF's main log stream (the per-child log file
 # lives on ephemeral disk and is not viewable from the Space UI).
@@ -402,10 +423,13 @@ def get_ocr_cmd():
 
 def get_ocr_env():
     env = os.environ.copy()
-    # Threading caps – keeps the OCR worker from chewing the container's CPU budget
-    env.setdefault("OMP_NUM_THREADS", "2")
-    env.setdefault("OPENBLAS_NUM_THREADS", "2")
-    env.setdefault("MKL_NUM_THREADS", "2")
+    # Threading caps – use more of the available CPU on HF Spaces.
+    # Docling's ONNX layout + OCR models benefit significantly from
+    # additional threads; caps were previously set to 2 which left
+    # most CPUs idle during inference.
+    env.setdefault("OMP_NUM_THREADS", "4")
+    env.setdefault("OPENBLAS_NUM_THREADS", "4")
+    env.setdefault("MKL_NUM_THREADS", "4")
 
     if env.get("SUPABASE_SECRET_KEY") and not env.get("SUPABASE_KEY"):
         env["SUPABASE_KEY"] = env["SUPABASE_SECRET_KEY"]
