@@ -88,6 +88,14 @@ function formatBytes(bytes) {
   return `${value.toFixed(value >= 10 ? 0 : 1)} ${units[unitIndex]}`;
 }
 
+function formatRetryAfter(seconds) {
+  if (seconds < 60) {
+    return `${seconds} second${seconds !== 1 ? "s" : ""}`;
+  }
+  const minutes = Math.ceil(seconds / 60);
+  return `${minutes} minute${minutes !== 1 ? "s" : ""}`;
+}
+
 function normalizeStage(stage) {
   return stage || "IDLE";
 }
@@ -868,7 +876,19 @@ export default function DocumentIntelligencePanel({
         if (controller.signal.aborted) return;
         setIsConnected(false);
         setReconnecting(true);
-        setError(err instanceof Error ? err.message : "Connection error");
+
+        // Handle rate limit errors with retry-after info
+        if (err && typeof err === "object" && err.retryAfter) {
+          const retryAfter = err.retryAfter;
+          const retryAfterHuman = err.retryAfterHuman || formatRetryAfter(retryAfter);
+          setError(
+            `Rate limited. Please try again in ${retryAfterHuman}.`,
+          );
+          setFailed(true);
+          setIsAnalyzing(false);
+        } else {
+          setError(err instanceof Error ? err.message : "Connection error");
+        }
       } finally {
         resumeLockRef.current = false;
       }
@@ -1208,7 +1228,17 @@ export default function DocumentIntelligencePanel({
       setIsConnected(false);
       setReconnecting(false);
       setFailed(true);
-      setError(err instanceof Error ? err.message : "Failed to start analysis");
+
+      // Handle rate limit errors with retry-after info
+      if (err && typeof err === "object" && err.retryAfter) {
+        const retryAfter = err.retryAfter;
+        const retryAfterHuman = err.retryAfterHuman || formatRetryAfter(retryAfter);
+        setError(
+          `Rate limited. Please try again in ${retryAfterHuman}.`,
+        );
+      } else {
+        setError(err instanceof Error ? err.message : "Failed to start analysis");
+      }
     }
   }, [onAiResult, onAnalyze, onComplete, persistSession, selectedFile]);
 

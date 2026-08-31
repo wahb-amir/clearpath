@@ -52,6 +52,17 @@ export class OutboxDispatchError extends AppError {
   }
 }
 
+export class RateLimitError extends AppError {
+  constructor(
+    message: string,
+    public readonly retryAfter?: number,
+    details?: unknown,
+  ) {
+    super(429, message, "RATE_LIMITED", details);
+    this.name = this.constructor.name;
+  }
+}
+
 export class UnsupportedFileTypeError extends AppError {
   constructor(mimeType: string) {
     super(415, `Unsupported file type: ${mimeType}`, "UNSUPPORTED_FILE_TYPE");

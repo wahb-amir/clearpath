@@ -69,6 +69,15 @@ export async function apiFetch(input, init = {}) {
 async function readErrorMessage(res) {
   try {
     const data = await res.json();
+    // Handle rate limit errors with retry-after info
+    if (res.status === 429 && data.retryAfter) {
+      return {
+        message: data.error || data.message || "Rate limited",
+        code: data.code || "RATE_LIMITED",
+        retryAfter: data.retryAfter,
+        retryAfterHuman: data.retryAfterHuman,
+      };
+    }
     return data?.error || data?.message || `Request failed (${res.status})`;
   } catch {
     return `Request failed (${res.status})`;
@@ -94,7 +103,12 @@ export async function startAnalysisRequest(params) {
   );
 
   if (!res.ok) {
-    throw new Error(await readErrorMessage(res));
+    const error = await readErrorMessage(res);
+    // If error is an object with retryAfter, throw it as-is for the caller to handle
+    if (typeof error === "object" && error.retryAfter) {
+      throw error;
+    }
+    throw new Error(error);
   }
 
   return res.json();
@@ -117,10 +131,32 @@ export async function fetchAnalysisHistory({
   const res = await apiFetch(url, { method: "GET" });
 
   if (!res.ok) {
-    throw new Error(await readErrorMessage(res));
+    const error = await readErrorMessage(res);
+    if (typeof error === "object" && error.retryAfter) {
+      throw error;
+    }
+    throw new Error(error);
   }
 
   return res.json();
+}
+
+async function readSSEErrorMessage(res) {
+  try {
+    const data = await res.json();
+    // Handle rate limit errors with retry-after info
+    if (res.status === 429 && data.retryAfter) {
+      return {
+        message: data.error || data.message || "Rate limited",
+        code: data.code || "RATE_LIMITED",
+        retryAfter: data.retryAfter,
+        retryAfterHuman: data.retryAfterHuman,
+      };
+    }
+    return data?.error || data?.message || `Request failed (${res.status})`;
+  } catch {
+    return `Request failed (${res.status})`;
+  }
 }
 
 export async function openAnalysisStream(params) {
@@ -142,6 +178,15 @@ export async function openAnalysisStream(params) {
           throw new Error("Session refreshed, reconnecting SSE");
         }
         throw new Error(`SSE unauthorized (${res.status})`);
+      }
+
+      // Handle rate limit on SSE connection
+      if (res.status === 429) {
+        const error = await readSSEErrorMessage(res);
+        if (typeof error === "object" && error.retryAfter) {
+          throw error;
+        }
+        throw new Error(error);
       }
 
       if (!res.ok) {
