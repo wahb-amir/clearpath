@@ -30,6 +30,12 @@ const envSchema = z.object({
   ACCESS_TOKEN_EXPIRY: z.string().default("15m"),
   REFRESH_TOKEN_EXPIRY_DAYS: z.coerce.number().default(7),
 
+  // ─── JWT Keys (for HF Spaces / persistent environments) ───
+  // When set, these are used instead of generating/storing keys in the filesystem.
+  // This prevents token invalidation on every rebuild/deploy.
+  JWT_PRIVATE_KEY: z.string().optional(),
+  JWT_PUBLIC_KEY: z.string().optional(),
+
   // ─── Supabase ──────────────────────────────────────────
   SUPABASE_URL: z.string().url().optional(),
   SUPABASE_SECRET_KEY: z.string().optional(),
