@@ -33,3 +33,20 @@ export function getGroqClient(): Groq {
 export function getGroqModel(): string {
   return env.GROQ_MODEL;
 }
+
+/**
+ * Get the appropriate model for a specific pipeline stage.
+ * Uses larger model for critical reasoning stages (verification, safety),
+ * faster default model for other stages.
+ */
+export function getGroqModelForStage(stageLabel: string): string {
+  const defaultModel = env.GROQ_MODEL;
+
+  // Use larger model for stages requiring careful reasoning
+  if (stageLabel === "stage3" || stageLabel === "stage5") {
+    // Can be overridden via env var for even larger model if needed
+    return env.GROQ_MODEL_VERIFICATION ?? "openai/gpt-oss-20b"; // Use same 20B for now, can upgrade later
+  }
+
+  return defaultModel;
+}

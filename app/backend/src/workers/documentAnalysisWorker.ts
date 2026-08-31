@@ -13,7 +13,8 @@ export function createDocumentAnalysisWorker(): Worker<DocumentAnalysisJobData> 
     },
     {
       connection: createWorkerConnection() as ConnectionOptions,
-      concurrency: 1,
+      // Increased from 1 to 3 to parallelize agentic pipeline runs
+      concurrency: 3,
       lockDuration: 15 * 60 * 1000,
       autorun: true,
     },

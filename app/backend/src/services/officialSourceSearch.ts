@@ -202,7 +202,8 @@ export async function searchOfficialSources(
   options: OfficialSearchOptions = {},
 ): Promise<OfficialSourceSnippet[]> {
   const count = Math.min(Math.max(options.count ?? 5, 1), 10);
-  const timeoutMs = options.timeoutMs ?? 9000;
+  // Reduced from 9000ms to 5000ms - page excerpts now run in parallel
+  const timeoutMs = options.timeoutMs ?? 5000;
 
   const snippets = await runTavilyQuery(query, count, options.officialDomains);
 
@@ -223,19 +224,21 @@ export async function searchOfficialSources(
 
   const excerptTargets = snippets.slice(0, 3);
 
-  for (const t of excerptTargets) {
-    try {
-      const excerpt = await fetchPageExcerpt(t.url, timeoutMs);
-      if (excerpt) {
-        snippets.push({
-          title: t.title,
-          url: t.url,
-          snippet: excerpt,
-          source: "page_excerpt",
-        });
-      }
-    } catch {
-      // ignore
+  // Parallelize page excerpt fetches - was sequential (3 × 9s = up to 27s worst case)
+  // Now parallel with 5s timeout = 5s worst case
+  const excerptResults = await Promise.allSettled(
+    excerptTargets.map((t) => fetchPageExcerpt(t.url, 5000)),
+  );
+
+  for (let i = 0; i < excerptTargets.length; i++) {
+    const r = excerptResults[i];
+    if (r.status === "fulfilled" && r.value) {
+      snippets.push({
+        title: excerptTargets[i].title,
+        url: excerptTargets[i].url,
+        snippet: r.value,
+        source: "page_excerpt",
+      });
     }
   }
 

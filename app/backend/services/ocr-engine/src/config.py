@@ -53,13 +53,12 @@ class Settings(BaseSettings):
         default="extract-layout-and-ocr",
         env="BULLMQ_JOB_NAME",
     )
-    BULLMQ_CONCURRENCY: int = Field(default=2, ge=1)
+    # Increased from 2 to 3 to utilize more CPU cores on HF Spaces
+    BULLMQ_CONCURRENCY: int = Field(default=3, ge=1)
     # Seconds the BullMQ worker waits between BRPOP-style polls after the
     # queue empties. The library default is 5s, which costs ~17K Redis
     # commands/day purely from idle polling when nothing is in the queue.
-    # 30s cuts that to ~2.9K/day with no perceptible pickup latency for a
-    # user-initiated document-analysis pipeline (each OCR job itself takes
-    # tens of seconds). Tune via env without redeploying code.
+    # 2s reduces idle polling overhead while keeping responsive pickup.
     BULLMQ_DRAIN_DELAY_SECONDS: int = Field(default=2, ge=1)
 
     # Storage buckets

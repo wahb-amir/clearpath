@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { getGroqClient, getGroqModel } from "../../lib/llm/groqClient";
+import { getGroqClient, getGroqModel, getGroqModelForStage } from "../../lib/llm/groqClient";
 import type { ChatMessage } from "./types";
 import {
   estimateMessagesTokens,
@@ -184,7 +184,8 @@ export async function askGroqJsonStreaming<T>(
   timeoutMs = 30000,
 ): Promise<T> {
   const client = getGroqClient();
-  const model = getGroqModel();
+  // Use stage-appropriate model: larger for verification/safety, faster default for others
+  const model = getGroqModelForStage(stageLabel);
 
   console.log(`[${stageLabel}] streaming start`);
 
@@ -338,7 +339,7 @@ export async function askGroqJsonWithToolsStreaming(
   timeoutMs = 60000,
 ): Promise<GroqToolStreamResult> {
   const client = getGroqClient();
-  const model = getGroqModel();
+  const model = getGroqModelForStage(stageLabel);
 
   console.log(`[${stageLabel}] streaming-tools start (${tools.length} tools)`);
 

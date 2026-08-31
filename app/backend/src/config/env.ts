@@ -69,7 +69,11 @@ const envSchema = z.object({
   CLEARPATH_ANALYSIS_QUEUE_NAME: z.string().default("clearpath-ai-analysis"),
 
   GROQ_API_KEY: z.string().optional(),
-  GROQ_MODEL: z.string().default("llama-3.3-70b-versatile"),
+  // Default model for most stages (fast 20B model).
+  // Stage 3 (Verification) and Stage 5 (Safety) can override to larger model via getGroqModelForStage().
+  GROQ_MODEL: z.string().default("openai/gpt-oss-20b"),
+  // Optional: larger model for verification/safety stages (requires more reasoning)
+  GROQ_MODEL_VERIFICATION: z.string().optional(),
 
   TAVILY_API_KEY: z.string().optional(),
   FRONTEND_URL: z.string().default("http://localhost:3000"),
