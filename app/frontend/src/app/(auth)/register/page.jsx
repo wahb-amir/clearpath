@@ -6,11 +6,6 @@ import { motion } from "framer-motion";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { ArrowRight, Eye, EyeOff, ShieldCheck } from "lucide-react";
-import { apiFetch } from "@/lib/auth/apiFetch";
-const API_BASE_URL = ((typeof window !== 'undefined' ? '/backend-api' : process.env.NEXT_PUBLIC_BACKEND_URL) || "").replace(
-  /\/$/,
-  "",
-);
 
 export default function RegisterPage() {
   const router = useRouter();
@@ -38,11 +33,11 @@ export default function RegisterPage() {
   const onSubmit = async (data) => {
     setSubmitError(null);
     try {
-      if (!API_BASE_URL) throw new Error("Missing NEXT_PUBLIC_BACKEND_URL");
       if (data.password !== data.confirmPassword)
         throw new Error("Passwords do not match");
 
-      const response = await apiFetch(`${API_BASE_URL}/auth/register`, {
+      // Use the frontend API route which proxies to backend and handles cross-site cookies
+      const response = await fetch("/api/auth/register", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -50,6 +45,7 @@ export default function RegisterPage() {
           email: data.email,
           password: data.password,
         }),
+        credentials: "include",
       });
 
       const payload = await response.json().catch(() => ({}));
