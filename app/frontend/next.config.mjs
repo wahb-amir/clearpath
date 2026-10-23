@@ -5,6 +5,15 @@ const nextConfig = {
   typescript: {
     ignoreBuildErrors: true,
   },
+  // Explicitly use Webpack for production builds (Turbopack is experimental for production)
+  // This fixes 404/text/plain MIME issues with static chunks on Vercel
+  webpack: (config, { isServer, dev }) => {
+    // Ensure proper MIME types for static assets
+    if (!dev && !isServer) {
+      config.output.charset = "utf-8";
+    }
+    return config;
+  },
   async rewrites() {
     // If NEXT_PUBLIC_BACKEND_URL is set (e.g. Hugging Face Space), proxy it
     // so the browser treats it as a same-origin request and bypasses CORS preflight.
@@ -20,12 +29,16 @@ const nextConfig = {
     return [
       {
         // Add caching headers for static assets to reduce HTTP/2 connection issues
-        // (like ERR_HTTP2_PING_FAILED) with Turbopack/CDN configurations
         source: "/_next/static/:path*",
         headers: [
           {
             key: "Cache-Control",
             value: "public, max-age=31536000, immutable",
+          },
+          // Ensure correct MIME type for JavaScript chunks
+          {
+            key: "Content-Type",
+            value: "application/javascript; charset=utf-8",
           },
         ],
       },
