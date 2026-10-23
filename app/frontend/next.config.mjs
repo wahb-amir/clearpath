@@ -5,9 +5,10 @@ const nextConfig = {
   typescript: {
     ignoreBuildErrors: true,
   },
-  // Explicitly use Webpack for all builds (Turbopack is experimental for production)
+  // Explicitly disable Turbopack (experimental) to use Webpack for all builds
   // This fixes 404/text/plain MIME issues with static chunks on Vercel
-  turbopack: false,
+  // and the "Call retries were exceeded" build error
+  turbopack: {},
   webpack: (config, { isServer, dev }) => {
     // Ensure proper MIME types for static assets
     if (!dev && !isServer) {
