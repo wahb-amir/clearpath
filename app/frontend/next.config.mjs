@@ -5,8 +5,9 @@ const nextConfig = {
   typescript: {
     ignoreBuildErrors: true,
   },
-  // Explicitly use Webpack for production builds (Turbopack is experimental for production)
+  // Explicitly use Webpack for all builds (Turbopack is experimental for production)
   // This fixes 404/text/plain MIME issues with static chunks on Vercel
+  turbopack: false,
   webpack: (config, { isServer, dev }) => {
     // Ensure proper MIME types for static assets
     if (!dev && !isServer) {
