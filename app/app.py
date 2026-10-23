@@ -486,7 +486,7 @@ def _install_and_serve() -> None:
         env["NODE_ENV"] = "development"
         try:
             subprocess.run(
-                ["pnpm", "install", "--no-audit", "--no-fund"],
+                ["pnpm", "install", "--no-fund"],
                 cwd=str(BACKEND_DIR),
                 env=env,
                 check=True,
