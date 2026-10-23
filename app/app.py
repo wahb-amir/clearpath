@@ -462,6 +462,24 @@ def _install_and_serve() -> None:
     """
     global _last_install_error
 
+    # Ensure pnpm is available (HF Spaces may not have it pre-installed).
+    # Use corepack (bundled with Node.js >= 16.9) to enable pnpm.
+    def _ensure_pnpm() -> None:
+        try:
+            subprocess.run(["pnpm", "--version"], check=True, capture_output=True)
+            return  # pnpm already available
+        except (subprocess.CalledProcessError, FileNotFoundError):
+            pass
+        print("[boot] enabling pnpm via corepack...", flush=True)
+        try:
+            subprocess.run(["corepack", "enable", "pnpm"], check=True)
+        except (subprocess.CalledProcessError, FileNotFoundError):
+            # Fallback: install pnpm via npm if corepack not available
+            print("[boot] corepack not available, installing pnpm via npm...", flush=True)
+            subprocess.run(["npm", "install", "-g", "pnpm"], check=True)
+
+    _ensure_pnpm()
+
     if not (BACKEND_DIR / "node_modules").exists():
         print("[boot] running pnpm install in backend...", flush=True)
         env = os.environ.copy()
