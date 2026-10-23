@@ -16,6 +16,40 @@ const nextConfig = {
       },
     ];
   },
+  async headers() {
+    return [
+      {
+        // Add caching headers for static assets to reduce HTTP/2 connection issues
+        // (like ERR_HTTP2_PING_FAILED) with Turbopack/CDN configurations
+        source: "/_next/static/:path*",
+        headers: [
+          {
+            key: "Cache-Control",
+            value: "public, max-age=31536000, immutable",
+          },
+        ],
+      },
+      {
+        source: "/_next/image/:path*",
+        headers: [
+          {
+            key: "Cache-Control",
+            value: "public, max-age=31536000, immutable",
+          },
+        ],
+      },
+      {
+        // Also add headers for the main document to help with connection reuse
+        source: "/:path*",
+        headers: [
+          {
+            key: "X-Content-Type-Options",
+            value: "nosniff",
+          },
+        ],
+      },
+    ];
+  },
 };
 
 export default nextConfig;
