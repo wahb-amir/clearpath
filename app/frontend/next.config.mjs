@@ -28,16 +28,19 @@ const nextConfig = {
     ];
   },
   async headers() {
-    return [
+    // Only apply custom headers in production (Vercel sets NODE_ENV=production)
+    // to avoid breaking Next.js development behavior with custom Cache-Control
+    const isProd = process.env.NODE_ENV === "production";
+
+    const prodHeaders = [
       {
-        // Add caching headers for static assets to reduce HTTP/2 connection issues
-        source: "/_next/static/:path*",
+        // Add caching headers for JS chunks to reduce HTTP/2 connection issues
+        source: "/_next/static/chunks/:path*.js",
         headers: [
           {
             key: "Cache-Control",
             value: "public, max-age=31536000, immutable",
           },
-          // Ensure correct MIME type for JavaScript chunks
           {
             key: "Content-Type",
             value: "application/javascript; charset=utf-8",
@@ -53,8 +56,11 @@ const nextConfig = {
           },
         ],
       },
+    ];
+
+    const allHeaders = [
       {
-        // Also add headers for the main document to help with connection reuse
+        // Security header for all routes
         source: "/:path*",
         headers: [
           {
@@ -64,6 +70,8 @@ const nextConfig = {
         ],
       },
     ];
+
+    return isProd ? [...prodHeaders, ...allHeaders] : allHeaders;
   },
 };
 
