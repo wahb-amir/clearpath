@@ -7,5 +7,8 @@
     "build:backend": "pnpm --filter backend build",
     "build:frontend": "pnpm --filter clearpath build",
     "test:backend": "pnpm --filter backend test"
+  },
+  "devDependencies": {
+    "@types/node": "^26.4.0"
   }
 }

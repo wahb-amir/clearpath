@@ -463,23 +463,23 @@ def _install_and_serve() -> None:
     global _last_install_error
 
     if not (BACKEND_DIR / "node_modules").exists():
-        print("[boot] running npm install in backend...", flush=True)
+        print("[boot] running pnpm install in backend...", flush=True)
         env = os.environ.copy()
         env["NODE_ENV"] = "development"
         try:
             subprocess.run(
-                ["npm", "install", "--no-audit", "--no-fund"],
+                ["pnpm", "install", "--no-audit", "--no-fund"],
                 cwd=str(BACKEND_DIR),
                 env=env,
                 check=True,
             )
-            print("[boot] npm install completed", flush=True)
+            print("[boot] pnpm install completed", flush=True)
         except subprocess.CalledProcessError as exc:
-            _last_install_error = f"npm install failed with code {exc.returncode}"
+            _last_install_error = f"pnpm install failed with code {exc.returncode}"
             print(f"[boot] {_last_install_error}; children will not start", flush=True)
             return
         except Exception as exc:
-            _last_install_error = f"npm install raised {exc!r}"
+            _last_install_error = f"pnpm install raised {exc!r}"
             print(f"[boot] {_last_install_error}; children will not start", flush=True)
             return
 
@@ -489,7 +489,7 @@ def _install_and_serve() -> None:
         print("[boot] building TypeScript dist...", flush=True)
         try:
             subprocess.run(
-                ["npm", "run", "build"],
+                ["pnpm", "run", "build"],
                 cwd=str(BACKEND_DIR),
                 check=True,
             )
